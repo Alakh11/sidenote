@@ -6,6 +6,7 @@ from utils import create_default_categories
 import logging
 import os
 from routers import auth, transactions, features, analytics, admin
+from whatsapp_service import send_hello_world
 
 # Setup
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +39,10 @@ app.include_router(admin.router)
 @app.get("/", tags=["Health"])
 def health_check():
     return {"status": "ok", "message": "API is running"}
+
+@app.get("/test-whatsapp")
+async def trigger_whatsapp_test():
+    return await send_hello_world()
 
 # --- Database Initialization on Startup ---
 @app.on_event("startup")
