@@ -169,5 +169,7 @@ The app is configured to run easily on platforms like **Render** or **Railway**.
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 10000
+uvicorn main:app --reload --port 5001
+python -m uvicorn main:app --reload
 
 ```
