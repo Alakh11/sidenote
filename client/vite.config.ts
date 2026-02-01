@@ -16,8 +16,8 @@ export default defineConfig({
   },
   preview: {
     allowedHosts: [
-      "alakh-finance.onrender.com",
-      "sidenote-q60v.onrender.com",
+      "sidenote-7o2d.onrender.com",
+      "https://sidenote-7o2d.onrender.com",
       "alakh11.github.io"
     ],
   },
