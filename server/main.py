@@ -36,7 +36,7 @@ app.include_router(features.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
 
-@app.get("/", tags=["Health"])
+@app.api_route("/", tags=["Health"], methods=["GET", "HEAD"])
 def health_check():
     return {"status": "ok", "message": "API is running"}
 
