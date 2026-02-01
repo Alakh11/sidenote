@@ -1,4 +1,4 @@
-# 💰 FinTrack
+# 💰 SideNote
 
 <div align="center">
 
@@ -33,7 +33,7 @@
 
 ## 📖 Overview
 
-**FinTrack** is a robust, full-stack financial management application designed to give users complete control over their money. Unlike simple expense trackers, FinTrack offers advanced modules for **EMI Loan Tracking**, **Debt/Lending Management**, and **Visual Savings Goals**.
+**SideNote** is a robust, full-stack financial management application designed to give users complete control over their money. Unlike simple expense trackers, SideNote offers advanced modules for **EMI Loan Tracking**, **Debt/Lending Management**, and **Visual Savings Goals**.
 
 It features a modular **Python FastAPI** backend for high performance and a reactive **React + TanStack Router** frontend for a seamless, app-like experience.
 

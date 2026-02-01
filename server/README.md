@@ -1,4 +1,4 @@
-# ⚡ FinTrack Backend
+# ⚡ SideNote Backend
 
 <div align="center">
 
@@ -17,7 +17,7 @@
   <br />
 
   <p>
-    The backend of <strong>FinTrack</strong> is a high-performance, asynchronous REST API built with <strong>FastAPI</strong>. It handles complex financial logic, secure authentication, and real-time data aggregation.
+    The backend of <strong>SideNote</strong> is a high-performance, asynchronous REST API built with <strong>FastAPI</strong>. It handles complex financial logic, secure authentication, and real-time data aggregation.
   </p>
   
   <h3>

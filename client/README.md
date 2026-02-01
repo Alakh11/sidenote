@@ -1,4 +1,4 @@
-# ⚛️ FinTrack Client
+# ⚛️ SideNote Client
 
 <div align="center">
 
@@ -17,7 +17,7 @@
   <br />
 
   <p>
-    The frontend of <strong>FinTrack</strong> is a high-performance Single Page Application (SPA) built for speed and aesthetics. It features a custom "Creamy Cake" <strong>Soft UI</strong>, fully integrated <strong>Dark Mode</strong>, and type-safe routing.
+    The frontend of <strong>SideNote</strong> is a high-performance Single Page Application (SPA) built for speed and aesthetics. It features a custom "Creamy Cake" <strong>Soft UI</strong>, fully integrated <strong>Dark Mode</strong>, and type-safe routing.
   </p>
 </div>
 

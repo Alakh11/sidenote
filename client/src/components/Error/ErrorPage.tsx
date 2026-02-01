@@ -58,7 +58,7 @@ export default function ErrorPage({ code = 404, customMessage, onRetry }: ErrorP
     },
     503: {
       title: "Under Maintenance",
-      message: "We are currently performing maintenance. FinTrack will be back shortly.",
+      message: "We are currently performing maintenance. SideNote will be back shortly.",
       icon: Construction,
       color: "text-yellow-600",
       bg: "bg-yellow-50"

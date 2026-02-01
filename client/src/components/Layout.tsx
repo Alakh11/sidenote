@@ -79,7 +79,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                     <img src={icon} className="w-6 h-6" alt="" />
                 </div>
                 <div>
-                    <h1 className="text-xl font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">FinTrack</h1>
+                    <h1 className="text-xl font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">SideNote</h1>
                     {/* <p className="text-xs text-blue-500 font-bold uppercase">Alakh</p> */}
                 </div>
             </Link>
@@ -135,7 +135,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
              <div className="p-2 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 rounded-lg shadow-lg">
                 <img src={icon} className="w-6 h-6" alt="Logo" />
              </div>
-            <span className="font-bold text-slate-800 text-lg dark:text-white">FinTrack</span>
+            <span className="font-bold text-slate-800 text-lg dark:text-white">SideNote</span>
          </Link>
          
          <div className="flex items-center gap-2">
