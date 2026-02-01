@@ -59,7 +59,7 @@ function App() {
         style={{ backgroundImage: `url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')` }}
       >
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
-        <GoogleOAuthProvider clientId="577129960094-dvqmurtgvtui2s2kunj7m73togc94kll.apps.googleusercontent.com">
+        <GoogleOAuthProvider clientId="577129960094-8u7ef3ijs82pkmdou8goofcqatku3c70.apps.googleusercontent.com">
             <Auth onLoginSuccess={handleLoginSuccess} />
         </GoogleOAuthProvider>
       </div>
