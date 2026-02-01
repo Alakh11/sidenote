@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- THE CREAMY CAKE THEME --- */
+
+body {
+  @apply bg-[#FAFAF9] text-stone-700; /* Warm stone-50 background */
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin: 0;
+  padding: 0;
+  /* Fix alignment issues */
+  display: block; 
+  min-height: 100vh;
+}
+
+/* Soft, smooth interaction for everything */
+* {
+  transition-property: background-color, border-color, opacity, box-shadow, transform;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom "Creamy" Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-stone-200 rounded-full border-2 border-[#FAFAF9];
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-stone-300;
+}
+
+/* Utility to center main content like a card */
+.layout-container {
+  @apply max-w-7xl mx-auto;
+}
