@@ -29,7 +29,7 @@ interface RouterContext {
   handleLogout: () => void;
 }
 
-const API_URL = "https://sidenote-q60v.onrender.com";
+const API_URL = "https://sidenote-7o2d.onrender.com";
 
 // --- 1. Root Route (Layout) ---
 const rootRoute = createRootRouteWithContext<RouterContext>()({

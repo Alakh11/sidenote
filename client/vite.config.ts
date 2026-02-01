@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://sidenote-q60v.onrender.com',
+        target: 'https://sidenote-7o2d.onrender.com',
         changeOrigin: true,
         secure: false,
       },

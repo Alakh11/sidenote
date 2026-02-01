@@ -16,7 +16,7 @@
     <a href="https://alakh11.github.io/sidenote/">
       <img src="https://img.shields.io/badge/🔗_Live_Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
     </a>
-    <a href="https://sidenote-q60v.onrender.com">
+    <a href="https://sidenote-7o2d.onrender.com">
       <img src="https://img.shields.io/badge/🔌_API_Status-000000?style=for-the-badge&logo=render&logoColor=white" alt="API Status" />
     </a>
   </p>

@@ -24,7 +24,7 @@ export default function CategoryManager() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
-  const API_URL = "https://sidenote-q60v.onrender.com";
+  const API_URL = "https://sidenote-7o2d.onrender.com";
 
   // Handle Create or Update
   const handleSubmit = async (e: React.FormEvent) => {

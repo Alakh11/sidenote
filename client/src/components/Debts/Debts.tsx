@@ -19,7 +19,7 @@ export default function Debts() {
   const router = useRouter();
   const user = router.options.context?.user;
   const { stats, top_borrowers, all_borrowers } = useLoaderData({ from: '/debts' });
-  const API_URL = "https://sidenote-q60v.onrender.com";
+  const API_URL = "https://sidenote-7o2d.onrender.com";
 
   // State
   const [showForm, setShowForm] = useState(false);
@@ -266,7 +266,7 @@ function BorrowerLedger({ borrower, onClose }: { borrower: Borrower, onClose: ()
     const [repayData, setRepayData] = useState({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'UPI', debt_id: '' });
 
     const fetchData = () => {
-        axios.get(`https://sidenote-q60v.onrender.com/debts/ledger/${borrower.id}`)
+        axios.get(`https://sidenote-7o2d.onrender.com/debts/ledger/${borrower.id}`)
              .then(res => { setData(res.data); setLoading(false); })
              .catch(e => { console.error(e); alert("Failed to load ledger."); });
     };
@@ -278,7 +278,7 @@ function BorrowerLedger({ borrower, onClose }: { borrower: Borrower, onClose: ()
     const handleRepay = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await axios.post(`https://sidenote-q60v.onrender.com/debts/repay`, {
+            await axios.post(`https://sidenote-7o2d.onrender.com/debts/repay`, {
                 debt_id: parseInt(repayData.debt_id),
                 amount: parseFloat(repayData.amount),
                 date: repayData.date,
@@ -292,7 +292,7 @@ function BorrowerLedger({ borrower, onClose }: { borrower: Borrower, onClose: ()
     const markPaid = async (debtId: number) => {
         if(!confirm("Mark this loan as fully paid?")) return;
         try {
-            await axios.post(`https://sidenote-q60v.onrender.com/debts/mark-paid`, { debt_id: debtId, date: new Date().toISOString().split('T')[0] });
+            await axios.post(`https://sidenote-7o2d.onrender.com/debts/mark-paid`, { debt_id: debtId, date: new Date().toISOString().split('T')[0] });
             onClose();
         } catch(e) { alert("Action failed"); }
     };
@@ -300,7 +300,7 @@ function BorrowerLedger({ borrower, onClose }: { borrower: Borrower, onClose: ()
     const deleteTransaction = async (debtId: number) => {
         if (!confirm("Delete this loan entry? This will adjust the balance automatically.")) return;
         try {
-            await axios.delete(`https://sidenote-q60v.onrender.com/debts/${debtId}`);
+            await axios.delete(`https://sidenote-7o2d.onrender.com/debts/${debtId}`);
             fetchData();
         } catch (e) { alert("Delete failed"); }
     };

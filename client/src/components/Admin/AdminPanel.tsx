@@ -6,7 +6,7 @@ import {
 import { useState } from 'react';
 import axios from 'axios';
 
-const API_URL = "https://sidenote-q60v.onrender.com";
+const API_URL = "https://sidenote-7o2d.onrender.com";
 
 export default function AdminPanel() {
   const router = useRouter();

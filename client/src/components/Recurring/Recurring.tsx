@@ -12,7 +12,7 @@ export default function Recurring() {
   const recurring = useLoaderData({ from: '/recurring' });
   
   const [processingId, setProcessingId] = useState<number | null>(null);
-  const API_URL = "https://sidenote-q60v.onrender.com";
+  const API_URL = "https://sidenote-7o2d.onrender.com";
 
   const totalRecurring = recurring.reduce((sum: number, item: any) => sum + Number(item.amount), 0);
 
