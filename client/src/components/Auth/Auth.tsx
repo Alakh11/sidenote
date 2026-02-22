@@ -18,7 +18,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const API_URL = "https://sidenote-7o2d.onrender.com";
+  const API_URL = "https://sidenote-8nu4.onrender.com";
 
   const validateForm = () => {
     if (method === 'mobile') {

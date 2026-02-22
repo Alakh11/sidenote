@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://sidenote-7o2d.onrender.com',
+        target: 'https://sidenote-8nu4.onrender.com',
         changeOrigin: true,
         secure: false,
       },
@@ -17,7 +17,7 @@ export default defineConfig({
   preview: {
     allowedHosts: [
       "sidenote-7o2d.onrender.com",
-      "https://sidenote-7o2d.onrender.com",
+      "https://sidenote-8nu4.onrender.com",
       "alakh11.github.io"
     ],
   },

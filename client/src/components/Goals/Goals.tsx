@@ -28,7 +28,7 @@ export default function Goals() {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const API_URL = "https://sidenote-7o2d.onrender.com";
+  const API_URL = "https://sidenote-8nu4.onrender.com";
 
   useEffect(() => {
       if (activeAction && inputRef.current) {

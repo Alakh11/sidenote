@@ -21,9 +21,9 @@
   </p>
   
   <h3>
-    <a href="https://sidenote-7o2d.onrender.com/docs">📚 Swagger UI Docs</a>
+    <a href="https://sidenote-8nu4.onrender.com/docs">📚 Swagger UI Docs</a>
     <span> | </span>
-    <a href="https://sidenote-7o2d.onrender.com/redoc">📘 ReDoc</a>
+    <a href="https://sidenote-8nu4.onrender.com/redoc">📘 ReDoc</a>
   </h3>
 </div>
 
