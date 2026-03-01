@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import get_db
@@ -7,7 +9,7 @@ import logging
 import os
 from routers import auth, transactions, features, analytics, admin
 from whatsapp_service import send_hello_world
-from fastapi import Query, HTTPException, Response# Setup
+from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -217,6 +219,61 @@ async def verify_webhook(
         return Response(content=challenge, media_type="text/plain")
     
     raise HTTPException(status_code=403, detail="Forbidden")
+
+@app.post("/webhook")
+async def receive_whatsapp_message(request: Request, background_tasks: BackgroundTasks):
+    """
+    Catch incoming WhatsApp messages (Text, Images, etc.)
+    """
+    body = await request.json()
+    
+    try:
+        # Navigate Meta's heavily nested JSON structure
+        entry = body.get('entry', [])[0]
+        changes = entry.get('changes', [])[0]
+        value = changes.get('value', {})
+        
+        if 'messages' in value:
+            message = value['messages'][0]
+            sender_phone = message['from']
+            
+            # 1. Handle Text Messages ("chai 50")
+            if message['type'] == 'text':
+                text_body = message['text']['body']
+                print(f"📩 Received text from {sender_phone}: {text_body}")
+                
+                # Send it to a background task so we don't keep Meta waiting
+                background_tasks.add_task(process_text_expense, sender_phone, text_body)
+                
+            # 2. Handle Image Messages (Bills) - We will build this next!
+            elif message['type'] == 'image':
+                media_id = message['image']['id']
+                print(f"📸 Received an image (Media ID: {media_id}) from {sender_phone}")
+
+    except Exception as e:
+        print(f"⚠️ Error parsing webhook: {e}")
+
+    # ALWAYS return 200 OK immediately, or Meta will block your webhook!
+    return {"status": "ok"}
+
+
+# --- The actual logic for parsing "chai 50" ---
+
+def process_text_expense(phone: str, text: str):
+    """
+    Extracts the item and amount from a text like "chai 50"
+    """
+    # Look for words followed by numbers (e.g., "chai 50", "uber 450.50")
+    match = re.search(r"([a-zA-Z\s]+)[\s-]+([\d\.]+)", text.strip())
+    
+    if match:
+        description = match.group(1).strip()
+        amount = float(match.group(2))
+        
+        # Here is where you will add it to your SideNote database!
+        print(f"✅ ACTION: Add transaction -> Item: '{description}', Amount: ₹{amount}, User Phone: {phone}")
+    else:
+        print(f"❌ Could not understand the format of: '{text}'")
 
 if __name__ == "__main__":
     import uvicorn
