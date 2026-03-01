@@ -7,8 +7,7 @@ import logging
 import os
 from routers import auth, transactions, features, analytics, admin
 from whatsapp_service import send_hello_world
-
-# Setup
+from fastapi import Query, HTTPException, Response# Setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -202,6 +201,22 @@ def init_db():
         logger.info("Database and Tables initialized successfully")
     except Exception as e:
         logger.error(f"Init DB Error: {e}")
+        
+VERIFY_TOKEN = "whatsapp_webhook_sidenote"
+
+@app.get("/webhook")
+async def verify_webhook(
+    mode: str = Query(None, alias="hub.mode"),
+    token: str = Query(None, alias="hub.verify_token"),
+    challenge: str = Query(None, alias="hub.challenge")
+):
+    """
+    Meta Webhook Verification Endpoint
+    """
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        return Response(content=challenge, media_type="text/plain")
+    
+    raise HTTPException(status_code=403, detail="Forbidden")
 
 if __name__ == "__main__":
     import uvicorn
