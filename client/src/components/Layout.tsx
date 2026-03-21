@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
 import { 
   LayoutDashboard, PieChart, Wallet, LogOut, Menu, X, Target, Shield, 
-  Repeat, Settings, ChevronRight, Trophy, Sun, Moon, ReceiptIndianRupee, HandCoins, UserPen
+  Repeat, Settings, ChevronRight, Trophy, Sun, Moon, ReceiptIndianRupee,
+  HandCoins, UserPen, Calendar, Globe, Save
 } from 'lucide-react';
 import icon from '../assets/iconNew.png';
 import { useTheme } from '../context/ThemeContext';
+import { usePreferences, CURRENCIES } from '../context/PreferencesContext';
 
 const UserAvatar = ({ src, name, className }: { src?: string, name: string, className?: string }) => {
   const isUrl = src?.startsWith('http');
@@ -36,6 +38,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const { user, handleLogout } = router.options.context; 
   const ADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isAdmin = user?.email === ADMIN_EMAIL;
+  const { viewMode, setViewMode, currency, setCurrency, monthStart, setMonthStart, savePreferences } = usePreferences();
 
   const menuItems = [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -202,6 +205,58 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main Content Area */}
       <main className="flex-1 md:ml-80 p-5 md:p-8 mt-20 md:mt-0 transition-all duration-300 w-full overflow-x-hidden dark:text-slate-200">
+        
+        <div className="max-w-6xl mx-auto mb-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row items-center gap-4 justify-between z-40 sticky top-20 md:top-4">
+            
+            {/* Left: View Mode Toggle */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-full lg:w-auto">
+                {['day', 'week', 'month', 'year'].map((mode) => (
+                    <button
+                        key={mode}
+                        onClick={() => setViewMode(mode as any)}
+                        className={`flex-1 lg:px-6 py-2 rounded-xl text-sm font-bold capitalize transition-all ${
+                            viewMode === mode 
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                        }`}
+                    >
+                        {mode}
+                    </button>
+                ))}
+            </div>
+
+            {/* Right: Currency & Date Controls */}
+            <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <Globe size={16} className="text-slate-400" />
+                    <select 
+                        value={currency} 
+                        onChange={(e) => setCurrency(e.target.value)}
+                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none"
+                    >
+                        {CURRENCIES.map(c => (
+                            <option key={c.code} value={c.symbol}>{c.code} ({c.symbol})</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+                    <Calendar size={16} className="text-slate-400" />
+                    <span className="text-sm text-slate-500 font-bold hidden sm:inline">Starts on:</span>
+                    <input 
+                        type="number" min="1" max="31"
+                        value={monthStart}
+                        onChange={(e) => setMonthStart(Number(e.target.value))}
+                        className="w-12 bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none text-center"
+                    />
+                </div>
+
+                <button onClick={savePreferences} className="p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md transition-colors shrink-0" title="Save Default Settings">
+                    <Save size={18} />
+                </button>
+            </div>
+        </div>
+
         <div className="max-w-6xl mx-auto space-y-8 pb-24">
           {children}
         </div>

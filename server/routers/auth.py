@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from database import get_db
-from schemas import UserRegister, UserLogin, GoogleAuth, ResetPassword, UserUpdateProfile, UserChangePassword
+from schemas import UserRegister, UserLogin, GoogleAuth, ResetPassword, UserUpdateProfile, UserChangePassword, UserPreferencesUpdate
 from security import pwd_context, create_access_token, get_current_user
 from utils import create_default_categories
 import logging
@@ -224,6 +224,27 @@ def change_password(data: UserChangePassword, email: str = Depends(get_current_u
         # Re-raise HTTP exceptions (like 400 Incorrect Password)
         if isinstance(e, HTTPException):
             raise e
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+        
+@router.put("/preferences")
+def update_preferences(data: UserPreferencesUpdate, email: str = Depends(get_current_user)):
+    if data.month_start_date < 1 or data.month_start_date > 31:
+        raise HTTPException(status_code=400, detail="Start date must be between 1 and 31")
+
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE users 
+            SET currency = %s, month_start_date = %s 
+            WHERE email = %s
+        """, (data.currency, data.month_start_date, email))
+        conn.commit()
+        return {"message": "Preferences updated"}
+    except Exception as e:
+        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()

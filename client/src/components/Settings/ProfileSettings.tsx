@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
-import { User, Lock, Save, Camera, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Lock, Save, Camera, CheckCircle2, AlertCircle, IndianRupee } from 'lucide-react';
 
 const API_URL = "https://sidenote-8nu4.onrender.com";
 
@@ -10,6 +10,32 @@ const AVATARS = ['😎', '👻', '🤖', '🐯', '👽', '🐶', '👑', '💼',
 export default function ProfileSettings() {
   const router = useRouter();
   const user = router.options.context?.user;
+  const [prefData, setPrefData] = useState({ 
+    currency: user?.currency || '₹', 
+    month_start_date: user?.month_start_date || 1 
+});
+const CURRENCIES = [
+    { code: "INR", symbol: "₹", name: "Indian Rupee" },
+    { code: "USD", symbol: "$", name: "US Dollar" },
+    { code: "EUR", symbol: "€", name: "Euro" },
+    { code: "GBP", symbol: "£", name: "British Pound" },
+    { code: "JPY", symbol: "¥", name: "Japanese Yen" },
+    { code: "AUD", symbol: "A$", name: "Australian Dollar" },
+    { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
+    { code: "CHF", symbol: "CHF", name: "Swiss Franc" },
+    { code: "CNY", symbol: "¥", name: "Chinese Yuan" },
+    { code: "SGD", symbol: "S$", name: "Singapore Dollar" },
+    { code: "NZD", symbol: "NZ$", name: "New Zealand Dollar" },
+    { code: "AED", symbol: "د.إ", name: "UAE Dirham" },
+    { code: "SAR", symbol: "﷼", name: "Saudi Riyal" },
+    { code: "ZAR", symbol: "R", name: "South African Rand" },
+    { code: "BRL", symbol: "R$", name: "Brazilian Real" },
+    { code: "MXN", symbol: "$", name: "Mexican Peso" },
+    { code: "RUB", symbol: "₽", name: "Russian Ruble" },
+    { code: "KRW", symbol: "₩", name: "South Korean Won" },
+    { code: "IDR", symbol: "Rp", name: "Indonesian Rupiah" },
+    { code: "TRY", symbol: "₺", name: "Turkish Lira" },
+];
   
   // States
   const [profileData, setProfileData] = useState({ name: user?.name || '', profile_pic: user?.picture || '😎' });
@@ -69,10 +95,29 @@ export default function ProfileSettings() {
           setPassData({ old: '', new: '', confirm: '' });
       } catch(e: any) {
           setMsg({ type: 'error', text: e.response?.data?.detail || 'Failed to change password' });
-      } finally {
-          setLoading(false);
-      }
-  };
+    } finally {
+        setLoading(false);
+    }
+};
+
+const handleUpdatePreferences = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMsg(null);
+    try {
+        await axios.put(`${API_URL}/auth/preferences`, prefData);
+        
+        const updatedUser = { ...user, ...prefData };
+        localStorage.setItem('user_data', JSON.stringify(updatedUser));
+        
+        setMsg({ type: 'success', text: 'Financial preferences updated!' });
+        setTimeout(() => window.location.reload(), 1000);
+    } catch(e) {
+        setMsg({ type: 'error', text: 'Failed to update preferences.' });
+    } finally {
+        setLoading(false);
+    }
+};
   const isUrl = profileData.profile_pic.startsWith('http');
 
   return (
@@ -176,6 +221,46 @@ export default function ProfileSettings() {
                 </button>
             </form>
         </div>
+
+<div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-stone-100 dark:border-slate-800">
+    <h3 className="text-lg font-bold text-stone-800 dark:text-white mb-6 flex items-center gap-2">
+        <IndianRupee size={20} className="text-emerald-500" /> Financial Preferences
+    </h3>
+    
+    <form onSubmit={handleUpdatePreferences} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label className="text-xs font-bold text-stone-400 uppercase ml-1">Default Currency</label>
+                <select 
+                    className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition"
+                    value={prefData.currency}
+                    onChange={e => setPrefData({...prefData, currency: e.target.value})}>
+                    {CURRENCIES.map(c => (
+                        <option key={c.code} value={c.symbol}>
+                            {c.symbol} ({c.code}) - {c.name}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            
+            <div>
+                <label className="text-xs font-bold text-stone-400 uppercase ml-1">Month Starts On (Date)</label>
+                <input 
+                    type="number" 
+                    min="1" max="31"
+                    className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition"
+                    value={prefData.month_start_date}
+                    onChange={e => setPrefData({...prefData, month_start_date: Number(e.target.value)})}
+                />
+                <p className="text-[10px] text-stone-400 mt-1 ml-1">Used for calculating monthly budgets and analytics.</p>
+            </div>
+        </div>
+
+        <button disabled={loading} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-emerald-200 dark:shadow-none">
+            <Save size={18} /> Save Preferences
+        </button>
+    </form>
+</div>
     </div>
   );
 }

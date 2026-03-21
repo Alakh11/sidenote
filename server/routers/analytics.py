@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from database import get_db
 import logging
 
@@ -233,3 +233,64 @@ def get_insights(email: str):
         
     conn.close()
     return insights
+
+@router.get("/trends/{email}")
+def get_dynamic_trends(
+    email: str, 
+    view_by: str = Query("month", description="Options: day, week, month, year")
+):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # 1. Get user preferences
+        cursor.execute("SELECT month_start_date FROM users WHERE email = %s", (email,))
+        user = cursor.fetchone()
+        
+        start_date_offset = 0
+        if user and user.get('month_start_date'):
+            start_date_offset = int(user['month_start_date']) - 1
+
+        # 2. Shift dates backward by the offset so the 5th becomes the 1st
+        adjusted_date = f"DATE_SUB(t.date, INTERVAL {start_date_offset} DAY)"
+        
+        if view_by == "day":
+            group_sql = f"DATE({adjusted_date})"
+            label_sql = f"DATE_FORMAT(DATE_ADD({adjusted_date}, INTERVAL {start_date_offset} DAY), '%b %d')"
+            limit = 14
+        elif view_by == "week":
+            group_sql = f"YEARWEEK({adjusted_date}, 1)"
+            label_sql = f"CONCAT('Week ', WEEK({adjusted_date}, 1))"
+            limit = 8
+        elif view_by == "year":
+            group_sql = f"YEAR({adjusted_date})"
+            label_sql = f"CAST(YEAR({adjusted_date}) AS CHAR)"
+            limit = 5
+        else: # month
+            group_sql = f"DATE_FORMAT({adjusted_date}, '%Y-%m')"
+            label_sql = f"DATE_FORMAT(DATE_ADD({adjusted_date}, INTERVAL {start_date_offset} DAY), '%b %Y')"
+            limit = 6
+
+        query = f"""
+            SELECT 
+                {label_sql} as period_label,
+                {group_sql} as sort_key,
+                SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
+                SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
+            FROM transactions t
+            WHERE t.user_email = %s
+            GROUP BY {group_sql}, {label_sql}
+            ORDER BY sort_key DESC
+            LIMIT %s
+        """
+        
+        cursor.execute(query, (email, limit))
+        data = cursor.fetchall()
+        
+        # Reverse to show chronological order
+        return list(reversed(data))
+        
+    except Exception as e:
+        logger.error(f"Trends Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

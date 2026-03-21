@@ -56,12 +56,15 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
+                name VARCHAR(255) DEFAULT 'WhatsApp User',
                 email VARCHAR(255) UNIQUE,
                 mobile VARCHAR(20) UNIQUE,
                 password_hash VARCHAR(255),
                 profile_pic TEXT,
+                currency VARCHAR(10) DEFAULT '₹',
+                month_start_date INT DEFAULT 1,
                 is_verified BOOLEAN DEFAULT FALSE,
+                bot_state VARCHAR(50) DEFAULT 'NEW',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)

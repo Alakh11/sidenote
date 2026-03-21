@@ -1,7 +1,7 @@
 # server/test_db.py
-from database import get_db_connection
+from database import get_db
 
-conn = get_db_connection()
+conn = get_db()
 
 if conn and conn.is_connected():
     print("✅ SUCCESS: Connected to TiDB!")

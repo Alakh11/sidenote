@@ -6,6 +6,8 @@ export interface User {
   email: string;
   picture?: string;
   mobile?: string;
+  currency?: string;
+  month_start_date?: number;
 }
 
 export interface Transaction {

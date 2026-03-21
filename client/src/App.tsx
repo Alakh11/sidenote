@@ -7,6 +7,7 @@ import axios from 'axios';
 import Auth from './components/Auth/Auth';
 import ErrorPage from './components/Error/ErrorPage';
 import { ThemeProvider } from './context/ThemeContext';
+import { PreferencesProvider } from './context/PreferencesContext';
 
 function App() {
   const [serverError, setServerError] = useState<number | null>(null);
@@ -68,7 +69,9 @@ function App() {
 
   return (
     <ThemeProvider>
-      <RouterProvider router={router} context={{ user, handleLogout }} />
+      <PreferencesProvider user={user}>
+        <RouterProvider router={router} context={{ user, handleLogout }} />
+      </PreferencesProvider>
     </ThemeProvider>
   );
 }

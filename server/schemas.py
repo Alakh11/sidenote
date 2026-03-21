@@ -39,6 +39,10 @@ class AdminUpdateUser(BaseModel):
     name: str
     contact: str # Email or Mobile
     new_password: Optional[str] = None
+
+class UserPreferencesUpdate(BaseModel):
+    currency: str
+    month_start_date: int
     
 # Transaction Models
 class TransactionCreate(BaseModel):
