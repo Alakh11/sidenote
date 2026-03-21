@@ -8,7 +8,7 @@ import SmartInsights from './components/SmartInsights';
 import QuickAddForm from './components/QuickAddForm';
 import RecentTransactions from './components/RecentTransactions';
 import TrendChart from './components/TrendChart';
-import { usePreferences } from '../../context/PreferencesContext';
+// import { usePreferences } from '../../context/PreferencesContext';
 
 export default function Dashboard() {
   const router = useRouter();
