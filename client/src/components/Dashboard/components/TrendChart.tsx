@@ -45,7 +45,7 @@ export default function TrendChart({ userEmail }: { userEmail: string }) {
                         <Tooltip 
                             cursor={{fill: isDark ? '#1e293b' : '#f8fafc'}}
                             contentStyle={{backgroundColor: isDark ? '#0f172a' : '#fff', borderRadius: '16px', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0'}}
-                            formatter={(value: number) => [`${currency}${value.toLocaleString()}`]}
+                            formatter={(value: any) => [`${currency}${Number(value).toLocaleString()}`]}
                         />
                         <Legend verticalAlign="top" height={36} iconType="circle" />
                         <Bar dataKey="income" name="Earned/Saved" fill="url(#colorIncome)" radius={[6, 6, 0, 0]} barSize={32} />
