@@ -291,11 +291,7 @@ async def process_whatsapp_message(phone: str, text: str):
 
 
 async def handle_expense_entry(phone: str, text: str, match):
-    """
-    Parses '250 chai' or 'chai 250', saves to DB, and sends Template.
-    """
     amount = float(match.group(0))
-    # Remove the number to get the item name
     item = text.replace(match.group(0), "").strip()
 
     conn = get_db()
@@ -306,46 +302,61 @@ async def handle_expense_entry(phone: str, text: str, match):
         user = cursor.fetchone()
         
         if not user:
-            # Create user on the fly if they don't exist
             cursor.execute("INSERT INTO users (mobile, is_verified) VALUES (%s, TRUE)", (phone,))
             conn.commit()
             identifier = phone
-            
-            # Send Welcome Template for first-time users
             await send_whatsapp_template(phone, "sidenote_welcome_v1", [])
         else:
-            # Use email as identifier if they linked it, otherwise use mobile
             identifier = user['email'] if user['email'] else phone
 
-        # 2. Save the Expense to Database
-        # Note: We use category_id 1 (usually 'Miscellaneous' or 'Food') as a default
+        search_term = f"%{item}%"
+        cursor.execute("""
+            SELECT id FROM categories 
+            WHERE (user_email = %s OR user_email IS NULL) 
+              AND type = 'expense' 
+              AND name LIKE %s 
+            LIMIT 1
+        """, (identifier, search_term))
+        cat_row = cursor.fetchone()
+        
+        if not cat_row:
+            cursor.execute("""
+                SELECT id FROM categories 
+                WHERE (user_email = %s OR user_email IS NULL) 
+                  AND type = 'expense' 
+                LIMIT 1
+            """, (identifier,))
+            cat_row = cursor.fetchone()
+            
+        category_id = cat_row['id'] if cat_row else 1 # Final failsafe
+
+        # 3. Save the Expense to Database using the correct category_id
         cursor.execute("""
             INSERT INTO transactions (user_email, amount, type, note, date, category_id, payment_mode) 
-            VALUES (%s, %s, 'expense', %s, NOW(), 1, 'Cash')
-        """, (identifier, amount, item))
+            VALUES (%s, %s, 'expense', %s, NOW(), %s, 'Cash')
+        """, (identifier, amount, item, category_id))
         conn.commit()
 
-        # 3. Calculate Today's Total
+        # 4. Calculate Today's Total
         cursor.execute("""
             SELECT SUM(amount) as total FROM transactions 
             WHERE user_email = %s AND type = 'expense' AND DATE(date) = CURDATE()
         """, (identifier,))
         today_total = cursor.fetchone()['total'] or 0
 
-        # 4. Send the 'Entry Recorded' Template
+        # 5. Send the 'Entry Recorded' Template
         await send_whatsapp_template(
             phone, 
             "entry_recorded_v1", 
             [str(amount), item, str(today_total)]
         )
-        print(f"✅ Saved Transaction: {item} | ₹{amount}")
+        print(f"✅ Saved Transaction: {item} | ₹{amount} | Cat ID: {category_id}")
         
     except Exception as e:
         print(f"Database Error in WhatsApp parser: {e}")
     finally:
         conn.close()
-
-
+        
 async def handle_summary_request(phone: str):
     """
     Retrieves totals and sends the summary template.
