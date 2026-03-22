@@ -36,7 +36,7 @@ export default function BudgetList({ budgets }: Props) {
                                 <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
                                     <p className="font-bold text-stone-800 dark:text-white">{b.name}</p>
                                     <span className="text-[10px] font-bold text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-md w-fit">
-                                        Limit: ₹{b.budget_limit.toLocaleString()}
+                                        Limit: {currency}{b.budget_limit.toLocaleString()}
                                     </span>
                                 </div>
                             </div>
