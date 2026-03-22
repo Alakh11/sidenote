@@ -1,4 +1,5 @@
-import { Wallet, TrendingUp, IndianRupee } from 'lucide-react';
+import { Wallet, TrendingUp, Coins } from 'lucide-react';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 interface Props {
   budgets: any[];
@@ -8,6 +9,7 @@ export default function BudgetOverview({ budgets }: Props) {
   const totalBudget = budgets.reduce((sum, b) => sum + (Number(b.budget_limit) || 0), 0);
   const totalSpent = budgets.reduce((sum, b) => sum + (Number(b.spent) || 0), 0);
   const totalRemaining = totalBudget - totalSpent;
+  const { currency } = usePreferences();
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -20,7 +22,7 @@ export default function BudgetOverview({ budgets }: Props) {
             </div>
             <span className="text-stone-500 dark:text-slate-400 font-bold text-sm uppercase">Total Budget</span>
          </div>
-         <p className="text-2xl font-black text-stone-800 dark:text-white">₹{totalBudget.toLocaleString()}</p>
+         <p className="text-2xl font-black text-stone-800 dark:text-white">{currency}{totalBudget.toLocaleString()}</p>
       </div>
 
       {/* Total Spent Card */}
@@ -31,7 +33,7 @@ export default function BudgetOverview({ budgets }: Props) {
             </div>
             <span className="text-stone-500 dark:text-slate-400 font-bold text-sm uppercase">Spent so far</span>
          </div>
-         <p className="text-2xl font-black text-stone-800 dark:text-white">₹{totalSpent.toLocaleString()}</p>
+         <p className="text-2xl font-black text-stone-800 dark:text-white">{currency}{totalSpent.toLocaleString()}</p>
       </div>
 
       {/* Remaining Card (Dynamic Colors) */}
@@ -42,16 +44,12 @@ export default function BudgetOverview({ budgets }: Props) {
                 ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400' 
                 : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
             }`}>
-                <IndianRupee className="w-6 h-6" />
+                <Coins className="w-6 h-6" />
             </div>
             <span className="text-stone-500 dark:text-slate-400 font-bold text-sm uppercase">Remaining</span>
          </div>
-         <p className={`text-2xl font-black ${
-             totalRemaining < 0 
-             ? 'text-rose-600 dark:text-rose-400' 
-             : 'text-emerald-600 dark:text-emerald-400'
-         }`}>
-             {totalRemaining < 0 ? '-' : ''}₹{Math.abs(totalRemaining).toLocaleString()}
+         <p className={`text-2xl font-black ${totalRemaining < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-stone-800 dark:text-white'}`}>
+            {currency}{Math.abs(totalRemaining).toLocaleString()}
          </p>
       </div>
     </div>

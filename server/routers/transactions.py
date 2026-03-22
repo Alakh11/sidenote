@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
 from database import get_db
 from schemas import TransactionCreate, CategoryCreate, CategoryUpdate, BudgetSchema
 import logging
 from datetime import datetime, timedelta
+from utils import get_date_filter_sql
 
 router = APIRouter(tags=["Transactions & Categories"])
 logger = logging.getLogger(__name__)
@@ -193,11 +194,14 @@ def set_budget(budget: BudgetSchema):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/budgets/{email}")
-def get_budgets_status(email: str):
+def get_budgets_status(email: str, view_by: str = Query("month")):
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
-        query = """
+        
+        date_filter = get_date_filter_sql(cursor, email, view_by, "t", "date")
+
+        query = f"""
             SELECT 
                 c.id as category_id, 
                 c.name, 
@@ -210,7 +214,7 @@ def get_budgets_status(email: str):
             LEFT JOIN transactions t ON c.id = t.category_id 
                  AND t.user_email = %s 
                  AND t.type = 'expense'
-                 AND DATE_FORMAT(t.date, '%%Y-%%m') = DATE_FORMAT(NOW(), '%%Y-%%m')
+                 AND {date_filter}
             WHERE (c.user_email = %s OR c.user_email IS NULL) AND c.type = 'expense'
             GROUP BY c.id, c.name, c.color, c.icon, b.amount
         """

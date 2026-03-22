@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react";
+import { useRouter } from '@tanstack/react-router';
 import axios from "axios";
 
 export const CURRENCIES = [
@@ -26,9 +27,16 @@ interface PrefContextType {
 export const PreferencesContext = createContext<PrefContextType | undefined>(undefined);
 
 export const PreferencesProvider = ({ children, user }: { children: React.ReactNode, user: any }) => {
-    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month' | 'year'>('month');
+    const router = useRouter();
+    const [viewMode, setViewModeState] = useState<'day' | 'week' | 'month' | 'year'>(localStorage.getItem('viewMode') as any || 'month');
     const [currency, setCurrency] = useState(user?.currency || '₹');
     const [monthStart, setMonthStart] = useState(user?.month_start_date || 1);
+
+    const setViewMode = (mode: 'day' | 'week' | 'month' | 'year') => {
+        setViewModeState(mode);
+        localStorage.setItem('viewMode', mode);
+        router.invalidate();
+    };
 
     const savePreferences = async () => {
         try {
@@ -36,11 +44,12 @@ export const PreferencesProvider = ({ children, user }: { children: React.ReactN
                 currency,
                 month_start_date: monthStart
             });
-            // Update local storage
             const updatedUser = { ...user, currency, month_start_date: monthStart };
             localStorage.setItem('user_data', JSON.stringify(updatedUser));
+            router.invalidate();
+            alert("Preferences Saved!");
         } catch (e) {
-            console.error("Failed to save preferences", e);
+             console.error("Failed to save preferences", e);
         }
     };
 

@@ -1,31 +1,39 @@
 from fastapi import APIRouter, HTTPException, Query
 from database import get_db
 import logging
+from utils import get_date_filter_sql
 
 router = APIRouter(tags=["Analytics & Dashboard"])
 logger = logging.getLogger(__name__)
 
 @router.get("/dashboard/{email}")
-def get_dashboard(email: str):
+def get_dashboard(email: str, view_by: str = Query("month")):
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT type, SUM(amount) as total FROM transactions WHERE user_email = %s GROUP BY type", (email,))
+        
+        date_filter = get_date_filter_sql(cursor, email, view_by, "transactions", "date")
+        
+        # 1. Filter Totals
+        cursor.execute(f"SELECT type, SUM(amount) as total FROM transactions WHERE user_email = %s AND {date_filter} GROUP BY type", (email,))
         totals = cursor.fetchall()
         
-        cursor.execute("""
+        # 2. Filter Recent Transactions
+        date_filter_t = date_filter.replace('transactions.date', 't.date')
+        cursor.execute(f"""
             SELECT t.id, t.amount, t.type, t.date, t.note, t.payment_mode, c.name as category
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.user_email = %s 
+            WHERE t.user_email = %s AND {date_filter_t}
             ORDER BY t.date DESC LIMIT 5
         """, (email,))
         recent = cursor.fetchall()
+        
         conn.close()
         return {"totals": totals, "recent": recent}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 @router.get("/analytics/{email}")
 def get_analytics(email: str):
     try:

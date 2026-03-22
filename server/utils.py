@@ -44,3 +44,31 @@ def create_default_categories(email: str, cursor):
     query = "INSERT INTO categories (user_email, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, TRUE)"
     data = [(email, d[0], d[1], d[2], d[3]) for d in defaults]
     cursor.executemany(query, data)
+    
+def get_date_filter_sql(cursor, email, view_by, table_alias="t", date_column="date"):
+    """
+    Dynamically generates SQL to filter records based on 'day', 'week', 'month', 'year'
+    while perfectly respecting the user's custom month_start_date.
+    """
+    cursor.execute("SELECT month_start_date FROM users WHERE email = %s OR mobile = %s", (email, email))
+    user = cursor.fetchone()
+    
+    start_date = 1
+    if type(user) is dict:
+         start_date = user.get('month_start_date', 1)
+    elif type(user) is tuple:
+         start_date = user[0]
+
+    offset = int(start_date) - 1
+    
+    adjusted_db_date = f"DATE_SUB({table_alias}.{date_column}, INTERVAL {offset} DAY)"
+    adjusted_now = f"DATE_SUB(NOW(), INTERVAL {offset} DAY)"
+    
+    if view_by == "day":
+        return f"DATE({table_alias}.{date_column}) = CURDATE()"
+    elif view_by == "week":
+        return f"YEARWEEK({adjusted_db_date}, 1) = YEARWEEK({adjusted_now}, 1)"
+    elif view_by == "year":
+        return f"YEAR({adjusted_db_date}) = YEAR({adjusted_now})"
+    else: # Default to month
+        return f"DATE_FORMAT({adjusted_db_date}, '%Y-%m') = DATE_FORMAT({adjusted_now}, '%Y-%m')"

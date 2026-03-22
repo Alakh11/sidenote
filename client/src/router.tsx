@@ -49,8 +49,9 @@ const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'dashboard',
   loader: async ({ context }) => {
+    const viewMode = localStorage.getItem('viewMode') || 'month';
     const [dashboard, categories, prediction, insights] = await Promise.all([
-        axios.get(`${API_URL}/dashboard/${context.user.email}`),
+        axios.get(`${API_URL}/dashboard/${context.user.email}?view_by=${viewMode}`),
         axios.get(`${API_URL}/categories/${context.user.email}`),
         axios.get(`${API_URL}/predict/${context.user.email}`),
         axios.get(`${API_URL}/insights/${context.user.email}`)
@@ -88,8 +89,9 @@ const budgetRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'budget',
   loader: async ({ context }) => {
+    const viewMode = localStorage.getItem('viewMode') || 'month'; // <-- Get current view
     const [status, categories, history] = await Promise.all([
-        axios.get(`${API_URL}/budgets/${context.user.email}`),
+        axios.get(`${API_URL}/budgets/${context.user.email}?view_by=${viewMode}`), // <-- Pass view_by
         axios.get(`${API_URL}/categories/${context.user.email}`),
         axios.get(`${API_URL}/budgets/history/${context.user.email}`)
     ]);

@@ -2,12 +2,13 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { useTheme } from '../../../context/ThemeContext';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 interface Props {
   history: any[];
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, currency }: any) => {
     if (active && payload && payload.length) {
       const limit = payload[0].payload.budget_limit;
       const spent = payload[0].payload.total_spent;
@@ -19,24 +20,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           <p className="font-bold text-stone-800 dark:text-white text-sm mb-2">{label}</p>
           <div className="space-y-1">
               <p className="flex justify-between gap-4 text-stone-500 dark:text-slate-400">
-                  <span>Budget:</span> <span className="font-bold text-stone-700 dark:text-slate-200">₹{limit.toLocaleString()}</span>
+                  <span>Budget:</span> <span className="font-bold text-stone-700 dark:text-slate-200">{currency}{limit.toLocaleString()}</span>
               </p>
               <p className="flex justify-between gap-4 text-stone-500 dark:text-slate-400">
-                  <span>Spent:</span> <span className={`font-bold ${isOver ? 'text-rose-500 dark:text-rose-400' : 'text-blue-500 dark:text-blue-400'}`}>₹{spent.toLocaleString()}</span>
+                  <span>Spent:</span> <span className={`font-bold ${isOver ? 'text-rose-500 dark:text-rose-400' : 'text-blue-500 dark:text-blue-400'}`}>{currency}{spent.toLocaleString()}</span>
               </p>
               <div className="h-px bg-stone-100 dark:bg-slate-700 my-1"></div>
               <p className={`font-bold text-right ${isOver ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {isOver ? `Over by ₹${Math.abs(diff).toLocaleString()}` : `Saved ₹${diff.toLocaleString()}`}
+                  {isOver ? `Over by {currency}${Math.abs(diff).toLocaleString()}` : `Saved ₹${diff.toLocaleString()}`}
               </p>
           </div>
         </div>
       );
     }
     return null;
-  };
+};
 
 export default function BudgetChart({ history }: Props) {
   const { theme } = useTheme();
+  const { currency } = usePreferences();
   const isDark = theme === 'dark';
 
   return (
@@ -68,9 +70,9 @@ export default function BudgetChart({ history }: Props) {
                             axisLine={false} 
                             tickLine={false} 
                             tick={{fontSize: 11, fill: isDark ? '#94a3b8' : '#9CA3AF'}} 
-                            tickFormatter={(value) => `₹${value/1000}k`}
+                            tickFormatter={(value) => `${currency}${value/1000}k`}
                         />
-                        <Tooltip cursor={{fill: isDark ? '#1e293b' : '#f9fafb'}} content={<CustomTooltip />} />
+                        <Tooltip cursor={{fill: isDark ? '#1e293b' : '#f9fafb'}} content={<CustomTooltip currency={currency} />} />
                         
                         {/* Budget Limit Line */}
                         <Line 

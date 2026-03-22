@@ -1,10 +1,12 @@
 import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 interface Props {
   budgets: any[];
 }
 
 export default function BudgetList({ budgets }: Props) {
+    const { currency } = usePreferences();
   return (
     <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-stone-50 dark:border-slate-800 shadow-sm space-y-8 transition-colors duration-300">
         <div className="flex items-center justify-between">
@@ -71,12 +73,12 @@ export default function BudgetList({ budgets }: Props) {
                     {/* Bottom Row: Spent vs Excess Message */}
                     <div className="flex justify-between items-center text-xs font-medium">
                         <span className="text-stone-500 dark:text-slate-400">
-                            Spent: <span className="text-stone-900 dark:text-white font-bold">₹{b.spent.toLocaleString()}</span>
+                            Spent: <span className="text-stone-900 dark:text-white font-bold">{currency}{b.spent.toLocaleString()}</span>
                         </span>
                         
                         {b.is_over ? (
                             <span className="text-rose-600 dark:text-rose-400 font-bold">
-                                Exceeded by ₹{excess.toLocaleString()}!
+                                Exceeded by {currency}{excess.toLocaleString()}!
                             </span>
                         ) : (
                             <span className="text-stone-400 dark:text-slate-500">

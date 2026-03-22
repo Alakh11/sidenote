@@ -1,6 +1,8 @@
 import { Wallet, TrendingUp, TrendingDown } from 'lucide-react';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 const Card = ({ title, amount, icon: Icon, type }: any) => {
+  const { currency } = usePreferences();
   const styles = {
     balance: { 
         bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', 
@@ -31,7 +33,7 @@ const Card = ({ title, amount, icon: Icon, type }: any) => {
         <div>
           <p className={`${styles.sub} text-sm font-bold mb-2 uppercase tracking-wide`}>{title}</p>
           <h3 className={`${styles.text} text-3xl font-extrabold tracking-tight`}>
-            ₹{amount.toLocaleString('en-IN')}
+            {currency}{amount.toLocaleString('en-IN')}
           </h3>
         </div>
         <div className={`p-4 rounded-2xl ${styles.icon}`}>
@@ -45,9 +47,9 @@ const Card = ({ title, amount, icon: Icon, type }: any) => {
 export default function StatCards({ stats }: { stats: any }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <Card title="Total Balance" amount={stats.balance} icon={Wallet} type="balance" />
-      <Card title="Total Income" amount={stats.income} icon={TrendingUp} type="income" />
-      <Card title="Total Expenses" amount={stats.expense} icon={TrendingDown} type="expense" />
+      <Card title="Total Balance" amount={stats.balance || 0} icon={Wallet} type="balance" />
+      <Card title="Total Income" amount={stats.income || 0} icon={TrendingUp} type="income" />
+      <Card title="Total Expenses" amount={stats.expense || 0} icon={TrendingDown} type="expense" />
     </div>
   );
 }
