@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import re
+from typing import Any
 from database import get_db
 from security import pwd_context
 from utils import create_default_categories
@@ -11,6 +12,8 @@ from whatsapp_service import send_whatsapp_template
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_insights import send_weekly_proactive_insights
+from datetime import datetime
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -184,7 +187,7 @@ def init_db():
         # --- ADMIN ACCOUNT AUTO-CREATION ---
         admin_email = "alakhchaturvedi2002@gmail.com"
         cursor.execute("SELECT * FROM users WHERE email = %s", (admin_email,))
-        existing_user = cursor.fetchone()
+        existing_user: Any = cursor.fetchone()
         
         if not existing_user:
             hashed_pw = pwd_context.hash("Admin@2002")
@@ -299,7 +302,7 @@ async def handle_expense_entry(phone: str, text: str, match):
     try:
         # 1. First-time user check
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         
         if not user:
             cursor.execute("INSERT INTO users (mobile, is_verified) VALUES (%s, TRUE)", (phone,))
@@ -317,7 +320,7 @@ async def handle_expense_entry(phone: str, text: str, match):
               AND name LIKE %s 
             LIMIT 1
         """, (identifier, search_term))
-        cat_row = cursor.fetchone()
+        cat_row: Any = cursor.fetchone()
         
         if not cat_row:
             cursor.execute("""
@@ -342,7 +345,8 @@ async def handle_expense_entry(phone: str, text: str, match):
             SELECT SUM(amount) as total FROM transactions 
             WHERE user_email = %s AND type = 'expense' AND DATE(date) = CURDATE()
         """, (identifier,))
-        today_total = cursor.fetchone()['total'] or 0
+        today_row: Any = cursor.fetchone()
+        today_total = today_row['total'] if today_row and today_row['total'] else 0
 
         # 5. Send the 'Entry Recorded' Template
         await send_whatsapp_template(
@@ -365,22 +369,25 @@ async def handle_summary_request(phone: str):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         if not user: return
         
         identifier = user['email'] if user['email'] else phone
         
         # Get Today's Total
         cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_email=%s AND type='expense' AND DATE(date)=CURDATE()", (identifier,))
-        today_total = cursor.fetchone()['total'] or 0
+        today_row: Any = cursor.fetchone()
+        today_total = today_row['total'] if today_row and today_row['total'] else 0
         
         # Get Week Total
         cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_email=%s AND type='expense' AND YEARWEEK(date, 1)=YEARWEEK(CURDATE(), 1)", (identifier,))
-        week_total = cursor.fetchone()['total'] or 0
+        week_row: Any = cursor.fetchone()
+        week_total = week_row['total'] if week_row and week_row['total'] else 0
         
         # Get Month Total
         cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (identifier,))
-        month_total = cursor.fetchone()['total'] or 0
+        month_row: Any = cursor.fetchone()
+        month_total = month_row['total'] if month_row and month_row['total'] else 0
         
         # Send Summary Template
         await send_whatsapp_template(
@@ -392,15 +399,102 @@ async def handle_summary_request(phone: str):
         conn.close()
 
 async def handle_weekly_request(phone: str):
-    # TODO: Build weekly logic & trigger weekly_overview_v1 template
-    print(f"Weekly report requested by {phone}")
+    """
+    Retrieves daily breakdown for the current week and sends the weekly template.
+    """
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+        user: Any = cursor.fetchone()
+        if not user: return
+        
+        identifier = user['email'] if user['email'] else phone
+        
+        # WEEKDAY() returns 0 for Monday, 1 for Tuesday ... 6 for Sunday
+        cursor.execute("""
+            SELECT WEEKDAY(date) as wd, SUM(amount) as total 
+            FROM transactions 
+            WHERE user_email = %s 
+              AND type = 'expense' 
+              AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)
+            GROUP BY wd
+        """, (identifier,))
+        daily_data: list[Any] = cursor.fetchall()
+        
+        # Initialize an array for [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+        days = [0.0] * 7 
+        for row in daily_data:
+            days[row['wd']] = float(row['total'])
+            
+        week_total = sum(days)
+        
+        # Format variables: [Total, Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+        variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
+        
+        await send_whatsapp_template(phone, "weekly_overview_v1", variables)
+        print(f"✅ Sent Weekly Overview to {phone}")
+    except Exception as e:
+        print(f"Weekly Report Error: {e}")
+    finally:
+        conn.close()
 
 async def handle_monthly_request(phone: str):
-    # TODO: Build monthly logic & trigger monthly_overview_v1 template
-    print(f"Monthly report requested by {phone}")
+    """
+    Retrieves weekly breakdown for the current month and sends the monthly template.
+    """
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+        user: Any = cursor.fetchone()
+        if not user: return
+        
+        identifier = user['email'] if user['email'] else phone
+        
+        # Group expenses by the exact day of the month
+        cursor.execute("""
+            SELECT DAY(date) as d, SUM(amount) as total 
+            FROM transactions 
+            WHERE user_email = %s 
+              AND type = 'expense' 
+              AND MONTH(date) = MONTH(CURDATE()) 
+              AND YEAR(date) = YEAR(CURDATE())
+            GROUP BY d
+        """, (identifier,))
+        month_data: list[Any] = cursor.fetchall()
+        
+        weeks = [0.0, 0.0, 0.0, 0.0] # [Week 1, Week 2, Week 3, Week 4+]
+        month_total = 0.0
+        
+        for row in month_data:
+            day = int(row['d'])
+            amt = float(row['total'])
+            month_total += amt
+            
+            # Group into roughly 7-day buckets
+            if day <= 7: weeks[0] += amt
+            elif day <= 14: weeks[1] += amt
+            elif day <= 21: weeks[2] += amt
+            else: weeks[3] += amt
+            
+        # Calculate daily average based on the current day of the month
+        current_day = datetime.now().day
+        avg_daily = month_total / current_day if current_day > 0 else 0
+        
+        # Format variables: [Total, W1, W2, W3, W4, Avg]
+        variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
+        
+        await send_whatsapp_template(phone, "monthly_overview_v1", variables)
+        print(f"✅ Sent Monthly Overview to {phone}")
+    except Exception as e:
+        print(f"Monthly Report Error: {e}")
+    finally:
+        conn.close()
 
 async def handle_fallback(phone: str):
-    print(f"Invalid input from {phone}. Sending help template or text.")
+    print(f"⚠️ Unrecognized input from {phone}. Sending help menu.")
+    await send_whatsapp_template(phone, "sidenote_welcome_v1", [])
 
 
 if __name__ == "__main__":

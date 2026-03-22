@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from typing import Any
 from database import get_db
 from schemas import UserRegister, UserLogin, GoogleAuth, ResetPassword, UserUpdateProfile, UserChangePassword, UserPreferencesUpdate
 from security import pwd_context, create_access_token, get_current_user
@@ -85,7 +86,7 @@ def login(data: UserLogin):
         field = "email" if is_email else "mobile"
         
         cursor.execute(f"SELECT * FROM users WHERE {field} = %s", (data.contact,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         
         if not user or not pwd_context.verify(data.password, user['password_hash']):
             raise HTTPException(status_code=400, detail="Invalid credentials")
@@ -113,7 +114,7 @@ def google_login(data: GoogleAuth):
     try:
         # Check if user exists by email
         cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         
         if not user:
             # Create User
@@ -160,7 +161,7 @@ def reset_password(data: ResetPassword):
             f"SELECT id FROM users WHERE {field} = %s AND LOWER(name) = LOWER(%s)", 
             (data.contact, data.name)
         )
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         
         if not user:
             raise HTTPException(status_code=400, detail="Details do not match any account.")
@@ -204,7 +205,7 @@ def change_password(data: UserChangePassword, email: str = Depends(get_current_u
     try:
         # 1. Get current password hash
         cursor.execute("SELECT password_hash FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")

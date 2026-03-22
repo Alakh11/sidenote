@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
-from typing import Optional
+from typing import Optional, Any
 from database import get_db
 from schemas import TransactionCreate, CategoryCreate, CategoryUpdate, BudgetSchema
 import logging
@@ -17,14 +17,14 @@ def add_transaction(tx: TransactionCreate):
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT id FROM categories WHERE name = %s AND user_email = %s AND type = %s", (tx.category, tx.user_email, tx.type))
-        result = cursor.fetchone()
+        result: Any = cursor.fetchone()
         if not result:
              cursor.execute("SELECT id FROM categories WHERE user_email = %s AND type = %s LIMIT 1", (tx.user_email, tx.type))
              result = cursor.fetchone()
         cat_id = result[0] if result else 1
 
         query = "INSERT INTO transactions (user_email, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-        cursor.execute(query, (tx.user_email, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring))
+        cursor.execute(query, (tx.user_email, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring)) # type: ignore
         conn.commit()
         return {"message": "Transaction Saved"}
     except Exception as e:
@@ -54,7 +54,8 @@ def get_all_transactions(
             LEFT JOIN categories c ON t.category_id = c.id 
             WHERE t.user_email = %s
         """
-        params = [email]
+        # Explicitly declare this as a list of Any, so floats/ints can be appended
+        params: list[Any] = [email] 
 
         if start_date:
             query += " AND t.date >= %s"
@@ -144,7 +145,6 @@ def delete_category(id: int):
     conn = get_db()
     cursor = conn.cursor()
     try:
-        # Cascade delete transactions in this category to avoid orphans
         cursor.execute("DELETE FROM transactions WHERE category_id = %s", (id,))
         cursor.execute("DELETE FROM categories WHERE id = %s", (id,))
         conn.commit()
@@ -157,7 +157,6 @@ def update_category(id: int, cat: CategoryUpdate):
     conn = get_db()
     cursor = conn.cursor()
     try:
-        # Check if exists
         cursor.execute("SELECT * FROM categories WHERE id = %s", (id,))
         if not cursor.fetchone():
              raise HTTPException(status_code=404, detail="Category not found")
@@ -219,11 +218,14 @@ def get_budgets_status(email: str, view_by: str = Query("month")):
             GROUP BY c.id, c.name, c.color, c.icon, b.amount
         """
         cursor.execute(query, (email, email, email))
-        budgets = cursor.fetchall()
+        budgets: list[Any] = cursor.fetchall() # Type hint to satisfy Pylance dict access
 
         for b in budgets:
-            b['percentage'] = (b['spent'] / b['budget_limit'] * 100) if b['budget_limit'] > 0 else 0
-            b['is_over'] = b['spent'] > b['budget_limit'] and b['budget_limit'] > 0
+            # Explicitly cast to float to satisfy Pylance
+            limit = float(b['budget_limit'])
+            spent = float(b['spent'])
+            b['percentage'] = (spent / limit * 100) if limit > 0 else 0
+            b['is_over'] = spent > limit and limit > 0
 
         conn.close()
         return budgets
@@ -237,28 +239,35 @@ def get_budget_history(email: str):
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
         
-        # 1. Fetch Raw Data
-        query = """
-            SELECT date, amount
+        # 1. Get Custom Date Offset
+        cursor.execute("SELECT month_start_date FROM users WHERE email = %s", (email,))
+        user: Any = cursor.fetchone() # Type hint
+        offset = (int(user['month_start_date']) - 1) if user and user.get('month_start_date') else 0
+        
+        adjusted_date = f"DATE_SUB(date, INTERVAL {offset} DAY)"
+        
+        # 2. Fetch Raw Data using adjusted timeline
+        query = f"""
+            SELECT {adjusted_date} as adj_date, amount
             FROM transactions 
             WHERE user_email = %s 
               AND type = 'expense'
-              AND date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-            ORDER BY date ASC
+              AND {adjusted_date} >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+            ORDER BY adj_date ASC
         """
         cursor.execute(query, (email,))
-        transactions = cursor.fetchall()
+        transactions: list[Any] = cursor.fetchall() # Type hint
         
-        # 2. Get Budget Limit
+        # 3. Get Budget Limit
         cursor.execute("SELECT SUM(amount) as total_limit FROM budgets WHERE user_email = %s", (email,))
-        limit_row = cursor.fetchone()
+        limit_row: Any = cursor.fetchone() # Type hint
         total_limit = float(limit_row['total_limit']) if limit_row and limit_row['total_limit'] else 0
         
         conn.close()
 
-        # 3. Process in Python
+        # 4. Process in Python using shifted dates
         history_map = {}
-        today = datetime.today()
+        today = datetime.today() - timedelta(days=offset)
         
         for i in range(5, -1, -1):
             d = today - timedelta(days=i*30)
@@ -267,9 +276,10 @@ def get_budget_history(email: str):
             history_map[key] = {"month": name, "total_spent": 0, "budget_limit": total_limit}
 
         for t in transactions:
-            date_obj = t['date']
+            date_obj = t['adj_date']
             if isinstance(date_obj, str):
-                date_obj = datetime.strptime(date_obj, '%Y-%m-%d')
+                date_obj = datetime.strptime(date_obj.split(' ')[0], '%Y-%m-%d')
+            
             key = date_obj.strftime('%Y-%m')
             if key in history_map:
                 history_map[key]['total_spent'] += float(t['amount'])
@@ -286,7 +296,7 @@ def update_transaction(id: int, tx: TransactionCreate):
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT id FROM categories WHERE name = %s AND user_email = %s AND type = %s", (tx.category, tx.user_email, tx.type))
-        result = cursor.fetchone()
+        result: Any = cursor.fetchone()
         if not result:
              cursor.execute("SELECT id FROM categories WHERE user_email = %s AND type = %s LIMIT 1", (tx.user_email, tx.type))
              result = cursor.fetchone()
@@ -298,11 +308,32 @@ def update_transaction(id: int, tx: TransactionCreate):
                 payment_mode = %s, date = %s, note = %s, is_recurring = %s 
             WHERE id = %s
         """
-        cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id))
+        cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id)) # type: ignore
         conn.commit()
         return {"message": "Transaction updated"}
     except Exception as e:
         logger.error(f"Update Tx Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+        
+@router.get("/transactions/{email}")
+def get_user_transactions(email: str, view_by: str = Query("month")):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        date_filter = get_date_filter_sql(cursor, email, view_by, "t", "date")
+        
+        query = f"""
+            SELECT t.*, c.name as category_name, c.icon as category_icon 
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE t.user_email = %s AND {date_filter}
+            ORDER BY t.date DESC
+        """
+        cursor.execute(query, (email,))
+        return cursor.fetchall()
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()

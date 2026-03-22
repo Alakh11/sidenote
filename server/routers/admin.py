@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from typing import Any
 from database import get_db
 from security import require_admin, pwd_context
 from schemas import UserRegister, AdminUpdateUser
@@ -17,14 +18,16 @@ def get_all_users(admin_email: str = Depends(require_admin)):
             FROM users 
             ORDER BY created_at DESC
         """)
-        users = cursor.fetchall()
+        users: list[Any] = cursor.fetchall()
         
         # Get total stats for the dashboard
         cursor.execute("SELECT COUNT(*) as count FROM users")
-        total_users = cursor.fetchone()['count']
+        user_row: Any = cursor.fetchone()
+        total_users = user_row['count'] if user_row else 0
         
         cursor.execute("SELECT COUNT(*) as count FROM transactions")
-        total_tx = cursor.fetchone()['count']
+        tx_row: Any = cursor.fetchone()
+        total_tx = tx_row['count'] if tx_row else 0
         
         conn.close()
         return {"users": users, "stats": {"total_users": total_users, "total_transactions": total_tx}}
@@ -61,7 +64,7 @@ def admin_delete_user(user_id: int, admin_email: str = Depends(require_admin)):
     try:
         # Prevent deleting self
         cursor.execute("SELECT email FROM users WHERE id = %s", (user_id,))
-        target = cursor.fetchone()
+        target: Any = cursor.fetchone()
         if target and target[0] == admin_email:
              raise HTTPException(status_code=400, detail="Cannot delete your own Admin account")
 
@@ -107,7 +110,7 @@ def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        target_user = cursor.fetchone()
+        target_user: Any = cursor.fetchone()
         if not target_user:
             raise HTTPException(status_code=404, detail="User not found")
             
@@ -115,29 +118,29 @@ def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
 
         # 1. Transactions
         cursor.execute("SELECT * FROM transactions WHERE user_email = %s ORDER BY date DESC", (email,))
-        transactions = cursor.fetchall()
+        transactions: list[Any] = cursor.fetchall()
 
         # 2. Goals
         cursor.execute("SELECT * FROM goals WHERE user_email = %s", (email,))
-        goals = cursor.fetchall()
+        goals: list[Any] = cursor.fetchall()
 
         # 3. Categories
         cursor.execute("SELECT * FROM categories WHERE user_email = %s", (email,))
-        categories = cursor.fetchall()
+        categories: list[Any] = cursor.fetchall()
 
         # 4. Loans (Liabilities)
         cursor.execute("SELECT * FROM loans WHERE user_email = %s", (email,))
-        loans = cursor.fetchall()
+        loans: list[Any] = cursor.fetchall()
 
         cursor.execute("SELECT * FROM borrowers WHERE user_email = %s", (email,))
-        borrowers = cursor.fetchall()
+        borrowers: list[Any] = cursor.fetchall()
         
         cursor.execute("""
             SELECT d.*, b.name as borrower_name 
             FROM debts d JOIN borrowers b ON d.borrower_id = b.id 
             WHERE b.user_email = %s
         """, (email,))
-        lent_records = cursor.fetchall()
+        lent_records: list[Any] = cursor.fetchall()
 
         return {
             "profile": target_user,

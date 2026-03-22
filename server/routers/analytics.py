@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
+from typing import Any
 from database import get_db
 import logging
 from utils import get_date_filter_sql
-
+from fastapi import Query
 router = APIRouter(tags=["Analytics & Dashboard"])
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ def get_dashboard(email: str, view_by: str = Query("month")):
         
         # 1. Filter Totals
         cursor.execute(f"SELECT type, SUM(amount) as total FROM transactions WHERE user_email = %s AND {date_filter} GROUP BY type", (email,))
-        totals = cursor.fetchall()
+        totals: list[Any] = cursor.fetchall()
         
         # 2. Filter Recent Transactions
         date_filter_t = date_filter.replace('transactions.date', 't.date')
@@ -27,7 +28,7 @@ def get_dashboard(email: str, view_by: str = Query("month")):
             WHERE t.user_email = %s AND {date_filter_t}
             ORDER BY t.date DESC LIMIT 5
         """, (email,))
-        recent = cursor.fetchall()
+        recent: list[Any] = cursor.fetchall()
         
         conn.close()
         return {"totals": totals, "recent": recent}
@@ -35,31 +36,41 @@ def get_dashboard(email: str, view_by: str = Query("month")):
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/analytics/{email}")
-def get_analytics(email: str):
+def get_analytics(email: str, view_by: str = Query("month")):
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
+        
+        date_filter = get_date_filter_sql(cursor, email, view_by, "t", "date")
+        
+        cursor.execute(f"""
             SELECT c.name, SUM(t.amount) as value 
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
-            WHERE t.user_email = %s AND t.type = 'expense'
+            WHERE t.user_email = %s AND t.type = 'expense' AND {date_filter}
             GROUP BY c.name
         """, (email,))
-        pie_data = cursor.fetchall()
+        pie_data: list[Any] = cursor.fetchall()
         
-        cursor.execute("""
-            SELECT DATE_FORMAT(date, '%b') as name, 
+        cursor.execute("SELECT month_start_date FROM users WHERE email = %s", (email,))
+        user: Any = cursor.fetchone()
+        offset = (int(user['month_start_date']) - 1) if user and user.get('month_start_date') else 0
+        adjusted_date = f"DATE_SUB(date, INTERVAL {offset} DAY)"
+        
+        cursor.execute(f"""
+            SELECT DATE_FORMAT(DATE_ADD({adjusted_date}, INTERVAL {offset} DAY), '%b') as name, 
                 SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
                 SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
             FROM transactions WHERE user_email = %s 
-            GROUP BY YEAR(date), MONTH(date), DATE_FORMAT(date, '%b')
-            ORDER BY YEAR(date), MONTH(date) LIMIT 6
+            GROUP BY YEAR({adjusted_date}), MONTH({adjusted_date}), name
+            ORDER BY YEAR({adjusted_date}), MONTH({adjusted_date}) LIMIT 6
         """, (email,))
-        bar_data = cursor.fetchall()
+        bar_data: list[Any] = cursor.fetchall()
+        
         conn.close()
         return {"pie": pie_data, "bar": bar_data}
     except Exception as e:
+        logger.error(f"Analytics Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/recurring/{email}")
@@ -83,7 +94,7 @@ def get_recurring(email: str):
         WHERE rt.user_email = %s AND rt.is_recurring = TRUE
     """
     cursor.execute(query, (email,))
-    data = cursor.fetchall()
+    data: list[Any] = cursor.fetchall()
     conn.close()
     return data
 
@@ -102,7 +113,7 @@ def get_daily_income(email: str):
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT date, SUM(amount) as total FROM transactions WHERE user_email = %s AND type = 'income' GROUP BY date ORDER BY date DESC LIMIT 30", (email,))
-        data = cursor.fetchall()
+        data: list[Any] = cursor.fetchall()
         conn.close()
         return data
     except Exception as e:
@@ -119,7 +130,7 @@ def get_monthly_income(email: str):
             FROM transactions WHERE user_email = %s AND type = 'income'
             GROUP BY YEAR(date), MONTH(date) ORDER BY YEAR(date) DESC, MONTH(date) DESC LIMIT 12
         """, (email,))
-        data = cursor.fetchall()
+        data: list[Any] = cursor.fetchall()
         conn.close()
         return data
     except Exception as e:
@@ -137,7 +148,7 @@ def get_category_monthly_analytics(email: str):
             WHERE t.user_email = %s AND t.type = 'expense'
             GROUP BY YEAR(t.date), MONTH(t.date), c.name ORDER BY YEAR(t.date), MONTH(t.date)
         """, (email,))
-        data = cursor.fetchall()
+        data: list[Any] = cursor.fetchall()
         conn.close()
         return data
     except Exception as e:
@@ -160,7 +171,7 @@ def get_prediction(email: str):
             AND date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
             GROUP BY month ORDER BY month DESC
         """, (email,))
-        data = cursor.fetchall()
+        data: list[Any] = cursor.fetchall()
         
         if not data:
             return {"predicted_spend": 0}
@@ -189,6 +200,10 @@ def get_insights(email: str):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     
+    cursor.execute("SELECT currency FROM users WHERE email = %s", (email,))
+    user: Any = cursor.fetchone()
+    currency = user['currency'] if user and user.get('currency') else '₹'
+    
     # Compare This Month vs Last Month
     cursor.execute("""
         SELECT 
@@ -199,7 +214,7 @@ def get_insights(email: str):
         AND date >= DATE_SUB(NOW(), INTERVAL 2 MONTH)
         GROUP BY month ORDER BY month DESC
     """, (email,))
-    totals = cursor.fetchall()
+    totals: list[Any] = cursor.fetchall()
     
     insights = []
     
@@ -207,7 +222,7 @@ def get_insights(email: str):
     if len(totals) >= 2:
         this_month = float(totals[0]['total'])
         last_month = float(totals[1]['total'])
-        if this_month > last_month * 1.10: # 10% increase
+        if this_month > last_month * 1.10: 
             diff = int(((this_month - last_month) / last_month) * 100)
             insights.append({
                 "type": "warning", 
@@ -230,13 +245,13 @@ def get_insights(email: str):
         AND MONTH(t.date) = MONTH(CURRENT_DATE())
         GROUP BY c.name ORDER BY total DESC LIMIT 1
     """, (email,))
-    top_cat = cursor.fetchone()
+    top_cat: Any = cursor.fetchone()
     
     if top_cat:
         insights.append({
             "type": "info",
             "text": f"'{top_cat['name']}' is your highest spending category this month.",
-            "value": f"₹{float(top_cat['total']):,.0f}"
+            "value": f"{currency}{float(top_cat['total']):,.0f}"
         })
         
     conn.close()
@@ -252,7 +267,7 @@ def get_dynamic_trends(
     try:
         # 1. Get user preferences
         cursor.execute("SELECT month_start_date FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         
         start_date_offset = 0
         if user and user.get('month_start_date'):
@@ -292,7 +307,7 @@ def get_dynamic_trends(
         """
         
         cursor.execute(query, (email, limit))
-        data = cursor.fetchall()
+        data: list[Any] = cursor.fetchall()
         
         # Reverse to show chronological order
         return list(reversed(data))

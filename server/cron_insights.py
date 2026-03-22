@@ -2,6 +2,7 @@ from database import get_db
 import logging
 from whatsapp_service import send_whatsapp_template
 import asyncio
+from typing import Any
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ async def send_weekly_proactive_insights():
     try:
         # Find all active WhatsApp users
         cursor.execute("SELECT mobile, email FROM users WHERE mobile IS NOT NULL")
-        users = cursor.fetchall()
+        users: list[Any] = cursor.fetchall()
         
         for user in users:
             identifier = user['email'] if user['email'] else user['mobile']
@@ -30,8 +31,8 @@ async def send_weekly_proactive_insights():
                   AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)
             """, (identifier,))
             
-            week_total_row = cursor.fetchone()
-            week_total = week_total_row['total'] if week_total_row and week_total_row['total'] else 0
+            week_total_row: Any = cursor.fetchone()
+            week_total = float(week_total_row['total']) if week_total_row and week_total_row['total'] else 0.0
             
             if week_total > 0:
                 # 2. Find their highest spending category for this week
@@ -47,14 +48,14 @@ async def send_weekly_proactive_insights():
                     LIMIT 1
                 """, (identifier,))
                 
-                top_cat_row = cursor.fetchone()
+                top_cat_row: Any = cursor.fetchone()
                 
-                top_category = top_cat_row['name'] if top_cat_row and top_cat_row['name'] else "Miscellaneous"
-                top_amount = top_cat_row['category_total'] if top_cat_row else 0
+                top_category = str(top_cat_row['name']) if top_cat_row and top_cat_row['name'] else "Miscellaneous"
+                top_amount = float(top_cat_row['category_total']) if top_cat_row and top_cat_row['category_total'] else 0.0
                 
                 # 3. Send the proactive insight template
                 await send_whatsapp_template(
-                    to_number=user['mobile'], 
+                    to_number=str(user['mobile']), 
                     template_name="proactive_weekly_insight_v1", 
                     variables=[f"{week_total:g}", top_category, f"{top_amount:g}"] 
                 )
