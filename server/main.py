@@ -1,15 +1,16 @@
-import re
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import re
 from database import get_db
 from security import pwd_context
 from utils import create_default_categories
 import logging
 import os
 from routers import auth, transactions, features, analytics, admin
-from whatsapp_service import send_hello_world
+from whatsapp_service import send_whatsapp_template
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from cron_insights import send_weekly_proactive_insights
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def health_check():
 
 @app.get("/test-whatsapp")
 async def trigger_whatsapp_test():
-    return await send_hello_world()
+    return await send_whatsapp_template("919580813770", "sidenote_welcome_v1", [])
 
 # --- Database Initialization on Startup ---
 @app.on_event("startup")
@@ -209,6 +210,13 @@ def init_db():
         
 VERIFY_TOKEN = "whatsapp_webhook_sidenote"
 
+@app.on_event("startup")
+def start_scheduler():
+    scheduler = AsyncIOScheduler()
+    # Runs every Sunday at 6:00 PM
+    scheduler.add_job(send_weekly_proactive_insights, 'cron', day_of_week='sun', hour=18, minute=0)
+    scheduler.start()
+    
 @app.get("/webhook")
 async def verify_webhook(
     mode: str = Query(None, alias="hub.mode"),
@@ -231,7 +239,6 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
     body = await request.json()
     
     try:
-        # Navigate Meta's heavily nested JSON structure
         entry = body.get('entry', [])[0]
         changes = entry.get('changes', [])[0]
         value = changes.get('value', {})
@@ -240,15 +247,14 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
             message = value['messages'][0]
             sender_phone = message['from']
             
-            # 1. Handle Text Messages ("chai 50")
+            # 1. Handle Text Messages
             if message['type'] == 'text':
                 text_body = message['text']['body']
                 print(f"📩 Received text from {sender_phone}: {text_body}")
                 
-                # Send it to a background task so we don't keep Meta waiting
-                background_tasks.add_task(process_text_expense, sender_phone, text_body)
+                background_tasks.add_task(process_whatsapp_message, sender_phone, text_body)
                 
-            # 2. Handle Image Messages (Bills) - We will build this next!
+            # 2. Handle Image Messages (Bills)
             elif message['type'] == 'image':
                 media_id = message['image']['id']
                 print(f"📸 Received an image (Media ID: {media_id}) from {sender_phone}")
@@ -256,27 +262,135 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
     except Exception as e:
         print(f"⚠️ Error parsing webhook: {e}")
 
-    # ALWAYS return 200 OK immediately, or Meta will block your webhook!
     return {"status": "ok"}
 
 
-# --- The actual logic for parsing "chai 50" ---
-
-def process_text_expense(phone: str, text: str):
+async def process_whatsapp_message(phone: str, text: str):
     """
-    Extracts the item and amount from a text like "chai 50"
+    Classifies the message and routes it to the correct handler.
     """
-    # Look for words followed by numbers (e.g., "chai 50", "uber 450.50")
-    match = re.search(r"([a-zA-Z\s]+)[\s-]+([\d\.]+)", text.strip())
+    text = text.strip().lower()
     
-    if match:
-        description = match.group(1).strip()
-        amount = float(match.group(2))
-        
-        # Here is where you will add it to your SideNote database!
-        print(f"✅ ACTION: Add transaction -> Item: '{description}', Amount: ₹{amount}, User Phone: {phone}")
+    # 1. Check for explicit commands
+    if text == "summary":
+        await handle_summary_request(phone)
+    elif text == "week":
+        await handle_weekly_request(phone)
+    elif text == "month":
+        await handle_monthly_request(phone)
     else:
-        print(f"❌ Could not understand the format of: '{text}'")
+        # 2. Check if it's an expense entry (contains a number)
+        match = re.search(r'\d+(?:\.\d+)?', text)
+        
+        # Make sure it's not JUST a number (e.g., "250" is invalid, "250 chai" is valid)
+        if match and not text.replace(" ", "").replace(".", "").isdigit():
+            await handle_expense_entry(phone, text, match)
+        else:
+            # Fallback for "hi", "hello", or invalid formats
+            await handle_fallback(phone)
+
+
+async def handle_expense_entry(phone: str, text: str, match):
+    """
+    Parses '250 chai' or 'chai 250', saves to DB, and sends Template.
+    """
+    amount = float(match.group(0))
+    # Remove the number to get the item name
+    item = text.replace(match.group(0), "").strip()
+
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # 1. First-time user check
+        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+        user = cursor.fetchone()
+        
+        if not user:
+            # Create user on the fly if they don't exist
+            cursor.execute("INSERT INTO users (mobile, is_verified) VALUES (%s, TRUE)", (phone,))
+            conn.commit()
+            identifier = phone
+            
+            # Send Welcome Template for first-time users
+            await send_whatsapp_template(phone, "sidenote_welcome_v1", [])
+        else:
+            # Use email as identifier if they linked it, otherwise use mobile
+            identifier = user['email'] if user['email'] else phone
+
+        # 2. Save the Expense to Database
+        # Note: We use category_id 1 (usually 'Miscellaneous' or 'Food') as a default
+        cursor.execute("""
+            INSERT INTO transactions (user_email, amount, type, note, date, category_id, payment_mode) 
+            VALUES (%s, %s, 'expense', %s, NOW(), 1, 'Cash')
+        """, (identifier, amount, item))
+        conn.commit()
+
+        # 3. Calculate Today's Total
+        cursor.execute("""
+            SELECT SUM(amount) as total FROM transactions 
+            WHERE user_email = %s AND type = 'expense' AND DATE(date) = CURDATE()
+        """, (identifier,))
+        today_total = cursor.fetchone()['total'] or 0
+
+        # 4. Send the 'Entry Recorded' Template
+        await send_whatsapp_template(
+            phone, 
+            "entry_recorded_v1", 
+            [str(amount), item, str(today_total)]
+        )
+        print(f"✅ Saved Transaction: {item} | ₹{amount}")
+        
+    except Exception as e:
+        print(f"Database Error in WhatsApp parser: {e}")
+    finally:
+        conn.close()
+
+
+async def handle_summary_request(phone: str):
+    """
+    Retrieves totals and sends the summary template.
+    """
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+        user = cursor.fetchone()
+        if not user: return
+        
+        identifier = user['email'] if user['email'] else phone
+        
+        # Get Today's Total
+        cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_email=%s AND type='expense' AND DATE(date)=CURDATE()", (identifier,))
+        today_total = cursor.fetchone()['total'] or 0
+        
+        # Get Week Total
+        cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_email=%s AND type='expense' AND YEARWEEK(date, 1)=YEARWEEK(CURDATE(), 1)", (identifier,))
+        week_total = cursor.fetchone()['total'] or 0
+        
+        # Get Month Total
+        cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (identifier,))
+        month_total = cursor.fetchone()['total'] or 0
+        
+        # Send Summary Template
+        await send_whatsapp_template(
+            phone, 
+            "sidenote_overview_v1", 
+            [str(today_total), str(week_total), str(month_total), "Misc", "N/A"]
+        )
+    finally:
+        conn.close()
+
+async def handle_weekly_request(phone: str):
+    # TODO: Build weekly logic & trigger weekly_overview_v1 template
+    print(f"Weekly report requested by {phone}")
+
+async def handle_monthly_request(phone: str):
+    # TODO: Build monthly logic & trigger monthly_overview_v1 template
+    print(f"Monthly report requested by {phone}")
+
+async def handle_fallback(phone: str):
+    print(f"Invalid input from {phone}. Sending help template or text.")
+
 
 if __name__ == "__main__":
     import uvicorn
