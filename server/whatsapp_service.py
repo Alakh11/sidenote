@@ -27,7 +27,7 @@ async def send_whatsapp_template(to_number: str, template_name: str, variables: 
         "template": {
             "name": template_name,
             "language": {
-                "code": "en" 
+                "code": "en_US" 
             },
             "components": [
                 {
