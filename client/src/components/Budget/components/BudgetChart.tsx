@@ -27,7 +27,7 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
               </p>
               <div className="h-px bg-stone-100 dark:bg-slate-700 my-1"></div>
               <p className={`font-bold text-right ${isOver ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {isOver ? `Over by {currency}${Math.abs(diff).toLocaleString()}` : `Saved ₹${diff.toLocaleString()}`}
+                  {isOver ? `Over by ${currency}${Math.abs(diff).toLocaleString()}` : `Saved ${currency}${diff.toLocaleString()}`}
               </p>
           </div>
         </div>
