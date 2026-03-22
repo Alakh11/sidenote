@@ -72,8 +72,9 @@ const transactionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'transactions',
   loader: async ({ context }) => {
+    const viewMode = localStorage.getItem('viewMode') || 'month';
     const [transactions, categories] = await Promise.all([
-        axios.get(`${API_URL}/transactions/all/${context.user.email}`),
+        axios.get(`${API_URL}/transactions/${context.user.email}?view_by=${viewMode}`),
         axios.get(`${API_URL}/categories/${context.user.email}`)
     ]);
     return { 
@@ -89,9 +90,9 @@ const budgetRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'budget',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month'; // <-- Get current view
+    const viewMode = localStorage.getItem('viewMode') || 'month'; 
     const [status, categories, history] = await Promise.all([
-        axios.get(`${API_URL}/budgets/${context.user.email}?view_by=${viewMode}`), // <-- Pass view_by
+        axios.get(`${API_URL}/budgets/${context.user.email}?view_by=${viewMode}`), 
         axios.get(`${API_URL}/categories/${context.user.email}`),
         axios.get(`${API_URL}/budgets/history/${context.user.email}`)
     ]);
@@ -131,8 +132,9 @@ const analyticsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'analytics',
   loader: async ({ context }) => {
+    const viewMode = localStorage.getItem('viewMode') || 'month';
     const [analytics, dailyIncome, monthlyIncome, categoryMonthly, goals] = await Promise.all([
-        axios.get(`${API_URL}/analytics/${context.user.email}`),
+        axios.get(`${API_URL}/analytics/${context.user.email}?view_by=${viewMode}`),
         axios.get(`${API_URL}/income/daily/${context.user.email}`),
         axios.get(`${API_URL}/income/monthly/${context.user.email}`),
         axios.get(`${API_URL}/analytics/category-monthly/${context.user.email}`),
