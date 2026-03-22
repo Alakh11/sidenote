@@ -8,11 +8,22 @@ interface AuthProps {
   onLoginSuccess: (user: any, token: string) => void;
 }
 
+const COUNTRY_CODES = [
+    { code: '91', label: '+91 (IN)' },
+    { code: '1', label: '+1 (US/CA)' },
+    { code: '44', label: '+44 (UK)' },
+    { code: '61', label: '+61 (AU)' },
+    { code: '971', label: '+971 (AE)' },
+    { code: '65', label: '+65 (SG)' },
+    { code: '27', label: '+27 (ZA)' },
+];
+
 export default function Auth({ onLoginSuccess }: AuthProps) {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [method, setMethod] = useState<'email' | 'mobile'>('email');
   
   // Data States
+  const [countryCode, setCountryCode] = useState('91');
   const [formData, setFormData] = useState({ name: '', contact: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,9 +33,9 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
 
   const validateForm = () => {
     if (method === 'mobile') {
-        const mobileRegex = /^[6-9]\d{9}$/;
+        const mobileRegex = /^\d{7,15}$/;
         if (!mobileRegex.test(formData.contact)) {
-            return "Mobile number must be 10 digits and start with 6-9.";
+            return "Please enter a valid mobile number.";
         }
     }
 
@@ -59,6 +70,8 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
     }
 
     setLoading(true);
+
+    const finalContact = method === 'mobile' ? `${countryCode}${formData.contact}` : formData.contact;
     
     try {
         if (mode === 'signup') {
@@ -66,7 +79,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             
             await axios.post(`${API_URL}/auth/register`, {
                 name: formData.name,
-                contact: formData.contact,
+                contact: finalContact,
                 password: formData.password,
                 contact_type: method
             });
@@ -78,7 +91,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         else if (mode === 'reset') {
             const res = await axios.post(`${API_URL}/auth/reset-password`, {
                 name: formData.name,
-                contact: formData.contact,
+                contact: finalContact,
                 new_password: formData.password
             });
             setSuccessMsg(res.data.message);
@@ -87,7 +100,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         }
         else {
             const res = await axios.post(`${API_URL}/auth/login`, {
-                contact: formData.contact,
+                contact: finalContact,
                 password: formData.password
             });
             onLoginSuccess(res.data.user, res.data.token);
@@ -177,22 +190,51 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 </div>
             )}
 
-            {/* Contact Field */}
-            <div className="relative group">
-                {method === 'email' ? <Mail className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" /> : <Phone className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />}
-                <input 
-                    type={method === 'mobile' ? 'tel' : 'text'}
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium focus:ring-2 focus:ring-blue-100 transition-all"
-                    placeholder={method === 'email' ? "Email Address" : "Mobile Number"}
-                    value={formData.contact}
-                    onChange={e => {
-                        const val = method === 'mobile' ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value;
-                        setFormData({...formData, contact: val});
-                    }}
-                />
+            {/* Contact Field (Dynamic based on Email/Mobile) */}
+            <div className="relative group flex">
+                {method === 'email' ? (
+                    <>
+                        <Mail className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors z-10" />
+                        <input 
+                            type="text"
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium focus:ring-2 focus:ring-blue-100 transition-all"
+                            placeholder="Email Address"
+                            value={formData.contact}
+                            onChange={e => setFormData({...formData, contact: e.target.value})}
+                        />
+                    </>
+                ) : (
+                    <div className="flex w-full">
+                        {/* Country Code Dropdown */}
+                        <div className="relative flex items-center bg-slate-100 border border-slate-200 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-blue-100 z-10 transition-all">
+                            <Phone className="absolute left-3 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                            <select 
+                                value={countryCode}
+                                onChange={(e) => setCountryCode(e.target.value)}
+                                className="pl-9 pr-2 py-3 bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer appearance-none"
+                            >
+                                {COUNTRY_CODES.map(c => (
+                                    <option key={c.code} value={c.code}>{c.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {/* Mobile Number Input */}
+                        <input 
+                            type="tel"
+                            className="w-full pl-4 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-r-xl outline-none font-medium focus:ring-2 focus:ring-blue-100 transition-all"
+                            placeholder="Mobile Number"
+                            value={formData.contact}
+                            onChange={e => {
+                                // Strip non-digits and allow up to 15 digits
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 15);
+                                setFormData({...formData, contact: val});
+                            }}
+                        />
+                    </div>
+                )}
             </div>
             
-            {/* Password Field (New Password for Reset) */}
+            {/* Password Field */}
             <div className="relative group">
                 <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                 <input 
