@@ -23,7 +23,8 @@ app = FastAPI()
 origins = [
     "http://localhost:5173",
     "https://alakh-finance.onrender.com",
-    "https://alakh11.github.io"
+    "https://alakh11.github.io",
+    "https://sidenote.hex8.in"
 ]
 
 app.add_middleware(
