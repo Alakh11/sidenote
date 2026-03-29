@@ -249,7 +249,7 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
-  basepath: '/sidenote', 
+  basepath: '/', 
   context: { 
     user: undefined!, 
     handleLogout: undefined!
