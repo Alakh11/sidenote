@@ -79,7 +79,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="h-full bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-[#25D366]/10 flex flex-col dark:bg-slate-900/80 dark:border-slate-800 dark:shadow-slate-900/50">
         <div className="p-6 pb-2 flex items-center justify-between">
             <Link to="/dashboard" className="group hover:opacity-80 transition-opacity">
-                <Logo variant="wordmark" textSize="text-2xl" />
+                <Logo variant="app-icon" textSize="text-2xl" />
             </Link>
 
             <button 

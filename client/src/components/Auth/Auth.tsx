@@ -154,7 +154,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
 
         <div className="text-center mb-6 md:mb-8 mt-2 md:mt-0">
             <div className="flex justify-center mb-4 md:mb-6">
-                <Logo variant="wordmark" textSize="text-3xl md:text-4xl" />
+                <Logo variant="app-icon" textSize="text-3xl md:text-4xl" />
             </div>
             <h1 className="text-lg md:text-xl font-bold text-[#111111] dark:text-white">
                 {mode === 'login' ? 'Welcome Back' : (mode === 'reset' ? 'Reset Password' : 'Create Account')}
