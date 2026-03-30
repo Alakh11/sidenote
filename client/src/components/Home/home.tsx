@@ -115,7 +115,7 @@ export default function Home() {
             <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
             Live on WhatsApp
           </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
+          <h1 className="text-4xl md: text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
             Just send your <br/>
             <span className="text-[#25D366]">expenses</span> like <br/>
             a message.
