@@ -48,7 +48,7 @@ def health_check():
 
 @app.get("/test-whatsapp")
 async def trigger_whatsapp_test():
-    return await send_whatsapp_template("919580813770", "sidenote_welcome_v1", [])
+    return await send_whatsapp_template("918796022992", "sidenote_welcome_v1", [])
 
 # --- Database Initialization on Startup ---
 @app.on_event("startup")

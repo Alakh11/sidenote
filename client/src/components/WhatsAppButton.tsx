@@ -2,7 +2,7 @@ import { MessageCircle } from 'lucide-react';
 
 export default function WhatsAppButton() {
   // Replace with your actual WhatsApp Bot number
-  const WHATSAPP_NUMBER = "919580813770"; 
+  const WHATSAPP_NUMBER = "918796022992"; 
   const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi`;
 
   return (
