@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from '@tanstack/react-router';
 import { MessageCircle, Zap, ShieldCheck, LayoutGrid, Target, ArrowRight, Check } from 'lucide-react';
-import Logo from './Logo';
+import Logo from '../Logo';
 
 const WHATSAPP_NUMBER = "919580813770"; 
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi`;
