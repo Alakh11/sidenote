@@ -90,12 +90,12 @@ export default function Home() {
         <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
           <a href="#how-it-works" className="hover:text-[#111111] transition-colors">How it works</a>
           <a href="#why-sidenote" className="hover:text-[#111111] transition-colors">Why SideNote</a>
-          <a href="#demo" className="hover:text-[#111111] transition-colors">Demo</a>
+          {/* <a href="#demo" className="hover:text-[#111111] transition-colors">Demo</a> */}
         </div>
         <div className="flex items-center gap-4">
-          <Link to="/login" className="hidden md:block text-sm font-bold text-slate-600 hover:text-[#111111]">
+          {/* <Link to="/login" className="hidden md:block text-sm font-bold text-slate-600 hover:text-[#111111]">
             Login
-          </Link>
+          </Link> */}
           <a 
             href={WHATSAPP_URL} target="_blank" rel="noreferrer"
             className="flex items-center gap-2 bg-[#25D366] text-white px-5 py-2 md:py-2.5 rounded-full font-bold text-xs md:text-sm hover:bg-[#1EA952] transition-colors shadow-lg shadow-[#25D366]/20"
@@ -144,7 +144,7 @@ export default function Home() {
               ))}
             </div>
             <p className="text-xs font-semibold text-slate-500">
-              <strong className="text-[#111111]">2,400+</strong> people tracking daily
+              <strong className="text-[#111111]">500+</strong> people tracking daily
             </p>
           </div>
         </div>
@@ -286,7 +286,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="demo" className="py-20 md:py-24 bg-slate-50 border-t border-slate-100">
+      {/* <section id="demo" className="py-20 md:py-24 bg-slate-50 border-t border-slate-100">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:grid md:grid-cols-2 gap-12 md:gap-16 items-center">
             
             <div className="order-2 md:order-1 relative w-full max-w-[400px] mx-auto md:max-w-none">
@@ -303,7 +303,6 @@ export default function Home() {
                             <Wallet className="w-6 h-6 text-white" />
                         </div>
                     </div>
-                    {/* Income/Expense Cards */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                             <p className="text-[10px] font-bold text-slate-400 mb-1 tracking-wider">TOTAL INCOME</p>
@@ -329,7 +328,6 @@ export default function Home() {
                 </Link>
             </div>
 
-            {/* Dashboard Text - Right side */}
             <div className="order-1 md:order-2 text-center md:text-left flex flex-col items-center md:items-start w-full">
                 <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
                     Everything in one<br/>beautiful place.
@@ -345,14 +343,14 @@ export default function Home() {
                 </Link>
             </div>
         </div>
-      </section>
+      </section> */}
 
       <section className="py-20 md:py-24 bg-white border-t border-slate-100 text-center px-6">
          <div className="flex justify-center gap-1.5 mb-6">
             {[1,2,3,4,5].map(i => <Check key={i} className="w-5 h-5 text-[#25D366]" strokeWidth={3.5} />)}
          </div>
          <h2 className="text-xl md:text-3xl font-extrabold tracking-tight max-w-2xl mx-auto mb-4 leading-tight">
-            "Built for people who want a simple way to track spending without extra effort."
+            "Built for people who want a simple way to note spending without extra effort."
          </h2>
          <p className="text-slate-500 font-medium text-sm md:text-base">Used daily by people who prefer simplicity over apps.</p>
       </section>
@@ -396,8 +394,8 @@ export default function Home() {
             <div className="flex gap-4 md:gap-6 text-xs font-bold text-slate-400 md:order-3 order-2">
                <a href="#how-it-works" className="hover:text-[#111111] transition-colors">How it works</a>
                <a href="#why-sidenote" className="hover:text-[#111111] transition-colors">Why SideNote</a>
-               <a href="#demo" className="hover:text-[#111111] transition-colors">Demo</a>
-               <Link to="/login" className="hover:text-[#111111] transition-colors">Login</Link>
+               {/* <a href="#demo" className="hover:text-[#111111] transition-colors">Demo</a> */}
+               {/* <Link to="/login" className="hover:text-[#111111] transition-colors">Login</Link> */}
             </div>
          </div>
       </footer>
