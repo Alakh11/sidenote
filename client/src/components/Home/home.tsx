@@ -115,7 +115,7 @@ export default function Home() {
             <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
             Live on WhatsApp
           </div>
-          <h1 className="text-4xl md: text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
+          <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
             Just send your <br/>
             <span className="text-[#25D366]">expenses</span> like <br/>
             a message.
@@ -219,7 +219,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:grid md:grid-cols-2 gap-12 md:gap-16 items-center">
           
           <div className="order-1 md:order-2 text-center md:text-left flex flex-col items-center md:items-start w-full">
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
+            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
               Built for speed,<br/>not spreadsheets.
             </h2>
             <p className="text-slate-500 font-medium text-base md:text-lg mb-8 md:mb-10 max-w-md">
@@ -298,7 +298,7 @@ export default function Home() {
                             <div className="px-4 py-1.5 text-white text-xs font-bold rounded-lg opacity-90">Month</div>
                             <div className="px-4 py-1.5 text-white text-xs font-bold rounded-lg opacity-90">Year</div>
                         </div>
-                        <h4 className="text-4xl md:text-5xl font-extrabold tracking-tight">₹12,450</h4>
+                        <h4 className="text-4xl lg:text-5xl font-extrabold tracking-tight">₹12,450</h4>
                         <div className="absolute right-6 bottom-6 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
                             <Wallet className="w-6 h-6 text-white" />
                         </div>
@@ -331,7 +331,7 @@ export default function Home() {
 
             {/* Dashboard Text - Right side */}
             <div className="order-1 md:order-2 text-center md:text-left flex flex-col items-center md:items-start w-full">
-                <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
+                <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
                     Everything in one<br/>beautiful place.
                 </h2>
                 <p className="text-slate-500 font-medium text-base md:text-lg mb-8 md:mb-10 max-w-md">
