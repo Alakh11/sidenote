@@ -9,7 +9,7 @@ import {
 export default function LoanTracker() {
   const router = useRouter();
   const user = router.options.context?.user;
-  const loans = useLoaderData({ from: '/loans' });
+  const loans = useLoaderData({ from: '/_auth/loans' });
   const API_URL = "https://sidenote-8nu4.onrender.com";
 
   // --- STATES ---

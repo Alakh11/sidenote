@@ -15,7 +15,7 @@ export default function Dashboard() {
   const user = router.options.context.user;
   
   // Data Fetching
-  const { totals, recent: transactions, categories, prediction, insights } = useLoaderData({ from: '/dashboard' });
+  const { totals, recent: transactions, categories, prediction, insights } = useLoaderData({ from: '/_auth/dashboard' });
   
   // Calculate Stats
   const stats = { income: 0, expense: 0, balance: 0 };

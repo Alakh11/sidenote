@@ -42,16 +42,16 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const { viewMode, setViewMode } = usePreferences();
 
   const menuItems = [
-    { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-    ...(isAdmin ? [{ to: '/admin', label: 'Admin Panel', icon: Shield }] : []),
-    { to: '/transactions', label: 'Transactions', icon: Wallet },
-    { to: '/budget', label: 'Budgets', icon: Target },
-    { to: '/goals', label: 'Savings Goals', icon: Trophy },
-    { to: '/debts', label: 'Debts Tracker', icon: HandCoins },
-    { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee },
-    { to: '/analytics', label: 'Analytics', icon: PieChart },
-    { to: '/recurring', label: 'Recurring Bills', icon: Repeat },
-    { to: '/categories', label: 'Categories', icon: Settings },
+    { to: '/_auth/dashboard', label: 'Overview', icon: LayoutDashboard },
+    ...(isAdmin ? [{ to: '/_auth/admin', label: 'Admin Panel', icon: Shield }] : []),
+    { to: '/_auth/transactions', label: 'Transactions', icon: Wallet },
+    { to: '/_auth/budget', label: 'Budgets', icon: Target },
+    { to: '/_auth/goals', label: 'Savings Goals', icon: Trophy },
+    { to: '/_auth/debts', label: 'Debts Tracker', icon: HandCoins },
+    { to: '/_auth/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee },
+    { to: '/_auth/analytics', label: 'Analytics', icon: PieChart },
+    { to: '/_auth/recurring', label: 'Recurring Bills', icon: Repeat },
+    { to: '/_auth/categories', label: 'Categories', icon: Settings },
   ];
 
   const NavItem = ({ item, onClick }: any) => {

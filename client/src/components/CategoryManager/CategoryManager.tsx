@@ -17,7 +17,7 @@ const PRESET_ICONS = [
 export default function CategoryManager() {
   const router = useRouter();
   const user = router.options.context?.user;
-  const categories = useLoaderData({ from: '/categories' });
+  const categories = useLoaderData({ from: '/_auth/categories' });
 
   // State
   const [formData, setFormData] = useState({ name: '', color: PRESET_COLORS[5], type: 'expense', icon: '🏷️' });

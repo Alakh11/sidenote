@@ -8,7 +8,7 @@ import { TrendingUp, PieChart as PieIcon, BarChart3, Target, Calendar } from 'lu
 import { useTheme } from '../../context/ThemeContext';
 
 export default function Analytics() {
-  const { pie, bar, dailyIncome, monthlyIncome, categoryMonthly, goals } = useLoaderData({ from: '/analytics' });
+  const { pie, bar, dailyIncome, monthlyIncome, categoryMonthly, goals } = useLoaderData({ from: '/_auth/analytics' });
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   

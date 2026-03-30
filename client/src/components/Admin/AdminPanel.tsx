@@ -10,7 +10,7 @@ const API_URL = "https://sidenote-8nu4.onrender.com";
 
 export default function AdminPanel() {
   const router = useRouter();
-  const { users, stats } = useLoaderData({ from: '/admin' });
+  const { users, stats } = useLoaderData({ from: '/_auth/admin' });
   const [search, setSearch] = useState('');
   
   // States for Modals/Views
