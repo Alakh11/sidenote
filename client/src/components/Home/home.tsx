@@ -115,7 +115,7 @@ export default function Home() {
             <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
             Live on WhatsApp
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
+          <h1 className="text-5xl md:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
             Just send your <br/>
             <span className="text-[#25D366]">expenses</span> like <br/>
             a message.
@@ -219,7 +219,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:grid md:grid-cols-2 gap-12 md:gap-16 items-center">
           
           <div className="order-1 md:order-2 text-center md:text-left flex flex-col items-center md:items-start w-full">
-            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
+            <h2 className="text-3xl md:text-4xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
               Built for speed,<br/>not spreadsheets.
             </h2>
             <p className="text-slate-500 font-medium text-base md:text-lg mb-8 md:mb-10 max-w-md">
@@ -244,8 +244,8 @@ export default function Home() {
           </div>
 
           <div className="order-2 md:order-1 flex justify-center w-full">
-            <div className="bg-[#2D5A4C] p-6 md:p-12 rounded-[2rem] md:rounded-[2.5rem] relative overflow-hidden flex flex-col w-full max-w-[400px] md:max-w-none shadow-xl">
-                <h3 className="text-white font-bold text-base md:text-lg mb-6 md:mb-8 relative z-10 self-start">Feel how fast it is</h3>
+            <div className="bg-[#2D5A4C] p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] relative overflow-hidden flex flex-col w-full max-w-[400px] md:max-w-none shadow-xl">
+                <h3 className="text-white font-bold text-base md:text-lg mb-4 md:mb-6 relative z-10 self-start">Feel how fast it is</h3>
                 
                 <div className="w-full bg-[#EFEAE2] rounded-2xl md:rounded-3xl shadow-lg overflow-hidden border border-slate-200/50 flex flex-col mx-auto relative">
                     <div className="bg-[#008069] px-3 py-2.5 flex items-center gap-3 shadow-sm z-10">
