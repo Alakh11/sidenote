@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from '@tanstack/react-router';
-import { MessageSquareText, MessageCircle, Zap, ShieldCheck, LayoutGrid, Target, ArrowRight } from 'lucide-react';
+import { MessageCircle, Zap, ShieldCheck, LayoutGrid, Target, ArrowRight, Check } from 'lucide-react';
+import Logo from './Logo';
 
 const WHATSAPP_NUMBER = "919580813770"; 
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi`;
@@ -15,30 +16,13 @@ const simulationScript = [
   { text: "<strong>Today: ₹700</strong><br/>Week: ₹4,200", isSent: false, time: "11:05 AM", delay: 1500 },
 ];
 
-// --- Modern Logo with Two-Tone Text ---
-const ModernLogo = ({ textSize = "text-2xl" }: { textSize?: string }) => (
-    <div className={`flex items-center gap-[0.3em] font-extrabold tracking-tight ${textSize}`}>
-      {/* Icon Box from Brand Sheet */}
-      <div className="flex items-center justify-center w-[1.3em] h-[1.3em] bg-[#25D366]/15 rounded-[0.3em] shrink-0">
-         <MessageSquareText className="w-[60%] h-[60%] text-[#25D366]" strokeWidth={2.5} />
-      </div>
-      
-      {/* Two-tone Text */}
-      <div className="font-extrabold">
-        <span className="text-[#111111]">Side</span>
-        <span className="text-[#25D366]">Note</span>
-      </div>
-    </div>
-);
-
-
 export default function Home() {
   const [messages, setMessages] = useState<any[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // --- Runs the conversation simulation loop ---
   useEffect(() => {
-    let currentTimeout: NodeJS.Timeout;
+    let currentTimeout: ReturnType<typeof setTimeout>;
     
     // Recursive function to show messages with delays
     const showMessage = (index: number) => {
@@ -78,29 +62,38 @@ export default function Home() {
       
       {/* --- Navigation --- */}
       <nav className="flex items-center justify-between px-6 py-4 md:py-5 max-w-7xl mx-auto sticky top-0 bg-white/90 backdrop-blur-sm z-50">
-        <ModernLogo />
+        <Link to="/" className="flex items-center gap-2.5">
+            <Logo variant="app-icon" textSize="text-xl md:text-2xl" />
+            <span className="font-extrabold tracking-tight text-xl md:text-2xl text-[#111111] leading-none">
+                Side<span className="text-[#25D366]">Note</span>
+            </span>
+        </Link>
+
         <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
           <a href="#how-it-works" className="hover:text-[#111111] transition-colors">How it works</a>
           <a href="#why-sidenote" className="hover:text-[#111111] transition-colors">Why SideNote</a>
         </div>
         <div className="flex items-center gap-4">
-          <Link to="/login" className="text-sm font-bold text-slate-600 hover:text-[#111111]">
+          <Link to="/login" className="hidden md:block text-sm font-bold text-slate-600 hover:text-[#111111]">
             Login
           </Link>
           <a 
             href={WHATSAPP_URL} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-full font-bold text-sm hover:bg-[#1EA952] transition-colors shadow-lg shadow-[#25D366]/20"
+            className="flex items-center gap-2 bg-[#25D366] text-white px-5 py-2 md:py-2.5 rounded-full font-bold text-xs md:text-sm hover:bg-[#1EA952] transition-colors shadow-lg shadow-[#25D366]/20"
           >
-            <MessageCircle className="w-4 h-4 fill-current" /> Start Free
+            <MessageCircle className="w-4 h-4 fill-current hidden md:block" /> 
+            <span className="md:hidden w-2 h-2 bg-white rounded-full"></span> 
+            <span className="hidden md:inline">Start Free</span>
+            <span className="md:hidden uppercase tracking-wider">WhatsApp</span>
           </a>
         </div>
       </nav>
 
       {/* --- Hero Section --- */}
-      <section className="max-w-7xl mx-auto px-6 py-12 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+      <section className="max-w-7xl mx-auto px-6 py-10 md:py-24 flex flex-col md:grid md:grid-cols-2 gap-12 items-center text-center md:text-left">
         
-        {/* Left Side: Content (Stable) */}
-        <div className="max-w-xl relative z-10">
+        {/* Left Side: Content */}
+        <div className="max-w-xl relative z-10 flex flex-col items-center md:items-start">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-6">
             <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
             Live on WhatsApp
@@ -112,24 +105,24 @@ export default function Home() {
             a message.
           </h1>
           
-          <p className="text-lg md:text-xl text-slate-500 font-medium mb-8 leading-relaxed max-w-md">
+          <p className="text-lg md:text-xl text-slate-500 font-medium mb-8 leading-relaxed max-w-md mx-auto md:mx-0">
             No apps. No categories. No login. <br className="hidden md:block" />
             Just type it and it's recorded.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
             <a 
               href={WHATSAPP_URL} target="_blank" rel="noreferrer"
               className="w-full sm:w-auto flex justify-center items-center gap-2.5 bg-[#25D366] text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-[#1EA952] hover:scale-105 transition-all shadow-xl shadow-[#25D366]/30"
             >
               <MessageCircle className="w-5 h-5 fill-current" /> Start on WhatsApp
             </a>
-            <a href="#how-it-works" className="text-sm font-bold text-slate-600 hover:text-[#111111] flex items-center gap-1">
+            <a href="#how-it-works" className="text-sm font-bold text-slate-600 hover:text-[#111111] flex items-center justify-center gap-1">
               See how it works <ArrowRight className="w-4 h-4" />
             </a>
           </div>
 
-          <div className="mt-10 flex items-center gap-3">
+          <div className="mt-10 flex items-center justify-center md:justify-start gap-3">
             <div className="flex -space-x-3">
               {['AK', 'SR', 'PG', 'MN'].map((init, i) => (
                 <div key={i} className="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center text-[10px] font-bold ring-2 ring-white opacity-90">
@@ -143,29 +136,27 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right Side: Phone Mockup (Stable Container, Running Content) */}
-        <div className="relative flex justify-center md:justify-end">
+        {/* Right Side: Phone Mockup */}
+        <div className="relative flex justify-center md:justify-end w-full mt-8 md:mt-0">
            {/* Decorative background blob */}
            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-[#25D366]/20 blur-[80px] rounded-full pointer-events-none"></div>
            
-           {/* The WhatsApp Phone Mockup - Fixed height, internally scrolling messages */}
-           <div className="w-full max-w-[320px] bg-[#EFEAE2] rounded-3xl shadow-2xl overflow-hidden border border-slate-200/50 flex flex-col mx-auto shrink-0 relative z-10">
-                {/* WhatsApp Header */}
+           <div className="w-full max-w-[320px] bg-[#EFEAE2] rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200/50 flex flex-col mx-auto shrink-0 relative z-10">
                 <div className="bg-[#008069] px-4 py-3 flex items-center gap-3 shadow-sm z-10">
                     <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0">
                         SN
                     </div>
-                    <div>
+                    <div className="text-left">
                         <h3 className="text-white font-semibold text-sm leading-tight">SideNote</h3>
-                        <p className="text-white/80 text-xs">Online</p>
+                        <p className="text-white/80 text-[11px]">Online</p>
                     </div>
                 </div>
                 
                 {/* Chat Area - Fixed 280px height to prevent screen movement */}
-                <div ref={chatContainerRef} className="p-4 flex flex-col gap-3 h-[280px] overflow-y-auto relative scroll-smooth">
+                <div ref={chatContainerRef} className="p-4 flex flex-col gap-3 h-[280px] overflow-y-auto relative scroll-smooth no-scrollbar">
                     {messages.map((msg, i) => (
                         <div key={i} className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] p-2 px-3 rounded-xl shadow-sm relative text-[15px] text-[#111111] ${
+                            <div className={`max-w-[85%] p-2 px-3 rounded-xl shadow-sm relative text-[15px] text-[#111111] text-left leading-snug ${
                                 msg.isSent 
                                 ? 'bg-[#D9FDD3] rounded-tr-none' 
                                 : 'bg-white rounded-tl-none'
@@ -179,9 +170,8 @@ export default function Home() {
                     ))}
                 </div>
 
-                {/* Input Area */}
                 <div className="bg-[#F0F2F5] p-2 px-3 flex items-center gap-2 mt-auto">
-                    <div className="flex-1 bg-white rounded-full px-4 py-2 text-sm text-slate-400">
+                    <div className="flex-1 bg-white rounded-full px-4 py-2 text-sm text-slate-400 text-left">
                         Type a message
                     </div>
                     <div className="w-10 h-10 bg-[#008069] rounded-full flex items-center justify-center shrink-0">
@@ -193,26 +183,26 @@ export default function Home() {
       </section>
 
       {/* --- How it works Section --- */}
-      <section id="how-it-works" className="py-24 bg-slate-50 border-t border-slate-100">
+      <section id="how-it-works" className="py-20 md:py-24 bg-slate-50 border-t border-slate-100">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12 md:mb-16">
             <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Three steps. That's it.</h2>
             <p className="text-slate-500 font-medium max-w-lg mx-auto">
               You already know how to send a WhatsApp message. That's all you need.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             {[
               { num: 1, title: "Send a message", desc: 'Type "200 chai" or "450 uber" the moment you spend.' },
               { num: 2, title: "It gets recorded instantly", desc: 'Logged in your private ledger — zero extra taps.' },
               { num: 3, title: "See your summary anytime", desc: 'Just type "summary" for today\'s or this week\'s total.' },
             ].map((step) => (
-              <div key={step.num} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                <div className="w-12 h-12 bg-[#111111] text-white rounded-xl flex items-center justify-center text-xl font-bold mb-6">
+              <div key={step.num} className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-100 text-left">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-[#111111] text-white rounded-xl flex items-center justify-center text-lg md:text-xl font-bold mb-5 md:mb-6">
                   {step.num}
                 </div>
-                <h3 className="text-xl font-extrabold mb-3">{step.title}</h3>
+                <h3 className="text-lg md:text-xl font-extrabold mb-2 md:mb-3">{step.title}</h3>
                 <p className="text-slate-500 font-medium text-sm leading-relaxed">
                   {step.desc}
                 </p>
@@ -223,78 +213,25 @@ export default function Home() {
       </section>
 
       {/* --- Speed/Features Section --- */}
-      <section id="why-sidenote" className="py-24 bg-white">
-        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
+      <section id="why-sidenote" className="py-20 md:py-24 bg-white">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col md:grid md:grid-cols-2 gap-12 md:gap-16 items-center">
           
-          <div className="order-2 md:order-1 flex justify-center">
-            <div className="bg-[#125A46] p-8 md:p-12 rounded-[2.5rem] relative overflow-hidden flex flex-col">
-                <h3 className="text-white font-bold text-lg mb-8 relative z-10 self-start">Feel how fast it is</h3>
-                
-                {/* The static WhatsApp Phone Mockup for Features */}
-                <div className="w-full max-w-[320px] bg-[#EFEAE2] rounded-3xl shadow-2xl overflow-hidden border border-slate-200/50 flex flex-col mx-auto shrink-0 relative">
-                    {/* WhatsApp Header */}
-                    <div className="bg-[#008069] px-4 py-3 flex items-center gap-3 shadow-sm z-10">
-                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0">
-                            SN
-                        </div>
-                        <div>
-                            <h3 className="text-white font-semibold text-sm leading-tight">SideNote</h3>
-                            <p className="text-white/80 text-xs">Online</p>
-                        </div>
-                    </div>
-                    
-                    {/* Chat Area - Fixed 280px height */}
-                    <div className="p-4 flex flex-col gap-3 h-[280px] overflow-hidden relative">
-                        {[
-                            { text: "petrol 250", isSent: true, time: "11:02 AM" },
-                            { text: "Noted ₹250 for petrol.<br/> recorded ₹250 today.", isSent: false, time: "11:02 AM" },
-                            { text: "summary", isSent: true, time: "11:04 AM" },
-                            { text: "<strong>Today: ₹250</strong><br/>Week: ₹1250", isSent: false, time: "11:04 AM" }
-                        ].map((msg, i) => (
-                            <div key={i} className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] p-2 px-3 rounded-xl shadow-sm relative text-[15px] text-[#111111] ${
-                                    msg.isSent 
-                                    ? 'bg-[#D9FDD3] rounded-tr-none' 
-                                    : 'bg-white rounded-tl-none'
-                                }`}>
-                                    <div dangerouslySetInnerHTML={{ __html: msg.text }} />
-                                    <div className="text-[10px] text-slate-500 text-right mt-1 opacity-80">
-                                    {msg.time}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Input Area */}
-                    <div className="bg-[#F0F2F5] p-2 px-3 flex items-center gap-2 mt-auto">
-                        <div className="flex-1 bg-white rounded-full px-4 py-2 text-sm text-slate-400">
-                            Type a message
-                        </div>
-                        <div className="w-10 h-10 bg-[#008069] rounded-full flex items-center justify-center shrink-0">
-                            <MessageCircle className="w-5 h-5 text-white fill-white" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-          </div>
-
-          <div className="order-1 md:order-2">
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6">
+          <div className="order-1 md:order-2 text-center md:text-left flex flex-col items-center md:items-start w-full">
+            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-4 md:mb-6">
               Built for speed,<br/>not spreadsheets.
             </h2>
-            <p className="text-slate-500 font-medium text-lg mb-10 max-w-md">
+            <p className="text-slate-500 font-medium text-base md:text-lg mb-8 md:mb-10 max-w-md">
               Every other tracker asks you to do too much. SideNote gets out of your way.
             </p>
 
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-left">
                {[
                  { icon: LayoutGrid, text: "No apps to open or update" },
                  { icon: Target, text: "No categories to think about" },
                  { icon: Zap, text: "No forms or login screens" },
                  { icon: ShieldCheck, text: "Just note it and move on" },
                ].map((feature, i) => (
-                 <div key={i} className="feature-card flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                 <div key={i} className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl md:rounded-2xl border border-slate-100">
                     <div className="w-10 h-10 rounded-full bg-[#25D366]/10 flex items-center justify-center shrink-0">
                        <feature.icon className="w-5 h-5 text-[#25D366]" />
                     </div>
@@ -303,34 +240,83 @@ export default function Home() {
                ))}
             </div>
           </div>
+
+          <div className="order-2 md:order-1 flex justify-center w-full">
+            <div className="bg-[#2D5A4C] p-6 md:p-12 rounded-[2rem] md:rounded-[2.5rem] relative overflow-hidden flex flex-col w-full max-w-[400px] md:max-w-none shadow-xl">
+                <h3 className="text-white font-bold text-base md:text-lg mb-6 md:mb-8 relative z-10 self-start">Feel how fast it is</h3>
+                
+                <div className="w-full bg-[#EFEAE2] rounded-2xl md:rounded-3xl shadow-lg overflow-hidden border border-slate-200/50 flex flex-col mx-auto relative">
+                    <div className="bg-[#008069] px-3 py-2.5 flex items-center gap-3 shadow-sm z-10">
+                        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0">
+                            SN
+                        </div>
+                        <div className="text-left">
+                            <h3 className="text-white font-semibold text-xs leading-tight">SideNote</h3>
+                            <p className="text-white/80 text-[10px]">Online</p>
+                        </div>
+                    </div>
+                    
+                    {/* Chat Area - Fixed Height */}
+                    <div className="p-3 flex flex-col gap-2 h-[220px] md:h-[280px] overflow-hidden relative">
+                        {[
+                            { text: "petrol 250", isSent: true, time: "11:02 AM" },
+                            { text: "Noted ₹250 for petrol.<br/> recorded ₹250 today.", isSent: false, time: "11:02 AM" },
+                            { text: "summary", isSent: true, time: "11:04 AM" },
+                            { text: "<strong>Today: ₹250</strong><br/>Week: ₹1250", isSent: false, time: "11:04 AM" }
+                        ].map((msg, i) => (
+                            <div key={i} className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] p-2 px-2.5 rounded-lg md:rounded-xl shadow-sm relative text-[13px] md:text-[15px] text-[#111111] text-left leading-snug ${
+                                    msg.isSent ? 'bg-[#D9FDD3] rounded-tr-none' : 'bg-white rounded-tl-none'
+                                }`}>
+                                    <div dangerouslySetInnerHTML={{ __html: msg.text }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="bg-[#F0F2F5] p-2 flex items-center gap-2 mt-auto">
+                        <div className="flex-1 bg-white rounded-full px-3 py-1.5 text-xs text-slate-400 text-left">
+                            Type a message
+                        </div>
+                        <div className="w-8 h-8 bg-[#008069] rounded-full flex items-center justify-center shrink-0">
+                            <MessageCircle className="w-4 h-4 text-white fill-white" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
       {/* --- Testimonial Section --- */}
-      <section className="py-24 bg-slate-50 border-y border-slate-100 text-center px-6">
-         <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight max-w-3xl mx-auto mb-4 leading-tight">
+      <section className="py-20 md:py-24 bg-slate-50 border-y border-slate-100 text-center px-6">
+         <div className="flex justify-center gap-1.5 mb-6">
+            {[1,2,3,4,5].map(i => <Check key={i} className="w-5 h-5 text-[#25D366]" strokeWidth={3.5} />)}
+         </div>
+         <h2 className="text-xl md:text-3xl font-extrabold tracking-tight max-w-2xl mx-auto mb-4 leading-tight">
             "Built for people who want a simple way to track spending without extra effort."
          </h2>
-         <p className="text-slate-500 font-medium italic">"A simple tool I can trust and use daily."</p>
+         <p className="text-slate-500 font-medium text-sm md:text-base">Used daily by people who prefer simplicity over apps.</p>
       </section>
 
       {/* --- Bottom CTA Section --- */}
-      <section className="bg-[#111111] py-24 px-6 text-center">
-         <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-tight mb-6">
+      <section className="bg-[#111111] py-20 md:py-24 px-6 text-center">
+         <h2 className="text-3xl md:text-6xl font-extrabold tracking-tight text-white leading-tight mb-4 md:mb-6">
             Start recording your <br/>
             <span className="text-[#25D366]">spending in seconds.</span>
          </h2>
-         <p className="text-slate-400 font-medium text-lg mb-10">
+         <p className="text-slate-400 font-medium text-sm md:text-lg mb-8 md:mb-10 max-w-lg mx-auto">
             No installation. No signup. Just open WhatsApp and send your first expense.
          </p>
          <div className="flex flex-col items-center justify-center gap-4">
             <a 
               href={WHATSAPP_URL} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-3 bg-[#25D366] text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-[#1EA952] hover:scale-105 transition-all shadow-lg shadow-[#25D366]/20"
+              className="w-full sm:w-auto flex justify-center items-center gap-3 bg-[#25D366] text-white px-8 py-3.5 md:py-4 rounded-full font-bold text-base md:text-lg hover:bg-[#1EA952] hover:scale-105 transition-all shadow-lg shadow-[#25D366]/20"
             >
-              <MessageCircle className="w-6 h-6 fill-current" /> Open WhatsApp
+              <MessageCircle className="w-5 h-5 md:w-6 md:h-6 fill-current" /> Open WhatsApp
             </a>
-            <p className="text-slate-600 text-xs font-semibold mt-4">
+            <p className="text-slate-600 text-[10px] md:text-xs font-semibold mt-2 md:mt-4">
               Secure and private. No data sold. Ever.
             </p>
          </div>
@@ -339,14 +325,21 @@ export default function Home() {
       {/* --- Footer --- */}
       <footer className="border-t border-slate-100 py-8 md:py-12 px-6 bg-white">
          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-            <ModernLogo textSize="text-xl" />
-            <p className="text-slate-400 text-xs font-semibold">
+            <div className="flex items-center gap-2">
+                <Logo variant="app-icon" textSize="text-lg" />
+                <span className="font-extrabold tracking-tight text-lg text-[#111111] leading-none">
+                    Side<span className="text-[#25D366]">Note</span>
+                </span>
+            </div>
+            
+            <p className="text-slate-400 text-xs font-semibold md:order-2 order-3">
               © {new Date().getFullYear()} SideNote. Track easier.
             </p>
-            <div className="flex gap-6 text-xs font-bold text-slate-400">
+            
+            <div className="flex gap-4 md:gap-6 text-xs font-bold text-slate-400 md:order-3 order-2">
                <a href="#how-it-works" className="hover:text-[#111111] transition-colors">How it works</a>
                <a href="#why-sidenote" className="hover:text-[#111111] transition-colors">Why SideNote</a>
-               <Link to="/login" className="hover:text-[#111111] transition-colors">Login to Dashboard</Link>
+               <Link to="/login" className="hover:text-[#111111] transition-colors">Login</Link>
             </div>
          </div>
       </footer>
