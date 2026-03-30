@@ -90,6 +90,7 @@ export default function Home() {
         <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
           <a href="#how-it-works" className="hover:text-[#111111] transition-colors">How it works</a>
           <a href="#why-sidenote" className="hover:text-[#111111] transition-colors">Why SideNote</a>
+          <a href="#demo" className="hover:text-[#111111] transition-colors">Demo</a>
         </div>
         <div className="flex items-center gap-4">
           <Link to="/login" className="hidden md:block text-sm font-bold text-slate-600 hover:text-[#111111]">
@@ -285,7 +286,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="py-20 md:py-24 bg-slate-50 border-t border-slate-100">
+      <section id="demo" className="py-20 md:py-24 bg-slate-50 border-t border-slate-100">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:grid md:grid-cols-2 gap-12 md:gap-16 items-center">
             
             <div className="order-2 md:order-1 relative w-full max-w-[400px] mx-auto md:max-w-none">
@@ -395,6 +396,7 @@ export default function Home() {
             <div className="flex gap-4 md:gap-6 text-xs font-bold text-slate-400 md:order-3 order-2">
                <a href="#how-it-works" className="hover:text-[#111111] transition-colors">How it works</a>
                <a href="#why-sidenote" className="hover:text-[#111111] transition-colors">Why SideNote</a>
+               <a href="#demo" className="hover:text-[#111111] transition-colors">Demo</a>
                <Link to="/login" className="hover:text-[#111111] transition-colors">Login</Link>
             </div>
          </div>
