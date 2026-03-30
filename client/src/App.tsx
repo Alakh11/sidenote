@@ -50,7 +50,7 @@ function App() {
     localStorage.removeItem('user_data');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
-    window.location.href = '/sidenote/';
+    window.location.href = '/';
   };
 
   if (!user) {

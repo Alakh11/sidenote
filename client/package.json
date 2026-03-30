@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://alakh.github.io/sidenote",
+  "homepage": "https://sidenote.hex8.in",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -13,7 +13,7 @@
   </p>
 
   <p align="center">
-    <a href="https://alakh11.github.io/sidenote/">
+    <a href="https://sidenote.hex8.in">
       <img src="https://img.shields.io/badge/🔗_Live_Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
     </a>
     <a href="https://sidenote-8nu4.onrender.com">
