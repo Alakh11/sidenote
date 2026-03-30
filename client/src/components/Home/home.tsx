@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from '@tanstack/react-router';
 import { 
-  MessageCircle, Zap, ShieldCheck, LayoutGrid, Target, 
-  ArrowRight, Check, Wallet, TrendingUp, TrendingDown 
+  MessageCircle, Zap, ShieldCheck, LayoutGrid, Target, ArrowRight, Check
+  //  Wallet, TrendingUp, TrendingDown 
 } from 'lucide-react';
 import Logo from '../Logo';
 
