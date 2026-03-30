@@ -10,7 +10,7 @@ import { CategoryIcon } from '../Icons/IconHelper';
 export default function Transactions() {
   const router = useRouter();
   const { initialTransactions, categories } = useLoaderData({ from: '/_auth/transactions' });
-  const user = router.options.context?.user;
+  const user = router.options.context?.user!;
   const API_URL = "https://sidenote-8nu4.onrender.com";
 
   // State

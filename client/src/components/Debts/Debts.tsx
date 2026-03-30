@@ -17,7 +17,7 @@ interface Borrower {
 
 export default function Debts() {
   const router = useRouter();
-  const user = router.options.context?.user;
+  const user = router.options.context?.user!;
   const { stats, top_borrowers, all_borrowers } = useLoaderData({ from: '/_auth/debts' });
   const API_URL = "https://sidenote-8nu4.onrender.com";
 

@@ -12,7 +12,7 @@ import TrendChart from './components/TrendChart';
 
 export default function Dashboard() {
   const router = useRouter();
-  const user = router.options.context.user;
+  const user = router.options.context.user!;
   
   // Data Fetching
   const { totals, recent: transactions, categories, prediction, insights } = useLoaderData({ from: '/_auth/dashboard' });

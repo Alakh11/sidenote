@@ -9,7 +9,7 @@ import BudgetChart from './components/BudgetChart';
 export default function BudgetPlanner() {
   const router = useRouter();
   const { budgets, categories, history } = useLoaderData({ from: '/_auth/budget' });
-  const user = router.options.context?.user;
+  const user = router.options.context?.user!;
 
   const [isEditing, setIsEditing] = useState(false);
 

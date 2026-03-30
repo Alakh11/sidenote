@@ -14,7 +14,7 @@ interface Goal {
 
 export default function Goals() {
   const router = useRouter();
-  const user = router.options.context.user;
+  const user = router.options.context.user!;
   const { goals } = useLoaderData({ from: '/_auth/goals' });
 
   const [showForm, setShowForm] = useState(false);

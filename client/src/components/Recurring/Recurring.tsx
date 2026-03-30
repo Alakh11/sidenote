@@ -8,7 +8,7 @@ import RecurringCard from './components/RecurringCard';
 
 export default function Recurring() {
   const router = useRouter();
-  const user = router.options.context?.user;
+  const user = router.options.context?.user!;
   const recurring = useLoaderData({ from: '/_auth/recurring' });
   
   const [processingId, setProcessingId] = useState<number | null>(null);
