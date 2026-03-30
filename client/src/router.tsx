@@ -22,7 +22,7 @@ import LoanTracker from './components/Loans/LoanTracker';
 import Debts from './components/Debts/Debts';
 import AdminPanel from './components/Admin/AdminPanel';
 import ProfileSettings from './components/Settings/ProfileSettings';
-import Home from './components/Home/Home';
+import Home from './components/Home/home';
 import Auth from './components/Auth/Auth';
 
 interface RouterContext {
