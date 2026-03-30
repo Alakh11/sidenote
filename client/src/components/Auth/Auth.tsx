@@ -153,11 +153,11 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         </button>
 
         <div className="text-center mb-6 md:mb-8 mt-2 md:mt-0">
-            <div className="flex justify-center mb-4 md:mb-6">
-                <Logo variant="app-icon" className="text-lg" />
-                <span className="font-extrabold tracking-tight text-xl text-[#111111] dark:text-white">
-                Side<span className="text-[#25D366]">Note</span>
-             </span>
+            <div className="flex items-center justify-center gap-3 mb-4 md:mb-6">
+                <Logo variant="app-icon" textSize="text-3xl md:text-4xl" />
+                <span className="font-extrabold tracking-tight text-3xl md:text-4xl text-[#111111] dark:text-white leading-none">
+                    Side<span className="text-[#25D366]">Note</span>
+                </span>
             </div>
             <h1 className="text-lg md:text-xl font-bold text-[#111111] dark:text-white">
                 {mode === 'login' ? 'Welcome Back' : (mode === 'reset' ? 'Reset Password' : 'Create Account')}

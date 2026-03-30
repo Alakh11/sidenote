@@ -78,11 +78,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <aside className="hidden md:flex flex-col w-72 fixed h-full z-30 pl-4 py-2">
         <div className="h-full bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-[#25D366]/10 flex flex-col dark:bg-slate-900/80 dark:border-slate-800 dark:shadow-slate-900/50">
         <div className="p-6 pb-2 flex items-center justify-between">
-            <Link to="/dashboard" className="group hover:opacity-80 transition-opacity">
-                <Logo variant="app-icon" className="text-lg" />
-                <span className="font-extrabold tracking-tight text-xl text-[#111111] dark:text-white">
-                Side<span className="text-[#25D366]">Note</span>
-             </span>
+            <Link to="/dashboard" className="group hover:opacity-80 transition-opacity flex items-center gap-2.5">
+                <Logo variant="app-icon" textSize="text-2xl" />
+                <span className="font-extrabold tracking-tight text-2xl text-[#111111] dark:text-white leading-none">
+                    Side<span className="text-[#25D366]">Note</span>
+                </span>
             </Link>
 
             <button 
@@ -133,8 +133,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 w-full bg-white/90 backdrop-blur-lg z-50 px-5 py-3 flex justify-between items-center border-b border-slate-200 shadow-sm dark:bg-slate-900/90 dark:border-slate-800">
          <Link to="/dashboard" className="flex items-center gap-2.5">
-             <Logo variant="app-icon" className="text-lg" />
-             <span className="font-extrabold tracking-tight text-xl text-[#111111] dark:text-white">
+             <Logo variant="app-icon" textSize="text-xl" />
+             <span className="font-extrabold tracking-tight text-xl text-[#111111] dark:text-white leading-none">
                 Side<span className="text-[#25D366]">Note</span>
              </span>
          </Link>
