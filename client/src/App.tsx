@@ -4,7 +4,6 @@ import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import type { User } from './types';
 import axios from 'axios';
-import Auth from './components/Auth/Auth';
 import ErrorPage from './components/Error/ErrorPage';
 import { ThemeProvider } from './context/ThemeContext';
 import { PreferencesProvider } from './context/PreferencesContext';
@@ -12,6 +11,7 @@ import { PreferencesProvider } from './context/PreferencesContext';
 function App() {
   const [serverError, setServerError] = useState<number | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
@@ -32,46 +32,33 @@ function App() {
         setUser(JSON.parse(savedUser));
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
+    setIsLoaded(true);
     return () => axios.interceptors.response.eject(interceptor);
   }, []);
 
   if (serverError === 503) return <ErrorPage code={503} />;
   if (serverError === 410) return <ErrorPage code={410} />;
-
-  const handleLoginSuccess = (userData: any, token: string) => {
-      localStorage.setItem('token', token);
-      localStorage.setItem('user_data', JSON.stringify(userData));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(userData);
-  };
+  if (!isLoaded) return null;
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user_data');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
-    window.location.href = '/';
+    window.location.href = '/login';
   };
-
-  if (!user) {
-    return (
-      <div 
-        className="h-screen w-full flex items-center justify-center bg-cover bg-center"
-        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')` }}
-      >
-        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
-        <GoogleOAuthProvider clientId="577129960094-8u7ef3ijs82pkmdou8goofcqatku3c70.apps.googleusercontent.com">
-            <Auth onLoginSuccess={handleLoginSuccess} />
-        </GoogleOAuthProvider>
-      </div>
-    );
-  }
 
   return (
     <ThemeProvider>
-      <PreferencesProvider user={user}>
-        <RouterProvider router={router} context={{ user, handleLogout }} />
-      </PreferencesProvider>
+      <GoogleOAuthProvider clientId="577129960094-8u7ef3ijs82pkmdou8goofcqatku3c70.apps.googleusercontent.com">
+        {user ? (
+          <PreferencesProvider user={user}>
+            <RouterProvider router={router} context={{ user, handleLogout }} />
+          </PreferencesProvider>
+        ) : (
+          <RouterProvider router={router} context={{ user: null, handleLogout }} />
+        )}
+      </GoogleOAuthProvider>
     </ThemeProvider>
   );
 }
