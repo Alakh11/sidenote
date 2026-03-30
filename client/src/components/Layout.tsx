@@ -3,11 +3,12 @@ import { Link, useRouter } from '@tanstack/react-router';
 import { 
   LayoutDashboard, PieChart, Wallet, LogOut, Menu, X, Target, Shield, 
   Repeat, Settings, ChevronRight, Trophy, Sun, Moon, ReceiptIndianRupee,
-  HandCoins, UserPen, Calendar, Globe, Save
+  HandCoins, UserPen
 } from 'lucide-react';
-import icon from '../assets/iconNew.png';
 import { useTheme } from '../context/ThemeContext';
-import { usePreferences, CURRENCIES } from '../context/PreferencesContext';
+import { usePreferences } from '../context/PreferencesContext';
+import Logo from './Logo';
+import WhatsAppButton from './WhatsAppButton';
 
 const UserAvatar = ({ src, name, className }: { src?: string, name: string, className?: string }) => {
   const isUrl = src?.startsWith('http');
@@ -35,10 +36,10 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme, toggleTheme } = useTheme();
   
   const router = useRouter();
-  const { user, handleLogout } = router.options.context; 
+  const { user, handleLogout } = router.options.context as any;
   const ADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isAdmin = user?.email === ADMIN_EMAIL;
-  const { viewMode, setViewMode, currency, setCurrency, monthStart, setMonthStart, savePreferences } = usePreferences();
+  const { viewMode, setViewMode } = usePreferences();
 
   const menuItems = [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -58,9 +59,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <Link
         to={item.to}
         onClick={onClick}
-        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-200 font-medium group relative overflow-hidden text-stone-500 hover:bg-white hover:text-blue-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-blue-400"
+        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-200 font-medium group relative overflow-hidden text-stone-500 hover:bg-white hover:text-[#25D366] dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-[#25D366]"
         activeProps={{
-            className: "!bg-gradient-to-r !from-blue-600 !to-indigo-600 !text-white shadow-lg shadow-blue-500/30 dark:shadow-blue-900/20"
+            className: "!bg-gradient-to-r !from-[#25D366] !to-[#1EA952] !text-white shadow-lg shadow-[#25D366]/30 dark:shadow-[#25D366]/20"
         }}
       >
         <item.icon className="w-5 h-5 transition-transform group-hover:scale-110" />
@@ -75,16 +76,10 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-72 fixed h-full z-30 pl-4 py-2">
-        <div className="h-full bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-indigo-100/50 flex flex-col dark:bg-slate-900/80 dark:border-slate-800 dark:shadow-slate-900/50">
+        <div className="h-full bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-[#25D366]/10 flex flex-col dark:bg-slate-900/80 dark:border-slate-800 dark:shadow-slate-900/50">
         <div className="p-6 pb-2 flex items-center justify-between">
-            <Link to="/dashboard" className="flex items-center gap-3 group">
-                <div className="p-2.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 rounded-xl shadow-lg transition-transform group-hover:scale-105">
-                    <img src={icon} className="w-6 h-6" alt="" />
-                </div>
-                <div>
-                    <h1 className="text-xl font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">SideNote</h1>
-                    {/* <p className="text-xs text-blue-500 font-bold uppercase">Alakh</p> */}
-                </div>
+            <Link to="/dashboard" className="group hover:opacity-80 transition-opacity">
+                <Logo variant="wordmark" textSize="text-2xl" />
             </Link>
 
             <button 
@@ -94,7 +89,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             >
               {theme === 'dark' ? <Sun size={20} className="text-amber-400"/> : <Moon size={20} className="text-indigo-500"/>}
             </button>
-            </div>
+        </div>
 
         {/* Navigation */}
             <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
@@ -107,7 +102,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-4 rounded-2xl border border-white shadow-sm dark:from-slate-800 dark:to-slate-900 dark:border-slate-700 relative">
                    <Link 
                       to="/settings" 
-                      className="absolute top-4 right-4 p-1.5 bg-white text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-stone-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:text-white transition shadow-sm z-10"
+                      className="absolute top-4 right-4 p-1.5 bg-white text-stone-400 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg border border-stone-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:text-white transition shadow-sm z-10"
                       title="Edit Profile"
                    >
                       <UserPen size={14} />
@@ -124,7 +119,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                         <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{user.email}</p>
                       </div>
                    </div>
-                   <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-rose-500 bg-white hover:bg-rose-50 rounded-xl font-bold border border-rose-100 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-rose-900/20">
+                   <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-rose-500 bg-white hover:bg-rose-50 rounded-xl font-bold border border-rose-100 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-rose-900/20 transition-colors">
                      <LogOut className="w-4 h-4" /> Sign Out
                    </button>
                </div>
@@ -134,11 +129,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 w-full bg-white/90 backdrop-blur-lg z-50 px-5 py-3 flex justify-between items-center border-b border-slate-200 shadow-sm dark:bg-slate-900/90 dark:border-slate-800">
-         <Link to="/dashboard" className="flex items-center gap-2">
-             <div className="p-2 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 rounded-lg shadow-lg">
-                <img src={icon} className="w-6 h-6" alt="Logo" />
-             </div>
-            <span className="font-bold text-slate-800 text-lg dark:text-white">SideNote</span>
+         <Link to="/dashboard" className="flex items-center gap-2.5">
+             <Logo variant="app-icon" className="text-lg" />
+             <span className="font-extrabold tracking-tight text-xl text-[#111111] dark:text-white">
+                Side<span className="text-[#25D366]">Note</span>
+             </span>
          </Link>
          
          <div className="flex items-center gap-2">
@@ -182,7 +177,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                   <Link 
                     to="/settings" 
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="p-2 bg-white text-stone-400 border border-stone-200 rounded-lg hover:text-indigo-600 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-400"
+                    className="p-2 bg-white text-stone-400 border border-stone-200 rounded-lg hover:text-[#25D366] dark:bg-slate-900 dark:border-slate-600 dark:text-slate-400 transition-colors"
                   >
                      <UserPen size={16} />
                   </Link>
@@ -195,7 +190,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               </nav>
 
               <div className="mt-6 space-y-3">
-                 <button onClick={handleLogout} className="w-full py-3.5 text-rose-600 font-bold bg-rose-50 rounded-2xl flex items-center justify-center gap-2 dark:bg-rose-900/20 dark:text-rose-400">
+                 <button onClick={handleLogout} className="w-full py-3.5 text-rose-600 font-bold bg-rose-50 hover:bg-rose-100 rounded-2xl flex items-center justify-center gap-2 dark:bg-rose-900/20 dark:text-rose-400 transition-colors">
                     <LogOut size={18} /> Sign Out
                  </button>
               </div>
@@ -204,19 +199,16 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 md:ml-80 p-5 md:p-8 mt-20 md:mt-0 transition-all duration-300 w-full overflow-x-hidden dark:text-slate-200">
-        
-        <div className="max-w-6xl mx-auto mb-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row items-center gap-4 justify-between z-40 sticky top-20 md:top-4">
-            
-            {/* Left: View Mode Toggle */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-full lg:w-auto">
+      <main className="flex-1 md:ml-80 p-4 md:p-8 mt-20 md:mt-0 transition-all duration-300 w-full overflow-x-hidden dark:text-slate-200 relative">
+        <div className="max-w-6xl mx-auto mb-6 flex justify-center z-10 relative">
+            <div className="flex bg-slate-200/70 dark:bg-slate-800/80 p-1.5 rounded-xl md:rounded-2xl w-full sm:w-[500px] shadow-inner">
                 {['day', 'week', 'month', 'year'].map((mode) => (
                     <button
                         key={mode}
                         onClick={() => setViewMode(mode as any)}
-                        className={`flex-1 lg:px-6 py-2 rounded-xl text-sm font-bold capitalize transition-all ${
+                        className={`flex-1 py-2.5 rounded-lg md:rounded-xl text-xs md:text-sm font-bold capitalize transition-all ${
                             viewMode === mode 
-                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' 
+                            ? 'bg-white dark:bg-slate-700 text-[#25D366] shadow-sm ring-1 ring-black/5 dark:ring-white/5' 
                             : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
                         }`}
                     >
@@ -224,43 +216,13 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                     </button>
                 ))}
             </div>
-
-            {/* Right: Currency & Date Controls */}
-            <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <Globe size={16} className="text-slate-400" />
-                    <select 
-                        value={currency} 
-                        onChange={(e) => setCurrency(e.target.value)}
-                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none"
-                    >
-                        {CURRENCIES.map(c => (
-                            <option key={c.code} value={c.symbol}>{c.code} ({c.symbol})</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
-                    <Calendar size={16} className="text-slate-400" />
-                    <span className="text-sm text-slate-500 font-bold hidden sm:inline">Starts on:</span>
-                    <input 
-                        type="number" min="1" max="31"
-                        value={monthStart}
-                        onChange={(e) => setMonthStart(Number(e.target.value))}
-                        className="w-12 bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none text-center"
-                    />
-                </div>
-
-                <button onClick={savePreferences} className="p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md transition-colors shrink-0" title="Save Default Settings">
-                    <Save size={18} />
-                </button>
-            </div>
         </div>
 
         <div className="max-w-6xl mx-auto space-y-8 pb-24">
           {children}
         </div>
       </main>
+      <WhatsAppButton />
     </div>
   );
 };

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import axios from 'axios';
+import Logo from '.././Logo';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
-import { Mail, Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Mail, Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Sun, Moon } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 interface AuthProps {
   onLoginSuccess: (user: any, token: string) => void;
@@ -19,6 +21,7 @@ const COUNTRY_CODES = [
 ];
 
 export default function Auth({ onLoginSuccess }: AuthProps) {
+  const { theme, toggleTheme } = useTheme();
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [method, setMethod] = useState<'email' | 'mobile'>('email');
   
@@ -139,15 +142,25 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   };
 
   return (
-    <div className="w-full max-w-md bg-white/90 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl border border-white/50 animate-fade-in-up transition-all duration-300">
+    <div className="relative w-full max-w-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-white/50 dark:border-slate-800 animate-fade-in-up transition-all duration-300">
         
-        {/* Header */}
-        <div className="text-center mb-6">
-            <h1 className="text-2xl font-extrabold text-slate-800">
+        <button
+            onClick={toggleTheme}
+            className="absolute top-4 right-4 md:top-6 md:right-6 p-2 rounded-xl text-stone-500 hover:bg-stone-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors z-10"
+            title="Toggle Theme"
+        >
+            {theme === 'dark' ? <Sun size={20} className="text-amber-400"/> : <Moon size={20} className="text-indigo-500"/>}
+        </button>
+
+        <div className="text-center mb-6 md:mb-8 mt-2 md:mt-0">
+            <div className="flex justify-center mb-4 md:mb-6">
+                <Logo variant="wordmark" textSize="text-3xl md:text-4xl" />
+            </div>
+            <h1 className="text-lg md:text-xl font-bold text-[#111111] dark:text-white">
                 {mode === 'login' ? 'Welcome Back' : (mode === 'reset' ? 'Reset Password' : 'Create Account')}
             </h1>
-            <p className="text-slate-500 text-sm mt-1">
-                {mode === 'reset' ? 'Verify your identity to proceed.' : 'Manage your finances intelligently.'}
+            <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm mt-1 italic">
+                {mode === 'reset' ? 'Verify your identity to proceed.' : '"Manage your finances intelligently."'}
             </p>
         </div>
 
@@ -164,25 +177,25 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                     />
                 </div>
                 <div className="relative mb-6">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-                    <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-slate-500">Or continue with</span></div>
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-slate-700"></div></div>
+                    <div className="relative flex justify-center text-xs md:text-sm"><span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">Or continue with</span></div>
                 </div>
             </>
         )}
 
         {/* Method Toggle */}
-        <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-            <button onClick={() => { setMethod('email'); setError(''); }} className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${method === 'email' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>Email</button>
-            <button onClick={() => { setMethod('mobile'); setError(''); }} className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${method === 'mobile' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>Mobile</button>
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-5 md:mb-6">
+            <button onClick={() => { setMethod('email'); setError(''); }} className={`flex-1 py-1.5 md:py-2 rounded-lg text-sm font-bold transition ${method === 'email' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#25D366]' : 'text-slate-500 dark:text-slate-400'}`}>Email</button>
+            <button onClick={() => { setMethod('mobile'); setError(''); }} className={`flex-1 py-1.5 md:py-2 rounded-lg text-sm font-bold transition ${method === 'mobile' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#25D366]' : 'text-slate-500 dark:text-slate-400'}`}>Mobile</button>
         </div>
 
         {/* Inputs */}
-        <div className="space-y-4">
+        <div className="space-y-3 md:space-y-4">
             {(mode === 'signup' || mode === 'reset') && (
                 <div className="relative group animate-in slide-in-from-top-2 fade-in">
-                    <UserIcon className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                    <UserIcon className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
                     <input 
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium focus:ring-2 focus:ring-blue-100 transition-all"
+                        className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500"
                         placeholder="Full Name (For Verification)"
                         value={formData.name}
                         onChange={e => setFormData({...formData, name: e.target.value})}
@@ -194,10 +207,10 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             <div className="relative group flex">
                 {method === 'email' ? (
                     <>
-                        <Mail className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors z-10" />
+                        <Mail className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors z-10" />
                         <input 
                             type="text"
-                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium focus:ring-2 focus:ring-blue-100 transition-all"
+                            className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             placeholder="Email Address"
                             value={formData.contact}
                             onChange={e => setFormData({...formData, contact: e.target.value})}
@@ -206,22 +219,22 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 ) : (
                     <div className="flex w-full">
                         {/* Country Code Dropdown */}
-                        <div className="relative flex items-center bg-slate-100 border border-slate-200 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-blue-100 z-10 transition-all">
-                            <Phone className="absolute left-3 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                        <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
+                            <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
                             <select 
                                 value={countryCode}
                                 onChange={(e) => setCountryCode(e.target.value)}
-                                className="pl-9 pr-2 py-3 bg-transparent outline-none text-sm font-bold text-slate-700 cursor-pointer appearance-none"
+                                className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none"
                             >
                                 {COUNTRY_CODES.map(c => (
-                                    <option key={c.code} value={c.code}>{c.label}</option>
+                                    <option key={c.code} value={c.code} className="text-black">{c.label}</option>
                                 ))}
                             </select>
                         </div>
                         {/* Mobile Number Input */}
                         <input 
                             type="tel"
-                            className="w-full pl-4 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-r-xl outline-none font-medium focus:ring-2 focus:ring-blue-100 transition-all"
+                            className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             placeholder="Mobile Number"
                             value={formData.contact}
                             onChange={e => {
@@ -236,10 +249,10 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             
             {/* Password Field */}
             <div className="relative group">
-                <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                <Lock className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
                 <input 
                     type="password"
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium focus:ring-2 focus:ring-blue-100 transition-all"
+                    className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500"
                     placeholder={mode === 'reset' ? "New Password" : "Password"}
                     value={formData.password}
                     onChange={e => setFormData({...formData, password: e.target.value})}
@@ -249,10 +262,10 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
 
         {/* Forgot Password Link (Login Only) */}
         {mode === 'login' && (
-            <div className="mt-3 text-right">
+            <div className="mt-2.5 md:mt-3 text-right">
                 <button 
                     onClick={() => switchMode('reset')}
-                    className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors"
+                    className="text-xs md:text-sm font-bold text-slate-400 hover:text-[#25D366] transition-colors"
                 >
                     Forgot Password?
                 </button>
@@ -260,32 +273,32 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         )}
 
         {/* Feedback Messages */}
-        {error && <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 text-rose-600 text-sm font-bold rounded-xl animate-in fade-in slide-in-from-top-1 border border-rose-100"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span className="leading-tight">{error}</span></div>}
-        {successMsg && <div className="flex items-center gap-2 mt-4 p-3 bg-emerald-50 text-emerald-600 text-sm font-bold rounded-xl animate-in fade-in slide-in-from-top-1 border border-emerald-100"><CheckCircle className="w-4 h-4 shrink-0" />{successMsg}</div>}
+        {error && <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in slide-in-from-top-1 border border-rose-100 dark:border-rose-900/30"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span className="leading-tight">{error}</span></div>}
+        {successMsg && <div className="flex items-center gap-2 mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in slide-in-from-top-1 border border-emerald-100 dark:border-emerald-900/30"><CheckCircle className="w-4 h-4 shrink-0" />{successMsg}</div>}
 
         {/* Submit Button */}
         <button 
             onClick={handleSubmit} 
             disabled={loading}
-            className="w-full mt-6 bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-slate-200"
+            className="w-full mt-5 md:mt-6 bg-[#111111] dark:bg-[#25D366] text-white dark:text-white py-3 md:py-3.5 rounded-xl font-bold hover:bg-black dark:hover:bg-[#1EA952] transition-colors flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-slate-200 dark:shadow-[#25D366]/20 text-sm md:text-base"
         >
             {loading ? 'Processing...' : (mode === 'login' ? 'Sign In' : (mode === 'reset' ? 'Update Password' : 'Create Account'))}
-            {!loading && <ArrowRight className="w-4 h-4" />}
+            {!loading && <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />}
         </button>
 
         {/* Bottom Navigation */}
-        <div className="mt-6 text-center">
+        <div className="mt-5 md:mt-6 text-center">
             {mode === 'reset' ? (
                 <button 
                     onClick={() => switchMode('login')}
-                    className="text-sm font-bold text-slate-500 hover:text-slate-800 flex items-center justify-center gap-2 mx-auto"
+                    className="text-xs md:text-sm font-bold text-slate-500 hover:text-[#111111] dark:hover:text-white flex items-center justify-center gap-2 mx-auto"
                 >
                     <ArrowLeft className="w-4 h-4" /> Back to Login
                 </button>
             ) : (
-                <p className="text-slate-500 text-sm font-medium">
+                <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">
                     {mode === 'login' ? "Don't have an account?" : "Already have an account?"} 
-                    <button onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')} className="ml-2 font-bold text-blue-600 hover:underline">
+                    <button onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')} className="ml-1.5 md:ml-2 font-bold text-[#25D366] hover:underline">
                         {mode === 'login' ? 'Sign Up' : 'Login'}
                     </button>
                 </p>
