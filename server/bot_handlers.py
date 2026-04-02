@@ -3,6 +3,7 @@ from typing import Any
 from database import get_db
 from datetime import datetime
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons
+from constants import *
 
 def get_identifier(cursor: Any, phone: str) -> str:
     cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
@@ -13,19 +14,18 @@ def get_identifier(cursor: Any, phone: str) -> str:
 async def process_whatsapp_text(phone: str, text: str):
     text = text.strip().lower()
     
-    # 1. Menu & Commands
-    if text == "menu":
+    if text == CMD_MENU:
         await handle_menu_request(phone)
-    elif text == "undo":
+    elif text == CMD_UNDO:
         await handle_undo_request(phone)
-    elif text == "summary":
+    elif text == CMD_SUMMARY:
         await handle_summary_request(phone)
-    elif text == "week":
+    elif text == CMD_WEEK:
         await handle_weekly_request(phone)
-    elif text == "month":
+    elif text == CMD_MONTH:
         await handle_monthly_request(phone)
     else:
-        # 2. Transaction Parser (Income & Expense)
+        # 2. Transaction Parser
         match = re.search(r'\d+(?:\.\d+)?', text)
         if match and not text.replace(" ", "").replace(".", "").replace("+", "").isdigit():
             await handle_transaction_entry(phone, text, match)
@@ -47,10 +47,8 @@ async def process_whatsapp_interactive(phone: str, button_id: str):
 async def handle_transaction_entry(phone: str, text: str, match: Any):
     amount = float(match.group(0))
     item = str(text.replace(match.group(0), "").replace("+", "").strip())
-    
-    # Income Check
-    income_keywords = ['+', 'income', 'salary', 'received', 'profit']
-    is_income = any(keyword in text for keyword in income_keywords)
+    item_lower = item.lower()
+    is_income = any(keyword in item_lower for keyword in INCOME_KEYWORDS)
     tx_type = 'income' if is_income else 'expense'
 
     conn = None
@@ -64,21 +62,36 @@ async def handle_transaction_entry(phone: str, text: str, match: Any):
         if not cursor.fetchone():
             cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
             conn.commit()
-            await send_whatsapp_template(phone, "sidenote_welcome_v1", [])
+            await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
             
         identifier = get_identifier(cursor, phone)
 
-        # Get Category
-        search_term = f"%{item}%"
-        cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s AND name LIKE %s LIMIT 1", (identifier, tx_type, search_term))
-        cat_row = cursor.fetchone()
-        if not cat_row:
+        category_id = None
+        
+        target_category_name = None
+        for cat_name, keywords in CATEGORY_MAP.items():
+            if any(kw in item_lower for kw in keywords):
+                target_category_name = cat_name
+                break
+                
+        if target_category_name:
+            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s AND name = %s LIMIT 1", (identifier, tx_type, target_category_name))
+            cat_row = cursor.fetchone()
+            if cat_row:
+                category_id = int(str(tuple(cat_row)[0]))
+
+        if not category_id:
+            search_term = f"%{item}%"
+            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s AND name LIKE %s LIMIT 1", (identifier, tx_type, search_term))
+            cat_row = cursor.fetchone()
+            if cat_row:
+                category_id = int(str(tuple(cat_row)[0]))
+                
+        if not category_id:
             cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s LIMIT 1", (identifier, tx_type))
             cat_row = cursor.fetchone()
-            
-        c_row = tuple(cat_row) if cat_row else ()
-        
-        category_id = int(str(c_row[0])) if c_row else 1
+            c_row = tuple(cat_row) if cat_row else ()
+            category_id = int(str(c_row[0])) if c_row else 1
 
         # Save Entry
         cursor.execute("INSERT INTO transactions (user_email, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (identifier, amount, tx_type, item, category_id))
@@ -92,7 +105,8 @@ async def handle_transaction_entry(phone: str, text: str, match: Any):
             today_row = cursor.fetchone()
             t_row = tuple(today_row) if today_row else ()
             today_total = float(str(t_row[0])) if t_row and t_row[0] else 0.0
-            await send_whatsapp_template(phone, "entry_recorded_v1", [str(amount), item, f"{today_total:g}"])
+            
+            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), item, f"{today_total:g}"])
             
     except Exception as e:
         print(f"Transaction DB Error: {e}")
@@ -117,7 +131,6 @@ async def handle_undo_request(phone: str):
         for row in rows:
             r = tuple(row)
             title = f"❌ {float(str(r[1])):g} {str(r[2])}"[:20]
-            
             buttons.append({"id": f"del_{str(r[0])}", "title": title})
             
         await send_whatsapp_interactive_buttons(phone, "Which recent entry do you want to delete?", buttons)
@@ -133,7 +146,6 @@ async def handle_undo_action(phone: str, tx_id: int):
         cursor = conn.cursor()
         identifier = get_identifier(cursor, phone)
         
-        # Verify ownership before deleting
         cursor.execute("DELETE FROM transactions WHERE id = %s AND user_email = %s", (tx_id, identifier))
         conn.commit()
         
@@ -155,7 +167,7 @@ async def handle_menu_request(phone: str):
     await send_whatsapp_interactive_buttons(phone, "What would you like to see?", buttons)
 
 async def handle_fallback(phone: str):
-    fallback_message = "Hey! Just send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *menu* for options or *undo* to delete a mistake."
+    fallback_message = f"Hey! Just send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options or *{CMD_UNDO}* to delete a mistake."
     await send_whatsapp_text(phone, fallback_message)
 
 async def handle_summary_request(phone: str):
@@ -183,7 +195,7 @@ async def handle_summary_request(phone: str):
         highest_item = str(h_row[0]) if h_row and h_row[0] else "None"
         highest_amount = float(str(h_row[1])) if h_row else 0.0
         
-        await send_whatsapp_template(phone, "sidenote_overview_v1_1", [f"{today_total:g}", f"{week_total:g}", f"{month_total:g}", highest_item, f"{highest_amount:g}"])
+        await send_whatsapp_template(phone, TEMPLATE_OVERVIEW, [f"{today_total:g}", f"{week_total:g}", f"{month_total:g}", highest_item, f"{highest_amount:g}"])
     finally:
         if conn: conn.close()
 
@@ -199,12 +211,12 @@ async def handle_weekly_request(phone: str):
         days = [0.0] * 7 
         for row in cursor.fetchall():
             r = tuple(row)
-            
             days[int(str(r[0]))] = float(str(r[1]))
             
         week_total = sum(days)
         variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
-        await send_whatsapp_template(phone, "weekly_overview_v1_1", variables)
+        
+        await send_whatsapp_template(phone, TEMPLATE_WEEKLY, variables)
     finally:
         if conn: conn.close()
 
@@ -221,9 +233,7 @@ async def handle_monthly_request(phone: str):
         
         for row in cursor.fetchall():
             r = tuple(row)
-            
             day, amt = int(str(r[0])), float(str(r[1]))
-            
             month_total += amt
             if day <= 7: weeks[0] += amt
             elif day <= 14: weeks[1] += amt
@@ -233,6 +243,7 @@ async def handle_monthly_request(phone: str):
         current_day = datetime.now().day
         avg_daily = month_total / current_day if current_day > 0 else 0.0
         variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
-        await send_whatsapp_template(phone, "monthly_overview_v1", variables)
+        
+        await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
     finally:
         if conn: conn.close()
