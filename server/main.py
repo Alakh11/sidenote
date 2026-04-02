@@ -71,6 +71,7 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cursor.execute("ALTER TABLE users ADD COLUMN monthly_budget DECIMAL(15, 2) DEFAULT 0;")
 
         # 2. Categories Table
         cursor.execute("""
@@ -208,12 +209,6 @@ def init_db():
     except Exception as e:
         logger.error(f"Init DB Error: {e}")
         
-
-# ... (Keep all your FastAPI setup, CORS, and init_db stuff at the top) ...
-
-from bot_handlers import process_whatsapp_text, process_whatsapp_interactive
-
-VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
 
 @app.on_event("startup")
 def start_scheduler():

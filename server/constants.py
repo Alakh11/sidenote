@@ -18,6 +18,12 @@ CMD_WEEK = "week"
 CMD_MONTH = "month"
 
 # ==========================================
+# BUDGET SETTINGS
+# ==========================================
+CMD_SET_BUDGET = "budget"
+BUDGET_THRESHOLD_WARNING = 0.80
+
+# ==========================================
 # TRANSACTION LOGIC KEYWORDS
 # ==========================================
 # If any of these words are in the text, it is marked as Income
