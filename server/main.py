@@ -1,25 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import re
-from typing import Any
-from database import get_db
-from security import pwd_context
-from utils import create_default_categories
 import logging
 import os
+from database import get_db
 from routers import auth, transactions, features, analytics, admin
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image
 from whatsapp_service import send_whatsapp_template
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_insights import send_weekly_proactive_insights
-from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
+
 # CORS Setup
 origins = [
     "http://localhost:5173",
@@ -68,10 +64,10 @@ def init_db():
                 month_start_date INT DEFAULT 1,
                 is_verified BOOLEAN DEFAULT FALSE,
                 bot_state VARCHAR(50) DEFAULT 'NEW',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                monthly_budget DECIMAL(15, 2) DEFAULT 0
             )
         """)
-        cursor.execute("ALTER TABLE users ADD COLUMN monthly_budget DECIMAL(15, 2) DEFAULT 0;")
 
         # 2. Categories Table
         cursor.execute("""
@@ -183,26 +179,6 @@ def init_db():
                 FOREIGN KEY (debt_id) REFERENCES debts(id) ON DELETE CASCADE
             )
         """)
-
-        # --- ADMIN ACCOUNT AUTO-CREATION ---
-        admin_email = "alakhchaturvedi2002@gmail.com"
-        cursor.execute("SELECT * FROM users WHERE email = %s", (admin_email,))
-        existing_user: Any = cursor.fetchone()
-        
-        if not existing_user:
-            hashed_pw = pwd_context.hash("Admin@2002")
-            cursor.execute("""
-                INSERT INTO users (name, email, password_hash, is_verified, mobile) 
-                VALUES (%s, %s, %s, TRUE, %s)
-            """, ("Alakh Admin", admin_email, hashed_pw, "0000000000"))
-            
-            create_default_categories(admin_email, cursor)
-            logger.info(f"✅ Admin Account Created: {admin_email}")
-            conn.commit()
-        else:
-            if not existing_user[6]:
-                 cursor.execute("UPDATE users SET is_verified = TRUE WHERE email = %s", (admin_email,))
-                 conn.commit()
 
         conn.close()
         logger.info("Database and Tables initialized successfully")

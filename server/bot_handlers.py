@@ -2,7 +2,8 @@ import re
 from typing import Any
 from database import get_db
 from datetime import datetime
-from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons
+from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons, get_whatsapp_media_url, download_whatsapp_media
+from ai_service import extract_receipt_data
 from constants import *
 
 def get_identifier(cursor: Any, phone: str) -> str:
@@ -12,36 +13,47 @@ def get_identifier(cursor: Any, phone: str) -> str:
     return str(u_row[0]) if u_row and u_row[0] else phone
 
 async def process_whatsapp_text(phone: str, text: str):
-    """Routes incoming text messages based on commands or numbers."""
     text = text.strip().lower()
     
-    if text == CMD_MENU:
-        await handle_menu_request(phone)
-    elif text == CMD_UNDO:
-        await handle_undo_request(phone)
-    elif text == CMD_SUMMARY:
-        await handle_summary_request(phone)
-    elif text == CMD_WEEK:
-        await handle_weekly_request(phone)
-    elif text == CMD_MONTH:
-        await handle_monthly_request(phone)
-    elif text.startswith(CMD_SET_BUDGET):
-        await handle_budget_set(phone, text)
+    if text == CMD_MENU: await handle_menu_request(phone)
+    elif text == CMD_UNDO: await handle_undo_request(phone)
+    elif text == CMD_SUMMARY: await handle_summary_request(phone)
+    elif text == CMD_WEEK: await handle_weekly_request(phone)
+    elif text == CMD_MONTH: await handle_monthly_request(phone)
+    elif text.startswith(CMD_SET_BUDGET): await handle_budget_set(phone, text)
     else:
         match = re.search(r'\d+(?:\.\d+)?', text)
         if match and not text.replace(" ", "").replace(".", "").replace("+", "").isdigit():
-            await handle_transaction_entry(phone, text, match)
+            amount = float(match.group(0))
+            item = str(text.replace(match.group(0), "").replace("+", "").strip())
+            await handle_transaction_entry(phone, amount, item)
         else:
             await handle_fallback(phone)
 
+async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
+    """Downloads the image, passes it to AI, and saves the transaction."""
+    await send_whatsapp_text(phone, "⏳ Reading your receipt with AI...")
+    
+    media_url = await get_whatsapp_media_url(media_id)
+    if not media_url: return
+    
+    image_bytes = await download_whatsapp_media(media_url)
+    if not image_bytes: return
+    
+    # Let AI read it
+    receipt_data = extract_receipt_data(image_bytes, mime_type)
+    
+    if receipt_data and 'amount' in receipt_data and 'item' in receipt_data:
+        amount = float(receipt_data['amount'])
+        item = str(receipt_data['item'])
+        await handle_transaction_entry(phone, amount, item)
+    else:
+        await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read the amount or store name on that receipt. Please type it manually.")
+
 async def process_whatsapp_interactive(phone: str, button_id: str):
-    """Routes button clicks from the user."""
-    if button_id == "cmd_summary":
-        await handle_summary_request(phone)
-    elif button_id == "cmd_week":
-        await handle_weekly_request(phone)
-    elif button_id == "cmd_month":
-        await handle_monthly_request(phone)
+    if button_id == "cmd_summary": await handle_summary_request(phone)
+    elif button_id == "cmd_week": await handle_weekly_request(phone)
+    elif button_id == "cmd_month": await handle_monthly_request(phone)
     elif button_id.startswith("del_"):
         tx_id = int(button_id.split("_")[1])
         await handle_undo_action(phone, tx_id)
@@ -69,11 +81,8 @@ async def handle_budget_set(phone: str, text: str):
     finally:
         if conn: conn.close()
 
-async def handle_transaction_entry(phone: str, text: str, match: Any):
-    amount = float(match.group(0))
-    item = str(text.replace(match.group(0), "").replace("+", "").strip())
+async def handle_transaction_entry(phone: str, amount: float, item: str):
     item_lower = item.lower()
-    
     is_income = any(keyword in item_lower for keyword in INCOME_KEYWORDS)
     tx_type = 'income' if is_income else 'expense'
 
@@ -92,13 +101,15 @@ async def handle_transaction_entry(phone: str, text: str, match: Any):
             cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
             conn.commit()
             await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
-            identifier, budget_limit = phone, 0.0
+            identifier = phone
+            budget_limit = 0.0
         else:
             identifier = str(u_data[0]) if u_data[0] else phone
             budget_limit = float(str(u_data[1])) if u_data[1] else 0.0
-        
+            
         category_id = None
         target_category_name = None
+        
         for cat_name, keywords in CATEGORY_MAP.items():
             if any(kw in item_lower for kw in keywords):
                 target_category_name = cat_name
@@ -107,17 +118,25 @@ async def handle_transaction_entry(phone: str, text: str, match: Any):
         if target_category_name:
             cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s AND name = %s LIMIT 1", (identifier, tx_type, target_category_name))
             cat_row = cursor.fetchone()
-            if cat_row: category_id = int(str(tuple(cat_row)[0]))
+            if cat_row:
+                category_id = int(str(tuple(cat_row)[0]))
 
         if not category_id:
-            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s LIMIT 1", (identifier, tx_type))
+            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s AND (name = 'Miscellaneous' OR name = 'Other') LIMIT 1", (identifier, tx_type))
             cat_row = cursor.fetchone()
-            category_id = int(str(tuple(cat_row or (1,))[0]))
+            
+            if not cat_row:
+                cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s LIMIT 1", (identifier, tx_type))
+                cat_row = cursor.fetchone()
+                
+            if cat_row:
+                category_id = int(str(tuple(cat_row)[0]))
 
         # Save Entry
         cursor.execute("INSERT INTO transactions (user_email, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (identifier, amount, tx_type, item, category_id))
         conn.commit()
 
+        # Budget Check Logic
         budget_note = ""
         if tx_type == 'expense' and budget_limit > 0:
             cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (identifier,))
@@ -127,12 +146,12 @@ async def handle_transaction_entry(phone: str, text: str, match: Any):
             remaining = budget_limit - month_total
             percent_used = (month_total / budget_limit)
             
-            if percent_used >= 1.0:
-                budget_note = f"\n\n🚨 *OVER BUDGET!* You have exceeded your ₹{budget_limit:g} limit by ₹{abs(remaining):g}."
-            elif percent_used >= BUDGET_THRESHOLD_WARNING:
-                budget_note = f"\n\n⚠️ *Budget Warning:* You have used {percent_used:.0%} of your monthly budget. ₹{remaining:g} left."
-            else:
-                budget_note = f"\n\n💰 Budget: ₹{remaining:g} remaining for the month."
+            if percent_used >= 1.0: 
+                budget_note = f"\n\n🚨 *OVER BUDGET!* You exceeded your ₹{budget_limit:g} limit by ₹{abs(remaining):g}."
+            elif percent_used >= BUDGET_THRESHOLD_WARNING: 
+                budget_note = f"\n\n⚠️ *Budget Warning:* You used {percent_used:.0%} of your budget. ₹{remaining:g} left."
+            else: 
+                budget_note = f"\n\n💰 Budget: ₹{remaining:g} remaining."
 
         # Reply
         if is_income:
@@ -143,13 +162,14 @@ async def handle_transaction_entry(phone: str, text: str, match: Any):
             today_total = float(str(today_row[0])) if today_row[0] else 0.0
             
             await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), item, f"{today_total:g}"])
-            if budget_note:
+            if budget_note: 
                 await send_whatsapp_text(phone, budget_note)
             
-    except Exception as e:
+    except Exception as e: 
         print(f"Transaction DB Error: {e}")
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 async def handle_undo_request(phone: str):
     conn = None
