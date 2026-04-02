@@ -2,28 +2,32 @@ import os
 import json
 import logging
 from typing import Any
-import google.generativeai as genai # type: ignore
+from google import genai # type: ignore
+from google.genai import types # type: ignore
 from dotenv import load_dotenv
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY")) # type: ignore
 logger = logging.getLogger("uvicorn")
 
-def extract_receipt_data(image_bytes: bytes, mime_type: str) -> dict[str, Any] | None:
-    """Passes an image to Gemini AI and returns a JSON dictionary of the expense."""
+def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict[str, Any] | None:
+    """Passes an image or PDF to Gemini AI and returns a JSON dictionary of the expense."""
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash') # type: ignore
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        
         prompt = (
-            "Analyze this receipt. Find the final total amount and the name of the store/merchant. "
+            "Analyze this receipt or invoice. Find the final total amount and the name of the merchant/service. "
             "Return ONLY a raw, valid JSON object with two keys: 'amount' (a float) and 'item' (a string). "
             "Do not include markdown formatting or any other text."
         )
         
-        response = model.generate_content([
-            prompt,
-            {"mime_type": mime_type, "data": image_bytes}
-        ])
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+            ]
+        )
         
         clean_text = str(response.text).replace("```json", "").replace("```", "").strip()
         return dict(json.loads(clean_text))

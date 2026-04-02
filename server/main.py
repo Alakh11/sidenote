@@ -224,10 +224,12 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
                 print(f"👆 Button clicked by {sender_phone}: {button_id}")
                 background_tasks.add_task(process_whatsapp_interactive, sender_phone, button_id)
                 
-            elif message['type'] == 'image':
-                media_id = str(message['image']['id'])
-                mime_type = str(message['image']['mime_type'])
-                print(f"📸 Image received from {sender_phone}. Processing with AI...")
+            elif message['type'] in ['image', 'document']:
+                media_type = message['type'] 
+                media_id = str(message[media_type]['id'])
+                mime_type = str(message[media_type]['mime_type'])
+                
+                print(f"📄 {media_type.capitalize()} received from {sender_phone}. Processing with AI...")
                 background_tasks.add_task(process_whatsapp_image, sender_phone, media_id, mime_type)
                 
     except Exception as e:

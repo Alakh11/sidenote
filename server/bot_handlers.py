@@ -120,9 +120,13 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
             cat_row = cursor.fetchone()
             if cat_row:
                 category_id = int(str(tuple(cat_row)[0]))
+            else:
+                cursor.execute("INSERT INTO categories (user_email, name, type, is_default) VALUES (%s, %s, %s, TRUE)", (identifier, target_category_name, tx_type))
+                conn.commit()
+                category_id = cursor.lastrowid
 
         if not category_id:
-            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s AND (name = 'Miscellaneous' OR name = 'Other') LIMIT 1", (identifier, tx_type))
+            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s LIMIT 1", (identifier, tx_type))
             cat_row = cursor.fetchone()
             
             if not cat_row:
