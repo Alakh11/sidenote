@@ -32,7 +32,7 @@ async def process_whatsapp_text(phone: str, text: str):
 
 async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
     """Downloads the image, passes it to AI, and saves the transaction."""
-    await send_whatsapp_text(phone, "⏳ Reading your receipt with AI...")
+    await send_whatsapp_text(phone, "⏳ Reading your receipt ...")
     
     media_url = await get_whatsapp_media_url(media_id)
     if not media_url: return

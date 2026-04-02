@@ -43,7 +43,7 @@ def health_check():
 
 @app.get("/test-whatsapp")
 async def trigger_whatsapp_test():
-    return await send_whatsapp_template("918796022992", "sidenote_welcome_v1", [])
+    return await send_whatsapp_template("919580813770", "sidenote_welcome_v1", [])
 
 @app.on_event("startup")
 def init_db():
@@ -229,7 +229,7 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
                 media_id = str(message[media_type]['id'])
                 mime_type = str(message[media_type]['mime_type'])
                 
-                print(f"📄 {media_type.capitalize()} received from {sender_phone}. Processing with AI...")
+                print(f"📄 {media_type.capitalize()} received from {sender_phone}. Processing ...")
                 background_tasks.add_task(process_whatsapp_image, sender_phone, media_id, mime_type)
                 
     except Exception as e:
