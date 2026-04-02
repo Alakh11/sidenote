@@ -8,7 +8,7 @@ from utils import create_default_categories
 import logging
 import os
 from routers import auth, transactions, features, analytics, admin
-from whatsapp_service import send_whatsapp_template
+from whatsapp_service import send_whatsapp_template, send_whatsapp_text
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_insights import send_weekly_proactive_insights
@@ -498,8 +498,18 @@ async def handle_monthly_request(phone: str):
             conn.close()
 
 async def handle_fallback(phone: str):
-    print(f"⚠️ Unrecognized input from {phone}. Sending help menu.")
-    await send_whatsapp_template(phone, "sidenote_welcome_v1", [])
+    print(f"⚠️ Unrecognized input from {phone}. Sending help text.")
+    
+    fallback_message = (
+        "Hey! Just send what you want to note.\n\n"
+        "For example:\n"
+        "200 chai\n"
+        "450 uber\n\n"
+        "Type summary anytime to see your overview.\n\n"
+        "By continuing, you agree to your messages being stored to generate your overview."
+    )
+    
+    await send_whatsapp_text(phone, fallback_message)
 
 
 if __name__ == "__main__":
