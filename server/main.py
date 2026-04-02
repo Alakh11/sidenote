@@ -8,7 +8,7 @@ from utils import create_default_categories
 import logging
 import os
 from routers import auth, transactions, features, analytics, admin
-from bot_handlers import process_whatsapp_text, process_whatsapp_interactive
+from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image
 from whatsapp_service import send_whatsapp_template
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -247,6 +247,12 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
                 button_id = message['interactive']['button_reply']['id']
                 print(f"👆 Button clicked by {sender_phone}: {button_id}")
                 background_tasks.add_task(process_whatsapp_interactive, sender_phone, button_id)
+                
+            elif message['type'] == 'image':
+                media_id = str(message['image']['id'])
+                mime_type = str(message['image']['mime_type'])
+                print(f"📸 Image received from {sender_phone}. Processing with AI...")
+                background_tasks.add_task(process_whatsapp_image, sender_phone, media_id, mime_type)
                 
     except Exception as e:
         print(f"⚠️ Webhook Error: {e}")

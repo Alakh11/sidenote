@@ -88,3 +88,27 @@ async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, butt
         except httpx.HTTPStatusError as e:
             logger.error(f"WhatsApp Button Error: {e.response.text}")
             return {"status": "error"}
+        
+async def get_whatsapp_media_url(media_id: str) -> str | None:
+    """Asks Meta for the secure download URL of a media file."""
+    url = f"https://graph.facebook.com/v23.0/{media_id}"
+    headers = {"Authorization": f"Bearer {WA_TOKEN}"}
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return str(response.json().get("url"))
+        except Exception as e:
+            logger.error(f"Failed to get Media URL: {e}")
+            return None
+
+async def download_whatsapp_media(media_url: str) -> bytes | None:
+    headers = {"Authorization": f"Bearer {WA_TOKEN}"}
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(media_url, headers=headers)
+            response.raise_for_status()
+            return response.content
+        except Exception as e:
+            logger.error(f"Failed to download Media: {e}")
+            return None
