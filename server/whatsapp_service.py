@@ -7,7 +7,8 @@ load_dotenv()
 
 WA_PHONE_ID = os.getenv("WA_PHONE_ID")
 WA_TOKEN = os.getenv("WA_TOKEN")
-WA_URL = f"https://graph.facebook.com/v18.0/{WA_PHONE_ID}/messages"
+WA_URL = f"https://graph.facebook.com/v23.0/{WA_PHONE_ID}/messages"
+VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
 
 logger = logging.getLogger("uvicorn")
 

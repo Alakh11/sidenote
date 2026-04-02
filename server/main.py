@@ -18,12 +18,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-
+VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
 # CORS Setup
 origins = [
     "http://localhost:5173",
-    "https://alakh-finance.onrender.com",
-    "https://alakh11.github.io",
     "https://sidenote.hex8.in"
 ]
 
@@ -212,7 +210,6 @@ def init_db():
     except Exception as e:
         logger.error(f"Init DB Error: {e}")
         
-VERIFY_TOKEN = "whatsapp_webhook_sidenote"
 
 @app.on_event("startup")
 def start_scheduler():
@@ -389,12 +386,20 @@ async def handle_summary_request(phone: str):
         cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (identifier,))
         month_row: Any = cursor.fetchone()
         month_total = month_row['total'] if month_row and month_row['total'] else 0
+        cursor.execute("""
+            SELECT note, amount FROM transactions 
+            WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE()) 
+            ORDER BY amount DESC LIMIT 1
+        """, (identifier,))
+        highest_row: Any = cursor.fetchone()
+        highest_item = highest_row['note'] if highest_row and highest_row['note'] else "None"
+        highest_amount = highest_row['amount'] if highest_row else 0
         
         # Send Summary Template
         await send_whatsapp_template(
             phone, 
-            "sidenote_overview_v1", 
-            [str(today_total), str(week_total), str(month_total), "Misc", "N/A"]
+            "sidenote_overview_v1_1", 
+            [f"{today_total:g}", f"{week_total:g}", f"{month_total:g}", highest_item, f"{highest_amount:g}"]
         )
     finally:
         conn.close()
@@ -433,7 +438,7 @@ async def handle_weekly_request(phone: str):
         # Format variables: [Total, Mon, Tue, Wed, Thu, Fri, Sat, Sun]
         variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
         
-        await send_whatsapp_template(phone, "weekly_overview_v1", variables)
+        await send_whatsapp_template(phone, "weekly_overview_v1_1", variables)
         print(f"✅ Sent Weekly Overview to {phone}")
     except Exception as e:
         print(f"Weekly Report Error: {e}")
