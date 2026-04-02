@@ -35,14 +35,18 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict[str, Any] | 
         )
         
         if not response or not response.text:
-            logger.error("AI Error: Empty response text.")
+            logger.error("AI Error: Empty response from Gemini.")
             return None
 
         clean_text = response.text.strip()
         if clean_text.startswith("```"):
-            clean_text = clean_text.split("\n", 1)[-1].rsplit("\n", 1)[0].strip()
-        if clean_text.startswith("json"):
-            clean_text = clean_text[4:].strip()
+            lines = clean_text.splitlines()
+            if len(lines) > 2:
+                clean_text = "".join(lines[1:-1])
+            else:
+                clean_text = clean_text.replace("```json", "").replace("```", "")
+        
+        clean_text = clean_text.replace("json", "", 1).strip()
 
         return dict(json.loads(clean_text))
         
