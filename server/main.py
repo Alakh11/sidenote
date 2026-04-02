@@ -48,7 +48,6 @@ def health_check():
 async def trigger_whatsapp_test():
     return await send_whatsapp_template("918796022992", "sidenote_welcome_v1", [])
 
-# --- Database Initialization on Startup ---
 @app.on_event("startup")
 def init_db():
     try:
@@ -195,13 +194,11 @@ def init_db():
                 VALUES (%s, %s, %s, TRUE, %s)
             """, ("Alakh Admin", admin_email, hashed_pw, "0000000000"))
             
-            # Create defaults for admin too
             create_default_categories(admin_email, cursor)
             logger.info(f"✅ Admin Account Created: {admin_email}")
             conn.commit()
         else:
-            # Optional: Ensure admin is verified if they exist
-            if not existing_user[6]: # index 6 is is_verified based on select *
+            if not existing_user[6]:
                  cursor.execute("UPDATE users SET is_verified = TRUE WHERE email = %s", (admin_email,))
                  conn.commit()
 
@@ -214,7 +211,6 @@ def init_db():
 @app.on_event("startup")
 def start_scheduler():
     scheduler = AsyncIOScheduler()
-    # Runs every Sunday at 6:00 PM
     scheduler.add_job(send_weekly_proactive_insights, 'cron', day_of_week='sun', hour=18, minute=0)
     scheduler.start()
     
@@ -248,14 +244,12 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
             message = value['messages'][0]
             sender_phone = message['from']
             
-            # 1. Handle Text Messages
             if message['type'] == 'text':
                 text_body = message['text']['body']
                 print(f"📩 Received text from {sender_phone}: {text_body}")
                 
                 background_tasks.add_task(process_whatsapp_message, sender_phone, text_body)
                 
-            # 2. Handle Image Messages (Bills)
             elif message['type'] == 'image':
                 media_id = message['image']['id']
                 print(f"📸 Received an image (Media ID: {media_id}) from {sender_phone}")
@@ -272,7 +266,6 @@ async def process_whatsapp_message(phone: str, text: str):
     """
     text = text.strip().lower()
     
-    # 1. Check for explicit commands
     if text == "summary":
         await handle_summary_request(phone)
     elif text == "week":
@@ -280,10 +273,8 @@ async def process_whatsapp_message(phone: str, text: str):
     elif text == "month":
         await handle_monthly_request(phone)
     else:
-        # 2. Check if it's an expense entry (contains a number)
         match = re.search(r'\d+(?:\.\d+)?', text)
         
-        # Make sure it's not JUST a number (e.g., "250" is invalid, "250 chai" is valid)
         if match and not text.replace(" ", "").replace(".", "").isdigit():
             await handle_expense_entry(phone, text, match)
         else:
@@ -291,26 +282,27 @@ async def process_whatsapp_message(phone: str, text: str):
             await handle_fallback(phone)
 
 
-async def handle_expense_entry(phone: str, text: str, match):
+async def handle_expense_entry(phone: str, text: str, match: Any):
     amount = float(match.group(0))
-    item = text.replace(match.group(0), "").strip()
+    item = str(text.replace(match.group(0), "").strip())
 
     conn = None
     try:
         conn = get_db()
         cursor = conn.cursor()
+        cursor.execute("SET time_zone = '+05:30'")
         
         # 1. First-time user check
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        user = cursor.fetchone()
+        user_row: Any = cursor.fetchone()
         
-        if not user:
+        if not user_row:
             cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
             conn.commit()
             identifier = phone
             await send_whatsapp_template(phone, "sidenote_welcome_v1", [])
         else:
-            identifier = user[0] if user[0] else phone # Tuple index 0
+            identifier = str(user_row[0]) if user_row[0] else phone
 
         search_term = f"%{item}%"
         cursor.execute("""
@@ -320,7 +312,7 @@ async def handle_expense_entry(phone: str, text: str, match):
               AND name LIKE %s 
             LIMIT 1
         """, (identifier, search_term))
-        cat_row = cursor.fetchone()
+        cat_row: Any = cursor.fetchone()
         
         if not cat_row:
             cursor.execute("""
@@ -331,7 +323,7 @@ async def handle_expense_entry(phone: str, text: str, match):
             """, (identifier,))
             cat_row = cursor.fetchone()
             
-        category_id = cat_row[0] if cat_row else 1 # Tuple index 0
+        category_id = int(cat_row[0]) if cat_row else 1
 
         # 3. Save the Expense to Database
         cursor.execute("""
@@ -345,14 +337,14 @@ async def handle_expense_entry(phone: str, text: str, match):
             SELECT SUM(amount) FROM transactions 
             WHERE user_email = %s AND type = 'expense' AND DATE(date) = CURDATE()
         """, (identifier,))
-        today_row = cursor.fetchone()
-        today_total = today_row[0] if today_row and today_row[0] else 0
+        today_row: Any = cursor.fetchone()
+        today_total = float(today_row[0]) if today_row and today_row[0] else 0.0
 
         # 5. Send the 'Entry Recorded' Template
         await send_whatsapp_template(
             phone, 
             "entry_recorded_v1", 
-            [str(amount), item, str(today_total)]
+            [str(amount), item, f"{today_total:g}"]
         )
         print(f"✅ Saved Transaction: {item} | ₹{amount} | Cat ID: {category_id}")
         
@@ -367,27 +359,28 @@ async def handle_summary_request(phone: str):
     try:
         conn = get_db()
         cursor = conn.cursor()
+        cursor.execute("SET time_zone = '+05:30'")
         
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         if not user: return
         
-        identifier = user[0] if user[0] else phone
+        identifier = str(user[0]) if user[0] else phone
         
         # Get Today's Total
         cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email=%s AND type='expense' AND DATE(date)=CURDATE()", (identifier,))
-        today_row = cursor.fetchone()
-        today_total = today_row[0] if today_row and today_row[0] else 0
+        today_row: Any = cursor.fetchone()
+        today_total = float(today_row[0]) if today_row and today_row[0] else 0.0
         
         # Get Week Total
         cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email=%s AND type='expense' AND YEARWEEK(date, 1)=YEARWEEK(CURDATE(), 1)", (identifier,))
-        week_row = cursor.fetchone()
-        week_total = week_row[0] if week_row and week_row[0] else 0
+        week_row: Any = cursor.fetchone()
+        week_total = float(week_row[0]) if week_row and week_row[0] else 0.0
         
         # Get Month Total
         cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (identifier,))
-        month_row = cursor.fetchone()
-        month_total = month_row[0] if month_row and month_row[0] else 0
+        month_row: Any = cursor.fetchone()
+        month_total = float(month_row[0]) if month_row and month_row[0] else 0.0
 
         # Get Highest Note for the Month
         cursor.execute("""
@@ -395,9 +388,9 @@ async def handle_summary_request(phone: str):
             WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE()) 
             ORDER BY amount DESC LIMIT 1
         """, (identifier,))
-        highest_row = cursor.fetchone()
-        highest_item = highest_row[0] if highest_row and highest_row[0] else "None"
-        highest_amount = highest_row[1] if highest_row else 0
+        highest_row: Any = cursor.fetchone()
+        highest_item = str(highest_row[0]) if highest_row and highest_row[0] else "None"
+        highest_amount = float(highest_row[1]) if highest_row else 0.0
         
         # Send Summary Template
         await send_whatsapp_template(
@@ -416,12 +409,13 @@ async def handle_weekly_request(phone: str):
     try:
         conn = get_db()
         cursor = conn.cursor()
+        cursor.execute("SET time_zone = '+05:30'")
         
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         if not user: return
         
-        identifier = user[0] if user[0] else phone
+        identifier = str(user[0]) if user[0] else phone
         
         cursor.execute("""
             SELECT WEEKDAY(date), SUM(amount) 
@@ -431,11 +425,11 @@ async def handle_weekly_request(phone: str):
               AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)
             GROUP BY WEEKDAY(date)
         """, (identifier,))
-        daily_data = cursor.fetchall()
+        daily_data: Any = cursor.fetchall()
         
         days = [0.0] * 7 
         for row in daily_data:
-            days[row[0]] = float(row[1])
+            days[int(row[0])] = float(row[1])
             
         week_total = sum(days)
         variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
@@ -453,12 +447,13 @@ async def handle_monthly_request(phone: str):
     try:
         conn = get_db()
         cursor = conn.cursor()
+        cursor.execute("SET time_zone = '+05:30'")
         
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        user = cursor.fetchone()
+        user: Any = cursor.fetchone()
         if not user: return
         
-        identifier = user[0] if user[0] else phone
+        identifier = str(user[0]) if user[0] else phone
         
         cursor.execute("""
             SELECT DAY(date), SUM(amount) 
@@ -469,7 +464,7 @@ async def handle_monthly_request(phone: str):
               AND YEAR(date) = YEAR(CURDATE())
             GROUP BY DAY(date)
         """, (identifier,))
-        month_data = cursor.fetchall()
+        month_data: Any = cursor.fetchall()
         
         weeks = [0.0, 0.0, 0.0, 0.0] 
         month_total = 0.0
@@ -485,7 +480,7 @@ async def handle_monthly_request(phone: str):
             else: weeks[3] += amt
             
         current_day = datetime.now().day
-        avg_daily = month_total / current_day if current_day > 0 else 0
+        avg_daily = month_total / current_day if current_day > 0 else 0.0
         
         variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
         

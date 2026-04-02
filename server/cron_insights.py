@@ -2,7 +2,6 @@ from database import get_db
 import logging
 from whatsapp_service import send_whatsapp_template
 import asyncio
-from typing import Any
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,13 +15,19 @@ async def send_weekly_proactive_insights():
     try:
         conn = get_db()
         cursor = conn.cursor()
+        cursor.execute("SET time_zone = '+05:30'")
         
         # Find all active WhatsApp users
         cursor.execute("SELECT mobile, email FROM users WHERE mobile IS NOT NULL")
         users = cursor.fetchall()
         
-        for user in users:
-            identifier = user[1] if user[1] else user[0]
+        for user_row in users:
+            user = tuple(user_row) if user_row else ()
+            if not user: 
+                continue
+            
+            # user[0] is mobile, user[1] is email
+            identifier = str(user[1]) if user[1] else str(user[0])
             
             # 1. Calculate their total expense for the current week
             cursor.execute("""
@@ -32,8 +37,10 @@ async def send_weekly_proactive_insights():
                   AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)
             """, (identifier,))
             
-            week_total_row = cursor.fetchone()
-            week_total = float(week_total_row[0]) if week_total_row and week_total_row[0] else 0.0
+            week_row = cursor.fetchone()
+            w_row = tuple(week_row) if week_row else ()
+            
+            week_total = float(str(w_row[0])) if w_row and w_row[0] else 0.0
             
             if week_total > 0:
                 # 2. Find their highest spending category for this week
@@ -49,12 +56,13 @@ async def send_weekly_proactive_insights():
                     LIMIT 1
                 """, (identifier,))
                 
-                top_cat_row = cursor.fetchone()
+                cat_row = cursor.fetchone()
+                c_row = tuple(cat_row) if cat_row else ()
                 
-                top_category = str(top_cat_row[0]) if top_cat_row and top_cat_row[0] else "Miscellaneous"
-                top_amount = float(top_cat_row[1]) if top_cat_row and top_cat_row[1] else 0.0
+                top_category = str(c_row[0]) if c_row and c_row[0] else "Miscellaneous"
                 
-                # 3. Send the proactive insight template
+                top_amount = float(str(c_row[1])) if c_row and c_row[1] else 0.0
+                
                 await send_whatsapp_template(
                     to_number=str(user[0]), 
                     template_name="weekly_insight_v1_1", 
