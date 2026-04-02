@@ -8,7 +8,6 @@ load_dotenv()
 WA_PHONE_ID = os.getenv("WA_PHONE_ID")
 WA_TOKEN = os.getenv("WA_TOKEN")
 WA_URL = f"https://graph.facebook.com/v23.0/{WA_PHONE_ID}/messages"
-VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
 
 logger = logging.getLogger("uvicorn")
 
@@ -21,22 +20,26 @@ async def send_whatsapp_template(to_number: str, template_name: str, variables: 
     # Format variables for Meta's API
     parameters = [{"type": "text", "text": str(var)} for var in variables]
 
+    template_data = {
+        "name": template_name,
+        "language": {
+            "code": "en_US"
+        }
+    }
+
+    if parameters:
+        template_data["components"] = [
+            {
+                "type": "body",
+                "parameters": parameters
+            }
+        ]
+
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,
         "type": "template",
-        "template": {
-            "name": template_name,
-            "language": {
-                "code": "en_US" 
-            },
-            "components": [
-                {
-                    "type": "body",
-                    "parameters": parameters
-                }
-            ] if parameters else []
-        }
+        "template": template_data
     }
 
     async with httpx.AsyncClient() as client:

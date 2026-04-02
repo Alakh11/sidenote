@@ -305,7 +305,7 @@ async def handle_expense_entry(phone: str, text: str, match):
         user = cursor.fetchone()
         
         if not user:
-            cursor.execute("INSERT INTO users (mobile, is_verified) VALUES (%s, TRUE)", (phone,))
+            cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
             conn.commit()
             identifier = phone
             await send_whatsapp_template(phone, "sidenote_welcome_v1", [])
