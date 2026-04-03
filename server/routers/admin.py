@@ -157,7 +157,7 @@ def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
         conn.close()
         
 @router.get("/metrics")
-def get_system_metrics():
+def get_system_metrics(admin_email: str = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -170,6 +170,7 @@ def get_system_metrics():
         """)
         slowest = cursor.fetchall()
 
+        # 2. Most Used Endpoints
         cursor.execute("""
             SELECT method, endpoint, COUNT(*) as total_calls, ROUND(AVG(response_time_ms), 2) as avg_time_ms
             FROM api_metrics 
@@ -179,6 +180,7 @@ def get_system_metrics():
         """)
         most_used = cursor.fetchall()
 
+        # 3. Errors
         cursor.execute("""
             SELECT method, endpoint, status_code, COUNT(*) as error_count
             FROM api_metrics 
@@ -188,6 +190,29 @@ def get_system_metrics():
         """)
         errors = cursor.fetchall()
 
-        return {"slowest": slowest, "most_used": most_used, "errors": errors}
+        # 4. System Health Pulse
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_requests_24h,
+                ROUND(AVG(response_time_ms), 2) as global_avg_ms
+            FROM api_metrics 
+            WHERE created_at >= NOW() - INTERVAL 24 HOUR
+        """)
+        pulse_raw = cursor.fetchone()
+        
+        pulse: dict[str, Any] = pulse_raw or {"total_requests_24h": 0, "global_avg_ms": 0} # type: ignore
+
+        return {
+            "slowest": slowest, 
+            "most_used": most_used, 
+            "errors": errors,
+            "pulse": {
+                "total_requests": pulse.get("total_requests_24h") or 0,
+                "average_time": pulse.get("global_avg_ms") or 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Metrics Error: {e}")
+        return {"slowest": [], "most_used": [], "errors": [], "pulse": {"total_requests": 0, "average_time": 0}}
     finally:
         conn.close()
