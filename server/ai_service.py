@@ -17,17 +17,17 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
     try:
         client = genai.Client(
             api_key=api_key, 
-            http_options={'api_version': 'v1beta'}
+            http_options={'api_version': 'v1'}
         )
         
         prompt = (
-            "Analyze this receipt/invoice. Extract 'amount' (float) and 'item' (string). "
-            "Return ONLY raw JSON: {\"amount\": 0.0, \"item\": \"name\"}. "
-            "No markdown, no backticks, no extra text."
+            "Analyze this receipt or invoice. Find the final total amount and the name of the merchant/service. "
+            "Return ONLY a raw, valid JSON object with two keys: 'amount' (a float) and 'item' (a string). "
+            "Do not include any markdown formatting, backticks, or extra text."
         )
         
         response = client.models.generate_content(
-            model='gemini-1.5-flash', 
+            model='gemini-2.5-flash', 
             contents=[
                 prompt,
                 types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
@@ -35,19 +35,18 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
         )
         
         if not response or not response.text:
-            logger.error("AI Error: Response text is empty.")
+            logger.error("AI Error: Empty response text.")
             return None
 
         clean_text = response.text.strip()
-        
         if "```" in clean_text:
             clean_text = clean_text.split("```")[1]
             if clean_text.startswith("json"):
                 clean_text = clean_text[4:].strip()
         
         clean_text = clean_text.replace("json", "").strip()
-            
-        return json.loads(clean_text)
+
+        return dict(json.loads(clean_text))
         
     except Exception as e:
         logger.error(f"AI Receipt Parsing Error: {e}")
