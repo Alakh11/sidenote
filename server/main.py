@@ -244,34 +244,33 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
 
     return {"status": "ok"}
 
-def log_api_metric(method: str, endpoint: str, duration_ms: float):
-    # Ignore static files or the metrics endpoint itself
-    if endpoint.startswith("/admin/metrics") or endpoint == "/": 
+def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: int):
+    if endpoint == "/admin/metrics" or endpoint == "/": 
         return
-        
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO api_metrics (method, endpoint, response_time_ms) 
-            VALUES (%s, %s, %s)
-        """, (method, endpoint, duration_ms))
+        cursor.execute(
+            "INSERT INTO api_metrics (method, endpoint, response_time_ms, status_code) VALUES (%s, %s, %s, %s)", 
+            (method, endpoint, duration_ms, status_code)
+        )
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"Failed to log metric: {e}")
+        print(f"Metrics Error: {e}")
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
-    
     response = await call_next(request)
-    
     process_time_ms = (time.time() - start_time) * 1000
+    
+    route = request.scope.get("route")
+    endpoint_pattern = route.path if route else request.url.path
     
     threading.Thread(
         target=log_api_metric, 
-        args=(request.method, request.url.path, process_time_ms)
+        args=(request.method, endpoint_pattern, process_time_ms, response.status_code)
     ).start()
     
     return response
