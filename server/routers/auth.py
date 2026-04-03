@@ -16,21 +16,27 @@ def register(user: UserRegister):
     try:
         field = "email" if user.contact_type == 'email' else "mobile"
         
-        cursor.execute(f"SELECT id FROM users WHERE {field} = %s", (user.contact,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="User already exists")
+        cursor.execute(f"SELECT id, email, is_verified FROM users WHERE {field} = %s", (user.contact,))
+        existing_user = cursor.fetchone()
 
-        # 1. Generate OTP
-        # otp = send_otp_mock(user.contact)
-        # expiry = datetime.utcnow() + timedelta(minutes=10)
-        
-        # cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, %s)", (user.contact, otp, expiry))
-        
-        # 2. Hash Password
         hashed_pw = pwd_context.hash(user.password)
-        
-        # 4. Create User (Directly Verified)
-        # We set is_verified = TRUE immediately
+
+        if existing_user:
+            if existing_user.get('email'):
+                raise HTTPException(status_code=400, detail="User already exists. Please log in.")
+            
+            if field == "mobile":
+                cursor.execute("""
+                    UPDATE users 
+                    SET name = %s, email = %s, password_hash = %s, is_verified = TRUE 
+                    WHERE mobile = %s
+                """, (user.name, None, hashed_pw, user.contact))
+                
+                conn.commit()
+                return {"message": "WhatsApp profile upgraded successfully! Please log in."}
+            else:
+                 raise HTTPException(status_code=400, detail="User already exists.")
+
         query = f"INSERT INTO users (name, {field}, password_hash, is_verified) VALUES (%s, %s, %s, TRUE)"
         cursor.execute(query, (user.name, user.contact, hashed_pw))
         
@@ -38,9 +44,12 @@ def register(user: UserRegister):
         
         conn.commit()
         return {"message": "User registered successfully."}
+        
     except Exception as e:
         conn.rollback()
         logger.error(f"Register Error: {e}")
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()

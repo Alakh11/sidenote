@@ -111,9 +111,12 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
             cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
             conn.commit()
             await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
+            
             welcome_link_msg = (
-                "🌐 *Access your Web Dashboard here:*\n"
-                "https://www.sidenote.in/login\n\n"
+                "🌐 *Finish setting up your account!*\n\n"
+                "To view your charts and secure your data:\n"
+                "🔗 https://www.sidenote.in/login\n\n"
+                "Click *Sign Up* and use this mobile number to link your accounts.\n\n"
                 "(Or type 'menu' anytime to see your options)"
             )
             await send_whatsapp_text(phone, welcome_link_msg)
@@ -359,10 +362,13 @@ async def handle_dashboard_request(phone: str):
         else:
             msg = (
                 "👋 *You're almost there!*\n\n"
-                "To see your charts and secure your account, please complete your profile:\n"
-                "🔗 https://www.sidenote.in/register\n\n"
-                "Enter your number and set your *Name, Email, and Password*."
+                "To see your charts and secure your account, please complete your profile:\n\n"
+                "1️⃣ Go to: https://www.sidenote.in/login\n"
+                "2️⃣ Click *Sign Up*\n"
+                "3️⃣ Select *Mobile* and enter your number\n\n"
+                "Set your Name and Password, and your WhatsApp data will instantly sync to the web!"
             )
+            await send_whatsapp_text(phone, msg)
             
         await send_whatsapp_text(phone, msg)
             
