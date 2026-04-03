@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 @router.post("/transactions")
 def add_transaction(tx: TransactionCreate):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute("SELECT id FROM categories WHERE name = %s AND user_email = %s AND type = %s", (tx.category, tx.user_email, tx.type))
         result: Any = cursor.fetchone()
@@ -108,7 +108,7 @@ def get_all_transactions(
 @router.delete("/transactions/{id}")
 def delete_transaction(id: int):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True, buffered=True)
     cursor.execute("DELETE FROM transactions WHERE id = %s", (id,))
     conn.commit()
     conn.close()
@@ -128,7 +128,7 @@ def get_categories(email: str):
 @router.post("/categories")
 def add_category(cat: CategoryCreate):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute(
             "INSERT INTO categories (user_email, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, FALSE)", (cat.user_email, cat.name, cat.color, cat.type, cat.icon)
@@ -143,7 +143,7 @@ def add_category(cat: CategoryCreate):
 @router.delete("/categories/{id}")
 def delete_category(id: int):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute("DELETE FROM transactions WHERE category_id = %s", (id,))
         cursor.execute("DELETE FROM categories WHERE id = %s", (id,))
@@ -155,7 +155,7 @@ def delete_category(id: int):
 @router.put("/categories/{id}")
 def update_category(id: int, cat: CategoryUpdate):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute("SELECT * FROM categories WHERE id = %s", (id,))
         if not cursor.fetchone():
@@ -180,7 +180,7 @@ def update_category(id: int, cat: CategoryUpdate):
 def set_budget(budget: BudgetSchema):
     try:
         conn = get_db()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True, buffered=True)
         cursor.execute("""
             INSERT INTO budgets (user_email, category_id, amount)
             VALUES (%s, %s, %s)
@@ -293,7 +293,7 @@ def get_budget_history(email: str):
 @router.put("/transactions/{id}")
 def update_transaction(id: int, tx: TransactionCreate):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute("SELECT id FROM categories WHERE name = %s AND user_email = %s AND type = %s", (tx.category, tx.user_email, tx.type))
         result: Any = cursor.fetchone()
