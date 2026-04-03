@@ -19,6 +19,9 @@ CMD_UNDO = "undo"
 CMD_SUMMARY = "summary"
 CMD_WEEK = "week"
 CMD_MONTH = "month"
+CMD_TODAY = "today"
+CMD_HELP = "help"
+CMD_MORE = "more"
 
 # ==========================================
 # BUDGET SETTINGS

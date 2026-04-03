@@ -20,6 +20,10 @@ async def process_whatsapp_text(phone: str, text: str):
     elif text == CMD_SUMMARY: await handle_summary_request(phone)
     elif text == CMD_WEEK: await handle_weekly_request(phone)
     elif text == CMD_MONTH: await handle_monthly_request(phone)
+    elif text == CMD_TODAY: await handle_today_request(phone)
+    elif text == CMD_MORE: await handle_more_request(phone)
+    elif text == CMD_HELP: 
+        await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!\n- Send a Voice Note!")
     elif text.startswith(CMD_SET_BUDGET): await handle_budget_set(phone, text)
     else:
         match = re.search(r'\d+(?:\.\d+)?', text)
@@ -53,9 +57,13 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
 
 async def process_whatsapp_interactive(phone: str, button_id: str):
     if button_id == "cmd_summary": await handle_summary_request(phone)
-    elif button_id == "cmd_week": await handle_weekly_request(phone)
-    elif button_id == "cmd_month": await handle_monthly_request(phone)
+    elif button_id == "cmd_today": await handle_today_request(phone)
+    elif button_id == "cmd_more": await handle_more_request(phone)
+    
     elif button_id == "cmd_dashboard": await handle_dashboard_request(phone)
+    elif button_id == "cmd_week": await handle_weekly_request(phone)
+    elif button_id == "cmd_help": 
+        await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!")
     elif button_id.startswith("del_"):
         tx_id = int(button_id.split("_")[1])
         await handle_undo_action(phone, tx_id)
@@ -228,14 +236,6 @@ async def handle_undo_action(phone: str, tx_id: int):
     finally:
         if conn: conn.close()
 
-async def handle_menu_request(phone: str):
-    buttons = [
-        {"id": "cmd_dashboard", "title": "🌐 Dashboard"},
-        {"id": "cmd_week", "title": "📅 Week"},
-        {"id": "cmd_month", "title": "🗓️ Month"},
-        {"id": "cmd_summary", "title": "📊 Summary"},
-    ]
-    await send_whatsapp_interactive_buttons(phone, "What would you like to see?", buttons)
 
 async def handle_fallback(phone: str):
     fallback_message = f"Hey! Just send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options or *{CMD_UNDO}* to delete a mistake."
@@ -370,3 +370,75 @@ async def handle_dashboard_request(phone: str):
         print(f"Dashboard Link Error: {e}")
     finally:
         if conn: conn.close()
+        
+async def handle_today_request(phone: str):
+    """Fetches and sends a list of all transactions made today."""
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SET time_zone = '+05:30'")
+        
+        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+        user_data = cursor.fetchone()
+        identifier = str(user_data[0]) if user_data and user_data[0] else phone
+        
+        cursor.execute("""
+            SELECT amount, note, type 
+            FROM transactions 
+            WHERE user_email = %s AND DATE(date) = CURDATE()
+            ORDER BY id DESC
+        """, (identifier,))
+        
+        transactions = cursor.fetchall()
+        
+        if not transactions:
+            await send_whatsapp_text(phone, "✨ *No transactions today!* Your wallet is happy.")
+            return
+            
+        total_spent = 0.0
+        total_income = 0.0
+        details = ["📅 *Today's Activity:*\n"]
+        
+        for t in transactions:
+            amt = float(t[0])
+            note = str(t[1]).capitalize()
+            t_type = str(t[2])
+            
+            if t_type == 'expense':
+                total_spent += amt
+                details.append(f"🔴 ₹{amt:g} - {note}")
+            else:
+                total_income += amt
+                details.append(f"🟢 ₹{amt:g} - {note}")
+                
+        details.append("\n" + "━" * 15)
+        if total_spent > 0:
+            details.append(f"💸 *Total Spent: ₹{total_spent:g}*")
+        if total_income > 0:
+            details.append(f"💰 *Total Income: ₹{total_income:g}*")
+        
+        await send_whatsapp_text(phone, "\n".join(details))
+        
+    except Exception as e:
+        print(f"Today Request Error: {e}")
+        await send_whatsapp_text(phone, "⚠️ Sorry, I couldn't fetch today's data.")
+    finally:
+        if conn: conn.close()
+        
+async def handle_menu_request(phone: str):
+    buttons = [
+        {"id": "cmd_summary", "title": "📊 Summary"},
+        {"id": "cmd_today", "title": "📅 Today"},
+        {"id": "cmd_more", "title": "⚙️ More Options"}
+    ]
+    await send_whatsapp_interactive_buttons(phone, "📋 *Main Menu*\nChoose an option below:", buttons)
+
+async def handle_more_request(phone: str):
+    """Second Menu (Triggered by typing 'more' or clicking 'More Options')"""
+    buttons = [
+        {"id": "cmd_dashboard", "title": "🌐 Dashboard"},
+        {"id": "cmd_week", "title": "📅 This Week"},
+        {"id": "cmd_help", "title": "❓ Help"}
+    ]
+    await send_whatsapp_interactive_buttons(phone, "⚙️ *More Options*\nChoose an option below:", buttons)
