@@ -1,9 +1,9 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { 
   Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
-  Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee 
+  Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap 
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API_URL = "https://api.sidenote.in";
@@ -12,6 +12,7 @@ export default function AdminPanel() {
   const router = useRouter();
   const { users, stats } = useLoaderData({ from: '/_auth/admin' });
   const [search, setSearch] = useState('');
+  const [adminTab, setAdminTab] = useState<'users' | 'metrics'>('users');
   
   // States for Modals/Views
   const [viewUser, setViewUser] = useState<any | null>(null);
@@ -105,63 +106,81 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      {/* User Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex justify-between items-center bg-stone-50/50 dark:bg-slate-800/50">
-              <div className="relative w-full max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                  <input placeholder="Search users..." className="w-full pl-9 pr-4 py-2 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex gap-2 border-b border-stone-200 dark:border-slate-800 pb-px">
+          <button 
+              onClick={() => setAdminTab('users')} 
+              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${adminTab === 'users' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
+          >
+              <Users size={16} /> User Management
+          </button>
+          <button 
+              onClick={() => setAdminTab('metrics')} 
+              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${adminTab === 'metrics' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
+          >
+              <Activity size={16} /> System Performance
+          </button>
+      </div>
+
+      {adminTab === 'users' ? (
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in">
+              <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex justify-between items-center bg-stone-50/50 dark:bg-slate-800/50">
+                  <div className="relative w-full max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                      <input placeholder="Search users..." className="w-full pl-9 pr-4 py-2 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500" value={search} onChange={e => setSearch(e.target.value)} />
+                  </div>
+              </div>
+              <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                      <thead className="bg-stone-50 dark:bg-slate-800 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
+                          <tr><th className="p-5">User</th><th className="p-5">Contact / Status</th><th className="p-5 text-center">Actions</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100 dark:divide-slate-800">
+                          {filteredUsers.map((user: any) => {
+                              const isUrl = user.profile_pic && user.profile_pic.startsWith('http');
+                              const isEmoji = user.profile_pic && !isUrl;
+                              
+                              return (
+                              <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
+                                  <td className="p-5 flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800">
+                                          {isUrl ? (
+                                              <img src={user.profile_pic} className="w-full h-full object-cover" alt={user.name} />
+                                          ) : isEmoji ? (
+                                              <span>{user.profile_pic}</span>
+                                          ) : (
+                                              user.name.charAt(0).toUpperCase()
+                                          )}
+                                      </div>
+                                      <div><p className="font-bold text-stone-800 dark:text-white">{user.name}</p><p className="text-xs text-stone-400">ID: {user.id}</p></div>
+                                  </td>
+                                  <td className="p-5">
+                                      <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.email || user.mobile}</p>
+                                      <div className="mt-1">
+                                        {user.is_verified ? (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400">
+                                                <CheckCircle2 size={10} /> Verified
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400">
+                                                <XCircle size={10} /> Unverified
+                                            </span>
+                                        )}
+                                      </div>
+                                  </td>
+                                  <td className="p-5 flex justify-center gap-2">
+                                      <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="View Full Data"><Eye size={16} /></button>
+                                      <button onClick={() => { setEditingUser(user); setFormData({name: user.name, contact: user.email || user.mobile, password: ''}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
+                                      <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
+                                  </td>
+                              </tr>
+                          )})}
+                      </tbody>
+                  </table>
               </div>
           </div>
-          <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                  <thead className="bg-stone-50 dark:bg-slate-800 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
-                      <tr><th className="p-5">User</th><th className="p-5">Contact / Status</th><th className="p-5 text-center">Actions</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100 dark:divide-slate-800">
-                      {filteredUsers.map((user: any) => {
-                          const isUrl = user.profile_pic && user.profile_pic.startsWith('http');
-                          const isEmoji = user.profile_pic && !isUrl;
-                          
-                          return (
-                          <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
-                              <td className="p-5 flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800">
-                                      {isUrl ? (
-                                          <img src={user.profile_pic} className="w-full h-full object-cover" alt={user.name} />
-                                      ) : isEmoji ? (
-                                          <span>{user.profile_pic}</span>
-                                      ) : (
-                                          user.name.charAt(0).toUpperCase()
-                                      )}
-                                  </div>
-                                  <div><p className="font-bold text-stone-800 dark:text-white">{user.name}</p><p className="text-xs text-stone-400">ID: {user.id}</p></div>
-                              </td>
-                              <td className="p-5">
-                                  <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.email || user.mobile}</p>
-                                  <div className="mt-1">
-                                    {user.is_verified ? (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400">
-                                            <CheckCircle2 size={10} /> Verified
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400">
-                                            <XCircle size={10} /> Unverified
-                                        </span>
-                                    )}
-                                  </div>
-                              </td>
-                              <td className="p-5 flex justify-center gap-2">
-                                  <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="View Full Data"><Eye size={16} /></button>
-                                  <button onClick={() => { setEditingUser(user); setFormData({name: user.name, contact: user.email || user.mobile, password: ''}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
-                                  <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
-                              </td>
-                          </tr>
-                      )})}
-                  </tbody>
-              </table>
-          </div>
-      </div>
+      ) : (
+          <SystemMetricsView />
+      )}
 
       {/* CREATE / EDIT MODAL */}
       {(isCreating || editingUser) && (
@@ -199,7 +218,124 @@ export default function AdminPanel() {
   );
 }
 
-// ... (UserDetailView Component remains same)
+function SystemMetricsView() {
+    const [metrics, setMetrics] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchMetrics = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await axios.get(`${API_URL}/admin/metrics`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setMetrics(res.data);
+            } catch (error) {
+                console.error("Failed to load metrics", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchMetrics();
+    }, []);
+
+    if (loading) return <div className="p-10 text-center text-stone-500 animate-pulse">Loading system metrics...</div>;
+    if (!metrics) return <div className="p-10 text-center text-rose-500">No performance data recorded yet.</div>;
+
+    const getColor = (ms: number) => {
+        if (ms < 300) return 'bg-emerald-500';
+        if (ms < 1000) return 'bg-amber-500';
+        return 'bg-rose-500';
+    };
+
+    const renderMetricList = (data: any[], maxVal: number, isTraffic = false) => {
+        if (data.length === 0) return <p className="text-sm text-stone-500 italic">No data recorded in the last 24h.</p>;
+        
+        return data.map((route: any, i: number) => {
+            const val = isTraffic ? route.total_calls : route.avg_time_ms;
+            const barWidth = Math.max((val / maxVal) * 100, 2);
+            
+            return (
+                <div key={i} className="flex flex-col gap-1">
+                    <div className="flex justify-between text-sm font-medium">
+                        <span className="flex items-center gap-2 text-stone-600 dark:text-slate-300">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${route.method === 'GET' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' : route.method === 'POST' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : route.method === 'DELETE' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30' : 'bg-stone-100 text-stone-500 dark:bg-slate-800'}`}>{route.method}</span>
+                            <span className="truncate max-w-[200px] md:max-w-md">{route.endpoint}</span>
+                        </span>
+                        <span className="text-stone-500 dark:text-slate-400 font-mono text-xs flex gap-4">
+                            {isTraffic ? (
+                                <><span>{route.total_calls} calls</span><span className="opacity-50">{route.avg_time_ms}ms avg</span></>
+                            ) : (
+                                <><span>{route.avg_time_ms}ms avg</span><span className="opacity-50">{route.total_calls} calls</span></>
+                            )}
+                        </span>
+                    </div>
+                    <div className="w-full bg-stone-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-1000 ${isTraffic ? 'bg-indigo-500' : getColor(route.avg_time_ms)}`} style={{ width: `${barWidth}%` }}></div>
+                    </div>
+                </div>
+            );
+        });
+    };
+
+    const maxSlowMs = Math.max(...(metrics.slowest?.map((m: any) => m.avg_time_ms) || [100]));
+    const maxCalls = Math.max(...(metrics.most_used?.map((m: any) => m.total_calls) || [10]));
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in">
+            
+            {/* COLUMN 1: Speed */}
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm p-6">
+                <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
+                    <Zap className="text-amber-500" />
+                    <h3 className="text-xl font-bold">Slowest APIs (Last 24h)</h3>
+                </div>
+                <div className="space-y-4">
+                    {renderMetricList(metrics.slowest || [], maxSlowMs, false)}
+                </div>
+            </div>
+
+            {/* COLUMN 2: Traffic & Errors */}
+            <div className="space-y-6">
+                
+                {/* Traffic Volume */}
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm p-6">
+                    <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
+                        <Activity className="text-indigo-500" />
+                        <h3 className="text-xl font-bold">Highest Traffic APIs</h3>
+                    </div>
+                    <div className="space-y-4">
+                        {renderMetricList(metrics.most_used || [], maxCalls, true)}
+                    </div>
+                </div>
+
+                {/* Error Tracking */}
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-rose-100 dark:border-rose-900/30 shadow-sm p-6">
+                    <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
+                        <XCircle className="text-rose-500" />
+                        <h3 className="text-xl font-bold">Failed Requests Tracker</h3>
+                    </div>
+                    <div className="space-y-2">
+                        {metrics.errors?.length === 0 ? (
+                             <p className="text-sm text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-2"><CheckCircle2 size={16}/> No API errors in the last 24 hours! System is healthy.</p>
+                        ) : (
+                            metrics.errors?.map((err: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center p-3 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-100 dark:border-rose-900/50">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold bg-rose-200 text-rose-800 dark:bg-rose-800 dark:text-rose-200 px-2 py-1 rounded">Error {err.status_code}</span>
+                                        <span className="text-sm font-medium text-stone-700 dark:text-slate-300">{err.endpoint}</span>
+                                    </div>
+                                    <span className="text-rose-600 dark:text-rose-400 font-bold text-sm">{err.error_count} times</span>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    );
+}
 function UserDetailView({ userId, onBack }: { userId: number, onBack: () => void }) {
     const [data, setData] = useState<any>(null);
     const [tab, setTab] = useState<'tx' | 'loan' | 'lend' | 'goal'>('tx');
