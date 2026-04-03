@@ -231,6 +231,7 @@ function AdminFeedbackView() {
     const [loading, setLoading] = useState(true);
     const [replyingTo, setReplyingTo] = useState<number | null>(null);
     const [replyText, setReplyText] = useState('');
+    
     const fetchFeedback = async () => {
         try {
             const res = await axios.get(`${API_URL}/admin/feedback`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }});
@@ -251,6 +252,18 @@ function AdminFeedbackView() {
             fetchFeedback();
         } catch (err) {
             alert("Failed to send reply.");
+        }
+    };
+
+    const deleteTicket = async (ticketId: number) => {
+        if (!confirm("Are you sure you want to delete this ticket permanently?")) return;
+        try {
+            await axios.delete(`${API_URL}/admin/feedback/${ticketId}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            fetchFeedback();
+        } catch (err) {
+            alert("Failed to delete ticket.");
         }
     };
 
@@ -284,9 +297,18 @@ function AdminFeedbackView() {
                             </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                            <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-1 rounded-lg border ${getBadgeStyle(t.type)}`}>
-                                {getIcon(t.type)} {t.type}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-1 rounded-lg border ${getBadgeStyle(t.type)}`}>
+                                    {getIcon(t.type)} {t.type}
+                                </span>
+                                <button 
+                                    onClick={() => deleteTicket(t.id)} 
+                                    className="p-1 text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-md transition-colors"
+                                    title="Delete Ticket"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
                             {t.status === 'resolved' && <span className="text-[10px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-bold uppercase dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} className="inline mr-1"/>Resolved</span>}
                         </div>
                     </div>
@@ -306,12 +328,12 @@ function AdminFeedbackView() {
                     <div className="mt-4 text-xs font-mono text-stone-400 text-right">
                         Submitted: {new Date(t.created_at).toLocaleString()}
                     {t.status === 'resolved' ? (
-                        <div className="mt-auto p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30 relative">
+                        <div className="mt-auto p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30 relative mt-4">
                             <span className="absolute -top-2.5 left-4 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded">Admin Reply</span>
                             <p className="text-sm text-indigo-900 dark:text-indigo-200 whitespace-pre-wrap">{t.admin_reply}</p>
                         </div>
                     ) : replyingTo === t.id ? (
-                        <div className="mt-auto space-y-2">
+                        <div className="mt-auto space-y-2 mt-4">
                             <textarea 
                                 autoFocus
                                 className="w-full p-3 text-sm bg-stone-50 dark:bg-slate-950 rounded-xl border border-indigo-200 dark:border-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white resize-none"
@@ -324,7 +346,7 @@ function AdminFeedbackView() {
                             </div>
                         </div>
                     ) : (
-                        <button onClick={() => setReplyingTo(t.id)} className="mt-auto w-full py-2.5 border-2 border-dashed border-stone-200 dark:border-slate-700 text-stone-500 dark:text-slate-400 hover:border-indigo-500 hover:text-indigo-600 dark:hover:border-indigo-500 rounded-xl font-bold text-sm transition-colors">
+                        <button onClick={() => setReplyingTo(t.id)} className="mt-auto w-full py-2.5 border-2 border-dashed border-stone-200 dark:border-slate-700 text-stone-500 dark:text-slate-400 hover:border-indigo-500 hover:text-indigo-600 dark:hover:border-indigo-500 rounded-xl font-bold text-sm transition-colors mt-4">
                             Write a Reply
                         </button>
                     )}

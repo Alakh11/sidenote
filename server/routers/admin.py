@@ -253,3 +253,18 @@ def reply_to_feedback(ticket_id: int, data: AdminReply, admin_email: str = Depen
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+        
+@router.delete("/feedback/{ticket_id}")
+def delete_feedback(ticket_id: int, admin_email: str = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM feedback WHERE id = %s", (ticket_id,))
+        conn.commit()
+        return {"message": "Ticket deleted successfully."}
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Admin Feedback Delete Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete ticket")
+    finally:
+        conn.close()
