@@ -55,6 +55,7 @@ async def process_whatsapp_interactive(phone: str, button_id: str):
     if button_id == "cmd_summary": await handle_summary_request(phone)
     elif button_id == "cmd_week": await handle_weekly_request(phone)
     elif button_id == "cmd_month": await handle_monthly_request(phone)
+    elif button_id == "cmd_dashboard": await handle_dashboard_request(phone)
     elif button_id.startswith("del_"):
         tx_id = int(button_id.split("_")[1])
         await handle_undo_action(phone, tx_id)
@@ -225,7 +226,8 @@ async def handle_menu_request(phone: str):
     buttons = [
         {"id": "cmd_summary", "title": "📊 Summary"},
         {"id": "cmd_week", "title": "📅 Week"},
-        {"id": "cmd_month", "title": "🗓️ Month"}
+        {"id": "cmd_month", "title": "🗓️ Month"},
+        {"id": "cmd_dashboard", "title": "🌐 Web Dashboard"},
     ]
     await send_whatsapp_interactive_buttons(phone, "What would you like to see?", buttons)
 
@@ -329,4 +331,36 @@ async def process_whatsapp_audio(phone: str, media_id: str):
         print(f"🎙️ Voice Extracted: ₹{amount} for {item}")
         await handle_transaction_entry(phone, amount, item)
     else:
-        await send_whatsapp_text(phone, "❓ I couldn't hear a specific amount or item. Could you try speaking a bit clearer?")    
+        await send_whatsapp_text(phone, "❓ I couldn't hear a specific amount or item. Could you try speaking a bit clearer?")   
+        
+async def handle_dashboard_request(phone: str):
+    """Sends the dashboard link based on verification status."""
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+        row = cursor.fetchone()
+        
+        if row and row[0]:
+            msg = (
+                "🌐 *SideNote Web Dashboard*\n\n"
+                "Access your full financial reports and charts here:\n"
+                "🔗 https://sidenote.hex8.in/login\n\n"
+                "Use your registered email to log in."
+            )
+        else:
+            msg = (
+                "👋 *You're almost there!*\n\n"
+                "To see your charts and secure your account, please complete your profile:\n"
+                "🔗 https://sidenote.hex8.in/register\n\n"
+                "Enter your number and set your *Name, Email, and Password*."
+            )
+            
+        await send_whatsapp_text(phone, msg)
+            
+    except Exception as e:
+        print(f"Dashboard Link Error: {e}")
+    finally:
+        if conn: conn.close()

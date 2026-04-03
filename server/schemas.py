@@ -40,6 +40,12 @@ class AdminUpdateUser(BaseModel):
     contact: str # Email or Mobile
     new_password: Optional[str] = None
 
+class ProfileCompletionRequest(BaseModel):
+    mobile: str
+    name: str
+    email: str 
+    password: str
+
 class UserPreferencesUpdate(BaseModel):
     currency: str
     month_start_date: int

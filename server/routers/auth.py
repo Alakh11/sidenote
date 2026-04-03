@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Any
 from database import get_db
-from schemas import UserRegister, UserLogin, GoogleAuth, ResetPassword, UserUpdateProfile, UserChangePassword, UserPreferencesUpdate
+from schemas import *
 from security import pwd_context, create_access_token, get_current_user
 from utils import create_default_categories
 import logging
@@ -226,6 +226,43 @@ def change_password(data: UserChangePassword, email: str = Depends(get_current_u
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+        
+@router.put("/complete-profile")
+def complete_profile(request: ProfileCompletionRequest):
+    """Upgrades a WhatsApp-only user to a full Web Dashboard user."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, email FROM users WHERE mobile = %s", (request.mobile,))
+        user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="Mobile number not found. Please start on WhatsApp first!")
+
+        if user.get('email'):
+            return {"message": "Account already exists. Please log in.", "redirect": "login"}
+
+        hashed_pw = pwd_context.hash(request.password)
+
+        cursor.execute("""
+            UPDATE users 
+            SET name = %s, email = %s, password_hash = %s, is_verified = TRUE 
+            WHERE mobile = %s
+        """, (request.name, request.email, hashed_pw, request.mobile))
+        
+        create_default_categories(request.email, cursor)
+        
+        conn.commit()
+        return {"status": "success", "message": "Profile completed! You can now log in."}
+
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Complete Profile Error: {e}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Internal Server Error")
     finally:
         conn.close()
         

@@ -1,3 +1,5 @@
+DASHBOARD_URL = "https://sidenote.hex8.in/login"
+
 # ==========================================
 # META WHATSAPP TEMPLATE NAMES
 # ==========================================
@@ -7,6 +9,7 @@ TEMPLATE_OVERVIEW = "sidenote_overview_v1_1"
 TEMPLATE_WEEKLY = "weekly_overview_v1_1"
 TEMPLATE_MONTHLY = "monthly_overview_v1"
 TEMPLATE_INSIGHT = "weekly_insight_v1_1"
+TEMPLATE_UNVERIFIED = "sidenote_verify_v1"
 
 # ==========================================
 # BOT COMMAND KEYWORDS
