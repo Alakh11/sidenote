@@ -156,7 +156,7 @@ def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
     finally:
         conn.close()
         
-@router.get("/admin/metrics")
+@router.get("/metrics")
 def get_system_metrics():
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
