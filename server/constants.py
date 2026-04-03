@@ -37,11 +37,11 @@ INCOME_KEYWORDS = ['+', 'income', 'salary', 'received', 'profit', 'bonus']
 
 # Fuzzy Category Map: Maps official DB Category Names to trigger words.
 CATEGORY_MAP = {
-    "Food & Dining": ["chai", "coffee", "tea", "swiggy", "zomato", "restaurant", "lunch", "dinner", "breakfast", "cafe", "pizza", "burger", "food"],
-    "Transportation": ["uber", "ola", "auto", "petrol", "diesel", "cab", "taxi", "train", "flight", "bus", "metro", "toll", "parking"],
+    "Food & Dining": ["chai", "coffee", "tea", "swiggy", "zomato", "restaurant", "lunch", "dinner", "breakfast", "cafe", "pizza", "burger", "food", "meal", "snack", "dessert", "ice cream", "bakery", "sandwich", "sandwiches", "sandwiche", "sandwiches", "biryani", "noodles", "pasta", "soup", "salad", "barbecue", "bbq", "steak", "seafood", "sushi", "taco", "burrito", "wrap"],
+    "Transportation": ["uber", "ola", "rapido", "indrive", "drive", "auto", "petrol", "diesel", "cab", "taxi", "train", "flight", "bus", "metro", "toll", "parking"],
     "Groceries": ["blinkit", "zepto", "instamart", "milk", "vegetables", "grocery", "ration", "fruits", "supermarket"],
     "Shopping": ["amazon", "flipkart", "myntra", "clothes", "shoes", "mall", "shopping", "apparel"],
     "Bills & Utilities": ["electricity", "water", "gas", "wifi", "internet", "recharge", "phone", "mobile", "bill", "subscription", "netflix", "spotify"],
     "Health & Fitness": ["gym", "medicine", "doctor", "pharmacy", "hospital", "clinic", "health", "workout"],
-    "Entertainment": ["movie", "cinema", "concert", "game", "party", "club", "event"],
+"Entertainment": ["movie", "cinema", "concert", "game", "party", "club", "event", "entertainment", "netflix", "spotify", "amazon prime", "hulu", "disney plus", "hotstar", "prime video", "hbo", "mx player","fun", "leisure"],
 }
