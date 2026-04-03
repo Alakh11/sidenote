@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 import { usePreferences } from '../context/PreferencesContext';
 import Logo from './Logo';
 import WhatsAppButton from './WhatsAppButton';
+import Footer from './Footer/Footer';
 
 const UserAvatar = ({ src, name, className }: { src?: string, name: string, className?: string }) => {
   const isUrl = src?.startsWith('http');
@@ -202,8 +203,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 md:ml-80 p-4 md:p-8 mt-20 md:mt-0 transition-all duration-300 w-full overflow-x-hidden dark:text-slate-200 relative">
-        <div className="max-w-6xl mx-auto mb-6 flex justify-center z-10 relative">
+      <main className="flex flex-col min-h-screen flex-1 md:ml-80 pt-4 md:pt-8 mt-20 md:mt-0 transition-all duration-300 w-full overflow-x-hidden dark:text-slate-200 relative">
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-8 mb-6 flex justify-center z-10 relative">
             <div className="flex bg-slate-200/70 dark:bg-slate-800/80 p-1.5 rounded-xl md:rounded-2xl w-full sm:w-[500px] shadow-inner">
                 {['day', 'week', 'month', 'year'].map((mode) => (
                     <button
@@ -221,9 +222,10 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             </div>
         </div>
 
-        <div className="max-w-6xl mx-auto space-y-8 pb-24">
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-8 flex-1">
           {children}
         </div>
+        <Footer />
       </main>
       <WhatsAppButton />
     </div>
