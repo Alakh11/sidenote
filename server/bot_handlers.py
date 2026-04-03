@@ -349,7 +349,7 @@ async def handle_dashboard_request(phone: str):
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
         row = cursor.fetchone()
         
-        if row and row[0]:
+        if row and row[0]: # type: ignore
             msg = (
                 "🌐 *SideNote Web Dashboard*\n\n"
                 "Access your full financial reports and charts here:\n"
@@ -381,7 +381,7 @@ async def handle_today_request(phone: str):
         
         cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
         user_data = cursor.fetchone()
-        identifier = str(user_data[0]) if user_data and user_data[0] else phone
+        identifier = str(user_data[0]) if user_data and user_data[0] else phone # type: ignore
         
         cursor.execute("""
             SELECT amount, note, type 
@@ -401,9 +401,9 @@ async def handle_today_request(phone: str):
         details = ["📅 *Today's Activity:*\n"]
         
         for t in transactions:
-            amt = float(t[0])
-            note = str(t[1]).capitalize()
-            t_type = str(t[2])
+            amt = float(str(t[0])) # type: ignore
+            note = str(t[1]).capitalize() # type: ignore
+            t_type = str(t[2]) # type: ignore
             
             if t_type == 'expense':
                 total_spent += amt
