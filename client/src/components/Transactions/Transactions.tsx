@@ -11,7 +11,7 @@ export default function Transactions() {
   const router = useRouter();
   const { initialTransactions, categories } = useLoaderData({ from: '/_auth/transactions' });
   const user = router.options.context?.user!;
-  const API_URL = "https://sidenote-8nu4.onrender.com";
+  const API_URL = "https://api.sidenote.in";
 
   // State
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);

@@ -15,7 +15,7 @@ export default function TrendChart({ userEmail }: { userEmail: string }) {
 
     useEffect(() => {
         setLoading(true);
-        axios.get(`https://sidenote-8nu4.onrender.com/trends/${userEmail}?view_by=${viewMode}`)
+        axios.get(`https://api.sidenote.in/trends/${userEmail}?view_by=${viewMode}`)
              .then(res => setData(res.data))
              .finally(() => setLoading(false));
     }, [viewMode, userEmail]);

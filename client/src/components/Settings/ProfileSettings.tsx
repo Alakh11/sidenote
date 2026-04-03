@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
 import { User, Lock, Save, Camera, CheckCircle2, AlertCircle, IndianRupee } from 'lucide-react';
 
-const API_URL = "https://sidenote-8nu4.onrender.com";
+const API_URL = "https://api.sidenote.in";
 
 const AVATARS = ['😎', '👻', '🤖', '🐯', '👽', '🐶', '👑', '💼', '🧢', '🦄', '🦉', '👨‍💻'];
 

@@ -113,7 +113,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
             await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
             welcome_link_msg = (
                 "🌐 *Access your Web Dashboard here:*\n"
-                "https://sidenote.hex8.in/login\n\n"
+                "https://www.sidenote.in/login\n\n"
                 "(Or type 'menu' anytime to see your options)"
             )
             await send_whatsapp_text(phone, welcome_link_msg)
@@ -353,14 +353,14 @@ async def handle_dashboard_request(phone: str):
             msg = (
                 "🌐 *SideNote Web Dashboard*\n\n"
                 "Access your full financial reports and charts here:\n"
-                "🔗 https://sidenote.hex8.in/login\n\n"
+                "🔗 https://www.sidenote.in/login\n\n"
                 "Use your registered email to log in."
             )
         else:
             msg = (
                 "👋 *You're almost there!*\n\n"
                 "To see your charts and secure your account, please complete your profile:\n"
-                "🔗 https://sidenote.hex8.in/register\n\n"
+                "🔗 https://www.sidenote.in/register\n\n"
                 "Enter your number and set your *Name, Email, and Password*."
             )
             

@@ -10,7 +10,7 @@ export default function LoanTracker() {
   const router = useRouter();
   const user = router.options.context?.user!;
   const loans = useLoaderData({ from: '/_auth/loans' });
-  const API_URL = "https://sidenote-8nu4.onrender.com";
+  const API_URL = "https://api.sidenote.in";
 
   // --- STATES ---
   const [showForm, setShowForm] = useState(false);

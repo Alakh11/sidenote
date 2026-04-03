@@ -1,4 +1,4 @@
-DASHBOARD_URL = "https://sidenote.hex8.in/login"
+DASHBOARD_URL = "https://www.sidenote.in/login"
 
 # ==========================================
 # META WHATSAPP TEMPLATE NAMES

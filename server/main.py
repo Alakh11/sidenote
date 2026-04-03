@@ -19,7 +19,7 @@ VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_side
 # CORS Setup
 origins = [
     "http://localhost:5173",
-    "https://sidenote.hex8.in"
+    "https://www.sidenote.in"
 ]
 
 app.add_middleware(

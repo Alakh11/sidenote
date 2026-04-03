@@ -26,7 +26,7 @@ export default function Dashboard() {
   stats.balance = stats.income - stats.expense;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const API_URL = "https://sidenote-8nu4.onrender.com";
+  const API_URL = "https://api.sidenote.in";
 
   // Handle Logic
   const handleAddTransaction = async (txData: any) => {

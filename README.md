@@ -13,10 +13,10 @@
   </p>
 
   <p align="center">
-    <a href="https://sidenote.hex8.in">
+    <a href="https://www.sidenote.in">
       <img src="https://img.shields.io/badge/🔗_Live_Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
     </a>
-    <a href="https://sidenote-8nu4.onrender.com">
+    <a href="https://api.sidenote.in">
       <img src="https://img.shields.io/badge/🔌_API_Status-000000?style=for-the-badge&logo=render&logoColor=white" alt="API Status" />
     </a>
   </p>
