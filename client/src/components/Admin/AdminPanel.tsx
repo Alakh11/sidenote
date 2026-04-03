@@ -1,7 +1,7 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { 
   Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
-  Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap 
+  Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap, Clock 
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -218,6 +218,9 @@ export default function AdminPanel() {
   );
 }
 
+// =========================================================================
+// UPDATED COMPONENT: System Metrics View
+// =========================================================================
 function SystemMetricsView() {
     const [metrics, setMetrics] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -240,7 +243,7 @@ function SystemMetricsView() {
     }, []);
 
     if (loading) return <div className="p-10 text-center text-stone-500 animate-pulse">Loading system metrics...</div>;
-    if (!metrics) return <div className="p-10 text-center text-rose-500">No performance data recorded yet.</div>;
+    if (!metrics || !metrics.pulse) return <div className="p-10 text-center text-rose-500">No performance data recorded yet.</div>;
 
     const getColor = (ms: number) => {
         if (ms < 300) return 'bg-emerald-500';
@@ -248,7 +251,7 @@ function SystemMetricsView() {
         return 'bg-rose-500';
     };
 
-    const renderMetricList = (data: any[], maxVal: number, isTraffic = false) => {
+    const renderMetricList = (data: any[] = [], maxVal: number, isTraffic = false) => {
         if (data.length === 0) return <p className="text-sm text-stone-500 italic">No data recorded in the last 24h.</p>;
         
         return data.map((route: any, i: number) => {
@@ -260,7 +263,7 @@ function SystemMetricsView() {
                     <div className="flex justify-between text-sm font-medium">
                         <span className="flex items-center gap-2 text-stone-600 dark:text-slate-300">
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${route.method === 'GET' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' : route.method === 'POST' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : route.method === 'DELETE' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30' : 'bg-stone-100 text-stone-500 dark:bg-slate-800'}`}>{route.method}</span>
-                            <span className="truncate max-w-[200px] md:max-w-md">{route.endpoint}</span>
+                            <span className="truncate max-w-[200px] md:max-w-md" title={route.endpoint}>{route.endpoint}</span>
                         </span>
                         <span className="text-stone-500 dark:text-slate-400 font-mono text-xs flex gap-4">
                             {isTraffic ? (
@@ -282,60 +285,81 @@ function SystemMetricsView() {
     const maxCalls = Math.max(...(metrics.most_used?.map((m: any) => m.total_calls) || [10]));
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in">
-            
-            {/* COLUMN 1: Speed */}
-            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm p-6">
-                <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
-                    <Zap className="text-amber-500" />
-                    <h3 className="text-xl font-bold">Slowest APIs (Last 24h)</h3>
+        <div className="space-y-6 animate-in fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-indigo-600 p-6 rounded-[2rem] text-white shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-between">
+                    <div>
+                        <p className="text-indigo-200 font-bold text-sm uppercase tracking-wider mb-1">Total API Requests (24h)</p>
+                        <h4 className="text-4xl font-black">{metrics.pulse.total_requests.toLocaleString()}</h4>
+                    </div>
+                    <Activity size={48} className="text-indigo-400 opacity-50" />
                 </div>
-                <div className="space-y-4">
-                    {renderMetricList(metrics.slowest || [], maxSlowMs, false)}
+                <div className="bg-white dark:bg-slate-900 border border-stone-100 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm flex items-center justify-between">
+                     <div>
+                        <p className="text-stone-400 font-bold text-sm uppercase tracking-wider mb-1">Global Avg Response Time</p>
+                        <h4 className={`text-4xl font-black ${getColor(metrics.pulse.average_time).replace('bg-', 'text-')}`}>
+                            {metrics.pulse.average_time} <span className="text-lg text-stone-300">ms</span>
+                        </h4>
+                    </div>
+                    <Clock size={48} className="text-stone-200 dark:text-slate-800" />
                 </div>
             </div>
 
-            {/* COLUMN 2: Traffic & Errors */}
-            <div className="space-y-6">
-                
-                {/* Traffic Volume */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* COLUMN 1: Speed */}
                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm p-6">
                     <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
-                        <Activity className="text-indigo-500" />
-                        <h3 className="text-xl font-bold">Highest Traffic APIs</h3>
+                        <Zap className="text-amber-500" />
+                        <h3 className="text-xl font-bold">Slowest APIs (Last 24h)</h3>
                     </div>
                     <div className="space-y-4">
-                        {renderMetricList(metrics.most_used || [], maxCalls, true)}
+                        {renderMetricList(metrics.slowest, maxSlowMs, false)}
                     </div>
                 </div>
 
-                {/* Error Tracking */}
-                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-rose-100 dark:border-rose-900/30 shadow-sm p-6">
-                    <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
-                        <XCircle className="text-rose-500" />
-                        <h3 className="text-xl font-bold">Failed Requests Tracker</h3>
+                {/* COLUMN 2: Traffic & Errors */}
+                <div className="space-y-6">
+                    
+                    {/* Traffic Volume */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm p-6">
+                        <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
+                            <Activity className="text-indigo-500" />
+                            <h3 className="text-xl font-bold">Highest Traffic APIs</h3>
+                        </div>
+                        <div className="space-y-4">
+                            {renderMetricList(metrics.most_used, maxCalls, true)}
+                        </div>
                     </div>
-                    <div className="space-y-2">
-                        {metrics.errors?.length === 0 ? (
-                             <p className="text-sm text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-2"><CheckCircle2 size={16}/> No API errors in the last 24 hours! System is healthy.</p>
-                        ) : (
-                            metrics.errors?.map((err: any, i: number) => (
-                                <div key={i} className="flex justify-between items-center p-3 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-100 dark:border-rose-900/50">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold bg-rose-200 text-rose-800 dark:bg-rose-800 dark:text-rose-200 px-2 py-1 rounded">Error {err.status_code}</span>
-                                        <span className="text-sm font-medium text-stone-700 dark:text-slate-300">{err.endpoint}</span>
+
+                    {/* Error Tracking */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-rose-100 dark:border-rose-900/30 shadow-sm p-6">
+                        <div className="mb-6 flex items-center gap-2 text-stone-800 dark:text-white">
+                            <XCircle className="text-rose-500" />
+                            <h3 className="text-xl font-bold">Failed Requests Tracker</h3>
+                        </div>
+                        <div className="space-y-2">
+                            {metrics.errors?.length === 0 ? (
+                                 <p className="text-sm text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-2"><CheckCircle2 size={16}/> No API errors in the last 24 hours! System is healthy.</p>
+                            ) : (
+                                metrics.errors?.map((err: any, i: number) => (
+                                    <div key={i} className="flex justify-between items-center p-3 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-100 dark:border-rose-900/50">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-bold bg-rose-200 text-rose-800 dark:bg-rose-800 dark:text-rose-200 px-2 py-1 rounded">Error {err.status_code}</span>
+                                            <span className="text-sm font-medium text-stone-700 dark:text-slate-300">{err.endpoint}</span>
+                                        </div>
+                                        <span className="text-rose-600 dark:text-rose-400 font-bold text-sm">{err.error_count} times</span>
                                     </div>
-                                    <span className="text-rose-600 dark:text-rose-400 font-bold text-sm">{err.error_count} times</span>
-                                </div>
-                            ))
-                        )}
+                                ))
+                            )}
+                        </div>
                     </div>
-                </div>
 
+                </div>
             </div>
         </div>
     );
 }
+
 function UserDetailView({ userId, onBack }: { userId: number, onBack: () => void }) {
     const [data, setData] = useState<any>(null);
     const [tab, setTab] = useState<'tx' | 'loan' | 'lend' | 'goal'>('tx');
