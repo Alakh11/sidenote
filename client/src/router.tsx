@@ -24,6 +24,7 @@ import AdminPanel from './components/Admin/AdminPanel';
 import ProfileSettings from './components/Settings/ProfileSettings';
 import Home from './components/Home/home';
 import Auth from './components/Auth/Auth';
+import Feedback from './components/Support/Feedback';
 
 interface RouterContext {
   user: User | null;
@@ -262,6 +263,12 @@ const settingsRoute = createRoute({
   component: ProfileSettings,
 });
 
+const feedbackRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/feedback',
+  component: Feedback,
+});
+
 const notFoundRoute = new NotFoundRoute({
   getParentRoute: () => rootRoute,
   component: NotFound,
@@ -284,6 +291,7 @@ const routeTree = rootRoute.addChildren([
     debtsRoute,
     adminRoute,
     settingsRoute,
+    feedbackRoute,
   ])
 ]);
 

@@ -1,16 +1,19 @@
 import threading
 import time
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
 from database import get_db
 from routers import auth, transactions, features, analytics, admin
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image,  process_whatsapp_audio
+from server.security import get_current_user
 from whatsapp_service import send_whatsapp_template
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_insights import send_weekly_proactive_insights
+from pydantic import BaseModel
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -274,6 +277,29 @@ async def add_process_time_header(request: Request, call_next):
     ).start()
     
     return response
+
+class FeedbackSubmit(BaseModel):
+    type: str
+    rating: Optional[int] = 0
+    subject: str
+    message: str
+
+@app.post("/support/feedback")
+def submit_feedback(data: FeedbackSubmit, email: str = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO feedback (user_email, type, rating, subject, message) VALUES (%s, %s, %s, %s, %s)",
+            (email, data.type, data.rating, data.subject, data.message)
+        )
+        conn.commit()
+        return {"message": "Feedback submitted successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,7 +1,8 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { 
   Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
-  Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap, Clock 
+  Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap, Clock,
+  MessageSquare, Bug, Star, HelpCircle
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -12,7 +13,7 @@ export default function AdminPanel() {
   const router = useRouter();
   const { users, stats } = useLoaderData({ from: '/_auth/admin' });
   const [search, setSearch] = useState('');
-  const [adminTab, setAdminTab] = useState<'users' | 'metrics'>('users');
+  const [adminTab, setAdminTab] = useState<'users' | 'metrics' | 'feedback'>('users');
   
   // States for Modals/Views
   const [viewUser, setViewUser] = useState<any | null>(null);
@@ -106,22 +107,28 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-stone-200 dark:border-slate-800 pb-px">
+      <div className="flex gap-2 border-b border-stone-200 dark:border-slate-800 pb-px overflow-x-auto scrollbar-hide">
           <button 
               onClick={() => setAdminTab('users')} 
-              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${adminTab === 'users' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
+              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'users' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
           >
               <Users size={16} /> User Management
           </button>
           <button 
               onClick={() => setAdminTab('metrics')} 
-              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${adminTab === 'metrics' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
+              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'metrics' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
           >
               <Activity size={16} /> System Performance
           </button>
+          <button 
+              onClick={() => setAdminTab('feedback')} 
+              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'feedback' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
+          >
+              <HelpCircle size={16} /> Support Tickets
+          </button>
       </div>
 
-      {adminTab === 'users' ? (
+      {adminTab === 'users' && (
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in">
               <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex justify-between items-center bg-stone-50/50 dark:bg-slate-800/50">
                   <div className="relative w-full max-w-md">
@@ -178,9 +185,10 @@ export default function AdminPanel() {
                   </table>
               </div>
           </div>
-      ) : (
-          <SystemMetricsView />
       )}
+
+      {adminTab === 'metrics' && <SystemMetricsView />}
+      {adminTab === 'feedback' && <AdminFeedbackView />}
 
       {/* CREATE / EDIT MODAL */}
       {(isCreating || editingUser) && (
@@ -218,9 +226,77 @@ export default function AdminPanel() {
   );
 }
 
-// =========================================================================
-// UPDATED COMPONENT: System Metrics View
-// =========================================================================
+function AdminFeedbackView() {
+    const [tickets, setTickets] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchFeedback = async () => {
+            try {
+                const res = await axios.get(`${API_URL}/admin/feedback`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }});
+                setTickets(res.data);
+            } catch (error) { console.error("Failed to load feedback"); } finally { setLoading(false); }
+        };
+        fetchFeedback();
+    }, []);
+
+    if (loading) return <div className="p-10 text-center text-stone-500 animate-pulse">Loading tickets...</div>;
+    if (tickets.length === 0) return <div className="p-10 text-center text-stone-500">No support tickets found.</div>;
+
+    const getBadgeStyle = (type: string) => {
+        if (type === 'issue') return "bg-rose-100 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800";
+        if (type === 'review') return "bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
+        return "bg-blue-100 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+    };
+
+    const getIcon = (type: string) => {
+        if (type === 'issue') return <Bug size={14} />;
+        if (type === 'review') return <Star size={14} />;
+        return <MessageSquare size={14} />;
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in">
+            {tickets.map((t: any) => (
+                <div key={t.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm flex flex-col">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-stone-100 dark:bg-slate-800 flex items-center justify-center font-bold text-stone-500 overflow-hidden">
+                                {t.profile_pic && t.profile_pic.startsWith('http') ? <img src={t.profile_pic} className="w-full h-full object-cover" /> : (t.user_name ? t.user_name.charAt(0) : '?')}
+                            </div>
+                            <div>
+                                <p className="font-bold text-stone-800 dark:text-white text-sm">{t.user_name || "Unknown User"}</p>
+                                <p className="text-xs text-stone-500 dark:text-slate-400">{t.user_email}</p>
+                            </div>
+                        </div>
+                        <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-1 rounded-lg border ${getBadgeStyle(t.type)}`}>
+                            {getIcon(t.type)} {t.type}
+                        </span>
+                    </div>
+
+                    <h4 className="font-bold text-stone-800 dark:text-white mb-2">{t.subject}</h4>
+                    
+                    {t.type === 'review' && t.rating > 0 && (
+                        <div className="flex gap-1 mb-3">
+                            {[1, 2, 3, 4, 5].map(star => (
+                                <Star key={star} size={14} className={star <= t.rating ? "fill-amber-400 text-amber-400" : "text-stone-300 dark:text-slate-700"} />
+                            ))}
+                        </div>
+                    )}
+                    
+                    <div className="p-3 bg-stone-50 dark:bg-slate-950/50 rounded-xl border border-stone-100 dark:border-slate-800 text-sm text-stone-600 dark:text-slate-300 whitespace-pre-wrap flex-grow">
+                        {t.message}
+                    </div>
+                    
+                    <div className="mt-4 text-xs font-mono text-stone-400 text-right">
+                        Submitted: {new Date(t.created_at).toLocaleString()}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 function SystemMetricsView() {
     const [metrics, setMetrics] = useState<any>(null);
     const [loading, setLoading] = useState(true);

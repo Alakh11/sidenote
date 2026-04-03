@@ -216,3 +216,18 @@ def get_system_metrics(admin_email: str = Depends(require_admin)):
         return {"slowest": [], "most_used": [], "errors": [], "pulse": {"total_requests": 0, "average_time": 0}}
     finally:
         conn.close()
+        
+@router.get("/feedback")
+def get_all_feedback(admin_email: str = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT f.*, u.name as user_name, u.profile_pic 
+            FROM feedback f 
+            LEFT JOIN users u ON f.user_email = u.email OR f.user_email = u.mobile
+            ORDER BY f.created_at DESC
+        """)
+        return cursor.fetchall()
+    finally:
+        conn.close()

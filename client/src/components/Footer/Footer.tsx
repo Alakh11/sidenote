@@ -4,6 +4,7 @@ const FOOTER_LINKS = [
   { label: 'Home', href: '/' },
   { label: 'Terms & Conditions', href: '/terms' },
   { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Support & Feedback', href: '/feedback' },
 ];
 
 export default function Footer() {
