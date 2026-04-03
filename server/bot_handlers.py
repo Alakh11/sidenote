@@ -103,6 +103,12 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
             cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
             conn.commit()
             await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
+            welcome_link_msg = (
+                "🌐 *Access your Web Dashboard here:*\n"
+                "https://sidenote.hex8.in/login\n\n"
+                "(Or type 'menu' anytime to see your options)"
+            )
+            await send_whatsapp_text(phone, welcome_link_msg)
             identifier = phone
             budget_limit = 0.0
         else:
@@ -224,10 +230,10 @@ async def handle_undo_action(phone: str, tx_id: int):
 
 async def handle_menu_request(phone: str):
     buttons = [
-        {"id": "cmd_summary", "title": "📊 Summary"},
+        {"id": "cmd_dashboard", "title": "🌐 Dashboard"},
         {"id": "cmd_week", "title": "📅 Week"},
         {"id": "cmd_month", "title": "🗓️ Month"},
-        {"id": "cmd_dashboard", "title": "🌐 Web Dashboard"},
+        {"id": "cmd_summary", "title": "📊 Summary"},
     ]
     await send_whatsapp_interactive_buttons(phone, "What would you like to see?", buttons)
 
