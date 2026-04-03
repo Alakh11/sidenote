@@ -162,30 +162,32 @@ def get_system_metrics():
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT 
-                method, 
-                endpoint, 
-                COUNT(*) as total_calls, 
-                ROUND(AVG(response_time_ms), 2) as avg_time_ms,
-                ROUND(MAX(response_time_ms), 2) as max_time_ms
+            SELECT method, endpoint, COUNT(*) as total_calls, ROUND(AVG(response_time_ms), 2) as avg_time_ms
+            FROM api_metrics 
+            WHERE created_at >= NOW() - INTERVAL 24 HOUR AND status_code = 200
+            GROUP BY method, endpoint 
+            ORDER BY avg_time_ms DESC LIMIT 10
+        """)
+        slowest = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT method, endpoint, COUNT(*) as total_calls, ROUND(AVG(response_time_ms), 2) as avg_time_ms
             FROM api_metrics 
             WHERE created_at >= NOW() - INTERVAL 24 HOUR
             GROUP BY method, endpoint 
-            ORDER BY avg_time_ms DESC 
-            LIMIT 10
+            ORDER BY total_calls DESC LIMIT 10
         """)
-        api_stats = cursor.fetchall()
-        
-        cursor.execute("""
-            SELECT 
-                metric_name, 
-                ROUND(AVG(value), 2) as avg_value 
-            FROM ui_metrics 
-            WHERE created_at >= NOW() - INTERVAL 24 HOUR
-            GROUP BY metric_name
-        """)
-        ui_stats = cursor.fetchall()
+        most_used = cursor.fetchall()
 
-        return {"api": api_stats, "ui": ui_stats}
+        cursor.execute("""
+            SELECT method, endpoint, status_code, COUNT(*) as error_count
+            FROM api_metrics 
+            WHERE created_at >= NOW() - INTERVAL 24 HOUR AND status_code >= 400
+            GROUP BY method, endpoint, status_code 
+            ORDER BY error_count DESC LIMIT 10
+        """)
+        errors = cursor.fetchall()
+
+        return {"slowest": slowest, "most_used": most_used, "errors": errors}
     finally:
         conn.close()
