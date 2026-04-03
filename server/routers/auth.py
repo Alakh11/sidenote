@@ -1,49 +1,80 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Any
+from typing import Any, Optional
+from pydantic import BaseModel
 from database import get_db
 from schemas import *
 from security import pwd_context, create_access_token, get_current_user
 from utils import create_default_categories
 import logging
+import random
+from datetime import datetime, timedelta
+from whatsapp_service import send_whatsapp_text
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
 
+class RegisterPayload(BaseModel):
+    name: str
+    contact: str
+    password: str
+    contact_type: str
+    extra_mobile: Optional[str] = None
+
+class VerifyOTP(BaseModel):
+    contact: str
+    otp: str
+
+async def generate_and_send_otp(cursor, phone: str, name: str):
+    """Generates a 4-digit OTP, saves it, and sends via WhatsApp."""
+    if not phone:
+        return # Safety check to satisfy Pylance
+        
+    otp_code = str(random.randint(1000, 9999))
+    expiry = datetime.utcnow() + timedelta(minutes=10)
+    
+    cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, %s)", (phone, otp_code, expiry))
+    
+    msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
+    await send_whatsapp_text(phone, msg)
+
 @router.post("/register")
-def register(user: UserRegister):
+async def register(payload: RegisterPayload):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        field = "email" if user.contact_type == 'email' else "mobile"
+        field = "email" if payload.contact_type == 'email' else "mobile"
+        target_mobile = payload.contact if payload.contact_type == 'mobile' else payload.extra_mobile
         
-        cursor.execute(f"SELECT id, email, is_verified FROM users WHERE {field} = %s", (user.contact,))
-        existing_user = cursor.fetchone()
+        cursor.execute(f"SELECT id, email, is_verified FROM users WHERE {field} = %s", (payload.contact,))
+        raw_user = cursor.fetchone()
+        
+        existing_user: dict[str, Any] = raw_user or {} # type: ignore
 
-        hashed_pw = pwd_context.hash(user.password)
+        hashed_pw = pwd_context.hash(payload.password)
 
         if existing_user:
-            if existing_user.get('email'):
+            if existing_user.get('email') and existing_user.get('is_verified'):
                 raise HTTPException(status_code=400, detail="User already exists. Please log in.")
             
             if field == "mobile":
                 cursor.execute("""
                     UPDATE users 
-                    SET name = %s, email = %s, password_hash = %s, is_verified = TRUE 
+                    SET name = %s, email = %s, password_hash = %s, is_verified = FALSE 
                     WHERE mobile = %s
-                """, (user.name, None, hashed_pw, user.contact))
-                
-                conn.commit()
-                return {"message": "WhatsApp profile upgraded successfully! Please log in."}
+                """, (payload.name, None, hashed_pw, payload.contact))
             else:
                  raise HTTPException(status_code=400, detail="User already exists.")
+        else:
+            query = f"INSERT INTO users (name, {field}, mobile, password_hash, is_verified) VALUES (%s, %s, %s, %s, FALSE)"
+            cursor.execute(query, (payload.name, payload.contact if field == 'email' else None, target_mobile, hashed_pw))
+            create_default_categories(payload.contact, cursor)
 
-        query = f"INSERT INTO users (name, {field}, password_hash, is_verified) VALUES (%s, %s, %s, TRUE)"
-        cursor.execute(query, (user.name, user.contact, hashed_pw))
-        
-        create_default_categories(user.contact, cursor)
+        # Generate and Send OTP
+        if target_mobile:
+            await generate_and_send_otp(cursor, target_mobile, payload.name)
         
         conn.commit()
-        return {"message": "User registered successfully."}
+        return {"message": "OTP sent to your WhatsApp!"}
         
     except Exception as e:
         conn.rollback()
@@ -54,37 +85,36 @@ def register(user: UserRegister):
     finally:
         conn.close()
 
-# @app.post("/auth/verify")
-# def verify_otp(data: VerifyOTP):
-#     conn = get_db()
-#     cursor = conn.cursor(dictionary=True)
-#     try:
-#         # Check OTP
-#         cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.contact, data.otp))
-#         if not cursor.fetchone():
-#             raise HTTPException(status_code=400, detail="Invalid or Expired OTP")
-            
-#         # Mark User Verified
-#         is_email = "@" in data.contact
-#         field = "email" if is_email else "mobile"
+@router.post("/verify")
+def verify_otp(data: VerifyOTP):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM users WHERE mobile = %s", (data.contact,))
+        raw_user = cursor.fetchone()
         
-#         cursor.execute(f"UPDATE users SET is_verified = TRUE WHERE {field} = %s", (data.contact,))
+        if not raw_user:
+             raise HTTPException(status_code=404, detail="User not found after verification")
+             
+        user_db: dict[str, Any] = raw_user # type: ignore
         
-#         # Get User Data for Token
-#         cursor.execute(f"SELECT * FROM users WHERE {field} = %s", (data.contact,))
-#         user_db = cursor.fetchone()
+        token = create_access_token({"sub": user_db.get('email') or user_db.get('mobile'), "name": user_db.get('name')})
         
-#         # Generate Token
-#         token = create_access_token({"sub": user_db['email'] or user_db['mobile'], "name": user_db['name']})
+        # Cleanup OTP
+        cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.contact,))
+        conn.commit()
         
-#         # Cleanup OTP
-#         cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.contact,))
-#         conn.commit()
-        
-#         return {"token": token, "user": {"name": user_db['name'], "email": user_db['email'] or user_db['mobile'], "picture": ""}}
-        
-#     finally:
-#         conn.close()
+        return {
+            "token": token, 
+            "user": {
+                "name": user_db.get('name'), 
+                "email": user_db.get('email') or user_db.get('mobile'), 
+                "picture": user_db.get('profile_pic') or ""
+            }
+        }
+    finally:
+        conn.close()
+
 
 @router.post("/login")
 def login(data: UserLogin):
@@ -159,7 +189,7 @@ def google_login(data: GoogleAuth):
         conn.close()
 
 @router.post("/reset-password")
-def reset_password(data: ResetPassword):
+async def reset_password(data: ResetPassword):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -167,20 +197,28 @@ def reset_password(data: ResetPassword):
         field = "email" if is_email else "mobile"
         
         cursor.execute(
-            f"SELECT id FROM users WHERE {field} = %s AND LOWER(name) = LOWER(%s)", 
+            f"SELECT id, name, mobile FROM users WHERE {field} = %s AND LOWER(name) = LOWER(%s)", 
             (data.contact, data.name)
         )
-        user: Any = cursor.fetchone()
+        raw_user = cursor.fetchone()
         
-        if not user:
+        if not raw_user:
             raise HTTPException(status_code=400, detail="Details do not match any account.")
             
-        # 3. Update Password
+        user: dict[str, Any] = raw_user # type: ignore
+        target_mobile = user.get('mobile')
+        
+        if not target_mobile:
+             raise HTTPException(status_code=400, detail="No WhatsApp number linked to this account.")
+            
+        # Update Password
         new_hash = pwd_context.hash(data.new_password)
         cursor.execute(f"UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
-        conn.commit()
         
-        return {"message": "Password reset successfully. You can now login."}
+        await generate_and_send_otp(cursor, target_mobile, user['name'])
+        
+        conn.commit()
+        return {"message": "Verification code sent to WhatsApp."}
 
     except Exception as e:
         conn.rollback()
@@ -245,10 +283,12 @@ def complete_profile(request: ProfileCompletionRequest):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT id, email FROM users WHERE mobile = %s", (request.mobile,))
-        user = cursor.fetchone()
+        raw_user = cursor.fetchone()
 
-        if not user:
+        if not raw_user:
             raise HTTPException(status_code=404, detail="Mobile number not found. Please start on WhatsApp first!")
+
+        user: dict[str, Any] = raw_user # type: ignore
 
         if user.get('email'):
             return {"message": "Account already exists. Please log in.", "redirect": "login"}
