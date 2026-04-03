@@ -16,9 +16,8 @@ export default defineConfig({
   },
   preview: {
     allowedHosts: [
-      "sidenote-7o2d.onrender.com",
       "https://api.sidenote.in",
-      "alakh11.github.io"
+      "https://www.sidenote.in"
     ],
   },
 
