@@ -7,7 +7,7 @@ import os
 from database import get_db
 from routers import auth, transactions, features, analytics, admin
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image,  process_whatsapp_audio
-from server.security import get_current_user
+from security import get_current_user
 from whatsapp_service import send_whatsapp_template
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
