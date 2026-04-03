@@ -155,3 +155,37 @@ def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
         }
     finally:
         conn.close()
+        
+@router.get("/admin/metrics")
+def get_system_metrics():
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT 
+                method, 
+                endpoint, 
+                COUNT(*) as total_calls, 
+                ROUND(AVG(response_time_ms), 2) as avg_time_ms,
+                ROUND(MAX(response_time_ms), 2) as max_time_ms
+            FROM api_metrics 
+            WHERE created_at >= NOW() - INTERVAL 24 HOUR
+            GROUP BY method, endpoint 
+            ORDER BY avg_time_ms DESC 
+            LIMIT 10
+        """)
+        api_stats = cursor.fetchall()
+        
+        cursor.execute("""
+            SELECT 
+                metric_name, 
+                ROUND(AVG(value), 2) as avg_value 
+            FROM ui_metrics 
+            WHERE created_at >= NOW() - INTERVAL 24 HOUR
+            GROUP BY metric_name
+        """)
+        ui_stats = cursor.fetchall()
+
+        return {"api": api_stats, "ui": ui_stats}
+    finally:
+        conn.close()
