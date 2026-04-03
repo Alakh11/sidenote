@@ -4,6 +4,7 @@ from database import get_db
 from security import require_admin, pwd_context
 from schemas import UserRegister, AdminUpdateUser
 import logging
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 logger = logging.getLogger(__name__)
@@ -229,5 +230,26 @@ def get_all_feedback(admin_email: str = Depends(require_admin)):
             ORDER BY f.created_at DESC
         """)
         return cursor.fetchall()
+    finally:
+        conn.close()
+        
+class AdminReply(BaseModel):
+    reply: str
+
+@router.post("/feedback/{ticket_id}/reply")
+def reply_to_feedback(ticket_id: int, data: AdminReply, admin_email: str = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE feedback 
+            SET admin_reply = %s, status = 'resolved', replied_at = NOW() 
+            WHERE id = %s
+        """, (data.reply, ticket_id))
+        conn.commit()
+        return {"message": "Reply sent successfully."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()

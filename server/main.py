@@ -300,6 +300,16 @@ def submit_feedback(data: FeedbackSubmit, email: str = Depends(get_current_user)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+        
+@app.get("/support/feedback/history")
+def get_user_feedback_history(email: str = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM feedback WHERE user_email = %s ORDER BY created_at DESC", (email,))
+        return cursor.fetchall()
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     import uvicorn

@@ -2,7 +2,7 @@ import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { 
   Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
   Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap, Clock,
-  MessageSquare, Bug, Star, HelpCircle
+  MessageSquare, Bug, Star, HelpCircle, Send
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -229,16 +229,30 @@ export default function AdminPanel() {
 function AdminFeedbackView() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [replyingTo, setReplyingTo] = useState<number | null>(null);
+    const [replyText, setReplyText] = useState('');
+    const fetchFeedback = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/admin/feedback`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }});
+            setTickets(res.data);
+        } catch (error) { console.error("Failed to load feedback"); } finally { setLoading(false); }
+    };
 
-    useEffect(() => {
-        const fetchFeedback = async () => {
-            try {
-                const res = await axios.get(`${API_URL}/admin/feedback`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }});
-                setTickets(res.data);
-            } catch (error) { console.error("Failed to load feedback"); } finally { setLoading(false); }
-        };
-        fetchFeedback();
-    }, []);
+    useEffect(() => { fetchFeedback(); }, []);
+
+    const submitReply = async (ticketId: number) => {
+        if (!replyText.trim()) return alert("Reply cannot be empty.");
+        try {
+            await axios.post(`${API_URL}/admin/feedback/${ticketId}/reply`, { reply: replyText }, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setReplyingTo(null);
+            setReplyText('');
+            fetchFeedback();
+        } catch (err) {
+            alert("Failed to send reply.");
+        }
+    };
 
     if (loading) return <div className="p-10 text-center text-stone-500 animate-pulse">Loading tickets...</div>;
     if (tickets.length === 0) return <div className="p-10 text-center text-stone-500">No support tickets found.</div>;
@@ -269,9 +283,12 @@ function AdminFeedbackView() {
                                 <p className="text-xs text-stone-500 dark:text-slate-400">{t.user_email}</p>
                             </div>
                         </div>
-                        <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-1 rounded-lg border ${getBadgeStyle(t.type)}`}>
-                            {getIcon(t.type)} {t.type}
-                        </span>
+                        <div className="flex flex-col items-end gap-2">
+                            <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-1 rounded-lg border ${getBadgeStyle(t.type)}`}>
+                                {getIcon(t.type)} {t.type}
+                            </span>
+                            {t.status === 'resolved' && <span className="text-[10px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-bold uppercase dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} className="inline mr-1"/>Resolved</span>}
+                        </div>
                     </div>
 
                     <h4 className="font-bold text-stone-800 dark:text-white mb-2">{t.subject}</h4>
@@ -283,13 +300,34 @@ function AdminFeedbackView() {
                             ))}
                         </div>
                     )}
-                    
-                    <div className="p-3 bg-stone-50 dark:bg-slate-950/50 rounded-xl border border-stone-100 dark:border-slate-800 text-sm text-stone-600 dark:text-slate-300 whitespace-pre-wrap flex-grow">
+                    <div className="p-3 bg-stone-50 dark:bg-slate-950/50 rounded-xl border border-stone-100 dark:border-slate-800 text-sm text-stone-600 dark:text-slate-300 whitespace-pre-wrap mb-4">
                         {t.message}
                     </div>
-                    
                     <div className="mt-4 text-xs font-mono text-stone-400 text-right">
                         Submitted: {new Date(t.created_at).toLocaleString()}
+                    {t.status === 'resolved' ? (
+                        <div className="mt-auto p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30 relative">
+                            <span className="absolute -top-2.5 left-4 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded">Admin Reply</span>
+                            <p className="text-sm text-indigo-900 dark:text-indigo-200 whitespace-pre-wrap">{t.admin_reply}</p>
+                        </div>
+                    ) : replyingTo === t.id ? (
+                        <div className="mt-auto space-y-2">
+                            <textarea 
+                                autoFocus
+                                className="w-full p-3 text-sm bg-stone-50 dark:bg-slate-950 rounded-xl border border-indigo-200 dark:border-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white resize-none"
+                                rows={3} placeholder="Type your reply here..."
+                                value={replyText} onChange={(e) => setReplyText(e.target.value)}
+                            />
+                            <div className="flex gap-2">
+                                <button onClick={() => setReplyingTo(null)} className="flex-1 py-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 rounded-xl text-sm font-bold">Cancel</button>
+                                <button onClick={() => submitReply(t.id)} className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 flex justify-center items-center gap-2"><Send size={14}/> Send Reply</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button onClick={() => setReplyingTo(t.id)} className="mt-auto w-full py-2.5 border-2 border-dashed border-stone-200 dark:border-slate-700 text-stone-500 dark:text-slate-400 hover:border-indigo-500 hover:text-indigo-600 dark:hover:border-indigo-500 rounded-xl font-bold text-sm transition-colors">
+                            Write a Reply
+                        </button>
+                    )}
                     </div>
                 </div>
             ))}
