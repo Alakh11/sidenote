@@ -5,6 +5,7 @@ from security import require_admin, pwd_context
 from schemas import UserRegister, AdminUpdateUser
 import logging
 from pydantic import BaseModel
+from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 logger = logging.getLogger(__name__)
@@ -241,11 +242,13 @@ def reply_to_feedback(ticket_id: int, data: AdminReply, admin_email: str = Depen
     conn = get_db()
     cursor = conn.cursor()
     try:
+        ist_now = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+        
         cursor.execute("""
             UPDATE feedback 
-            SET admin_reply = %s, status = 'resolved', replied_at = NOW() 
+            SET admin_reply = %s, status = 'resolved', replied_at = %s 
             WHERE id = %s
-        """, (data.reply, ticket_id))
+        """, (data.reply, ist_now, ticket_id))
         conn.commit()
         return {"message": "Reply sent successfully."}
     except Exception as e:

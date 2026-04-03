@@ -1,5 +1,6 @@
 import threading
 import time
+from datetime import datetime, timedelta
 from fastapi import FastAPI, APIRouter, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -289,9 +290,11 @@ def submit_feedback(data: FeedbackSubmit, email: str = Depends(get_current_user)
     conn = get_db()
     cursor = conn.cursor()
     try:
+        ist_now = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+        
         cursor.execute(
-            "INSERT INTO feedback (user_email, type, rating, subject, message) VALUES (%s, %s, %s, %s, %s)",
-            (email, data.type, data.rating, data.subject, data.message)
+            "INSERT INTO feedback (user_email, type, rating, subject, message, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
+            (email, data.type, data.rating, data.subject, data.message, ist_now)
         )
         conn.commit()
         return {"message": "Feedback submitted successfully"}
