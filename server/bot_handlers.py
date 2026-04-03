@@ -3,7 +3,7 @@ from typing import Any
 from database import get_db
 from datetime import datetime
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons, get_whatsapp_media_url, download_whatsapp_media
-from ai_service import extract_receipt_data
+from ai_service import extract_receipt_data, extract_voice_data
 from constants import *
 
 def get_identifier(cursor: Any, phone: str) -> str:
@@ -31,8 +31,7 @@ async def process_whatsapp_text(phone: str, text: str):
             await handle_fallback(phone)
 
 async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
-    """Downloads the image, passes it to AI, and saves the transaction."""
-    await send_whatsapp_text(phone, "⏳ Reading your receipt ...")
+    await send_whatsapp_text(phone, "⏳ Reading your receipt with AI...")
     
     media_url = await get_whatsapp_media_url(media_id)
     if not media_url: return
@@ -40,15 +39,17 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
     image_bytes = await download_whatsapp_media(media_url)
     if not image_bytes: return
     
-    # Let AI read it
     receipt_data = extract_receipt_data(image_bytes, mime_type)
     
     if receipt_data and 'amount' in receipt_data and 'item' in receipt_data:
         amount = float(receipt_data['amount'])
         item = str(receipt_data['item'])
+        
+        print(f"🤖 AI Successfully Extracted: ₹{amount} for {item}")
+        
         await handle_transaction_entry(phone, amount, item)
     else:
-        await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read the amount or store name on that receipt. Please type it manually.")
+        await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read that receipt.")
 
 async def process_whatsapp_interactive(phone: str, button_id: str):
     if button_id == "cmd_summary": await handle_summary_request(phone)
@@ -309,3 +310,23 @@ async def handle_monthly_request(phone: str):
         await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
     finally:
         if conn: conn.close()
+
+async def process_whatsapp_audio(phone: str, media_id: str):
+    """Processes a WhatsApp voice note."""
+    await send_whatsapp_text(phone, "🎧 Listening to your voice note...")
+    
+    media_url = await get_whatsapp_media_url(media_id)
+    if not media_url: return
+    
+    audio_bytes = await download_whatsapp_media(media_url)
+    if not audio_bytes: return
+    
+    voice_data = extract_voice_data(audio_bytes, "audio/ogg")
+    
+    if voice_data and voice_data.get('amount', 0) > 0:
+        amount = float(voice_data['amount'])
+        item = str(voice_data['item'])
+        print(f"🎙️ Voice Extracted: ₹{amount} for {item}")
+        await handle_transaction_entry(phone, amount, item)
+    else:
+        await send_whatsapp_text(phone, "❓ I couldn't hear a specific amount or item. Could you try speaking a bit clearer?")    

@@ -4,7 +4,7 @@ import logging
 import os
 from database import get_db
 from routers import auth, transactions, features, analytics, admin
-from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image
+from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image,  process_whatsapp_audio
 from whatsapp_service import send_whatsapp_template
 from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -231,6 +231,11 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
                 
                 print(f"📄 {media_type.capitalize()} received from {sender_phone}. Processing ...")
                 background_tasks.add_task(process_whatsapp_image, sender_phone, media_id, mime_type)
+            
+            elif message['type'] == 'audio':
+                media_id = str(message['audio']['id'])
+                print(f"🎙️ Voice note received from {sender_phone}.")
+                background_tasks.add_task(process_whatsapp_audio, sender_phone, media_id)
                 
     except Exception as e:
         print(f"⚠️ Webhook Error: {e}")

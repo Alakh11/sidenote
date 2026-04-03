@@ -51,3 +51,33 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
     except Exception as e:
         logger.error(f"AI Receipt Parsing Error: {e}")
         return None
+    
+def extract_voice_data(audio_bytes: bytes, mime_type: str = "audio/ogg") -> dict | None:
+    """Listens to a WhatsApp voice note and extracts the expense details."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    try:
+        client = genai.Client(api_key=api_key, http_options={'api_version': 'v1'})
+        
+        prompt = (
+            "Listen to this voice note carefully. Identify the amount spent and the item or service mentioned. "
+            "Return ONLY a raw, valid JSON object with two keys: 'amount' (a float) and 'item' (a string). "
+            "If no expense or income is mentioned, return {'amount': 0, 'item': 'none'}."
+        )
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
+            ]
+        )
+        
+        if not response or not response.text:
+            return None
+
+        clean_text = response.text.strip().replace("```json", "").replace("```", "").replace("json", "").strip()
+        return json.loads(clean_text)
+        
+    except Exception as e:
+        logger.error(f"Voice AI Error: {e}")
+        return None
