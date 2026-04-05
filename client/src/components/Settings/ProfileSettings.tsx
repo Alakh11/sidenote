@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
-import { User, Lock, Save, Camera, CheckCircle2, AlertCircle, IndianRupee } from 'lucide-react';
+import { User, Lock, Save, Camera, CheckCircle2, AlertCircle, IndianRupee, Mail, Phone } from 'lucide-react';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -9,12 +9,13 @@ const AVATARS = ['😎', '👻', '🤖', '🐯', '👽', '🐶', '👑', '💼',
 
 export default function ProfileSettings() {
   const router = useRouter();
-  const user = router.options.context?.user;
+  const user = router.options.context?.user as any;
   const [prefData, setPrefData] = useState({ 
     currency: user?.currency || '₹', 
     month_start_date: user?.month_start_date || 1 
-});
-const CURRENCIES = [
+  });
+  
+  const CURRENCIES = [
     { code: "INR", symbol: "₹", name: "Indian Rupee" },
     { code: "USD", symbol: "$", name: "US Dollar" },
     { code: "EUR", symbol: "€", name: "Euro" },
@@ -35,20 +36,27 @@ const CURRENCIES = [
     { code: "KRW", symbol: "₩", name: "South Korean Won" },
     { code: "IDR", symbol: "Rp", name: "Indonesian Rupiah" },
     { code: "TRY", symbol: "₺", name: "Turkish Lira" },
-];
+  ];
   
-  // States
-  const [profileData, setProfileData] = useState({ name: user?.name || '', profile_pic: user?.picture || '😎' });
+  const [profileData, setProfileData] = useState({ 
+      name: user?.name || '', 
+      profile_pic: user?.picture || '😎',
+      email: user?.email || '',
+      mobile: user?.mobile || ''
+  });
   const [passData, setPassData] = useState({ old: '', new: '', confirm: '' });
   
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const hasMobileLocked = !!user?.mobile;
 
   useEffect(() => {
       if (user) {
           setProfileData({
               name: user.name || '',
-              profile_pic: user.picture || '😎'
+              profile_pic: user.picture || '😎',
+              email: user.email || '',
+              mobile: user.mobile || ''
           });
       }
   }, [user]);
@@ -58,15 +66,26 @@ const CURRENCIES = [
       setLoading(true);
       setMsg(null);
       try {
-          await axios.put(`${API_URL}/auth/profile`, profileData);
+          await axios.put(`${API_URL}/auth/profile`, {
+              name: profileData.name,
+              profile_pic: profileData.profile_pic,
+              email: profileData.email || null,
+              mobile: profileData.mobile || null
+          });
           
-          const updatedUser = { ...user, name: profileData.name, picture: profileData.profile_pic };
+          const updatedUser = { 
+              ...user, 
+              name: profileData.name, 
+              picture: profileData.profile_pic,
+              email: profileData.email,
+              mobile: profileData.mobile
+          };
           localStorage.setItem('user_data', JSON.stringify(updatedUser));
           
           setMsg({ type: 'success', text: 'Profile updated!' });
           setTimeout(() => window.location.reload(), 1000); 
-      } catch(e) {
-          setMsg({ type: 'error', text: 'Failed to update profile.' });
+      } catch(e: any) {
+          setMsg({ type: 'error', text: e.response?.data?.detail || 'Failed to update profile.' });
       } finally {
           setLoading(false);
       }
@@ -95,29 +114,30 @@ const CURRENCIES = [
           setPassData({ old: '', new: '', confirm: '' });
       } catch(e: any) {
           setMsg({ type: 'error', text: e.response?.data?.detail || 'Failed to change password' });
-    } finally {
-        setLoading(false);
-    }
-};
+      } finally {
+          setLoading(false);
+      }
+  };
 
-const handleUpdatePreferences = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMsg(null);
-    try {
-        await axios.put(`${API_URL}/auth/preferences`, prefData);
-        
-        const updatedUser = { ...user, ...prefData };
-        localStorage.setItem('user_data', JSON.stringify(updatedUser));
-        
-        setMsg({ type: 'success', text: 'Financial preferences updated!' });
-        setTimeout(() => window.location.reload(), 1000);
-    } catch(e) {
-        setMsg({ type: 'error', text: 'Failed to update preferences.' });
-    } finally {
-        setLoading(false);
-    }
-};
+  const handleUpdatePreferences = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
+      setMsg(null);
+      try {
+          await axios.put(`${API_URL}/auth/preferences`, prefData);
+          
+          const updatedUser = { ...user, ...prefData };
+          localStorage.setItem('user_data', JSON.stringify(updatedUser));
+          
+          setMsg({ type: 'success', text: 'Financial preferences updated!' });
+          setTimeout(() => window.location.reload(), 1000);
+      } catch(e: any) {
+          setMsg({ type: 'error', text: 'Failed to update preferences.' });
+      } finally {
+          setLoading(false);
+      }
+  };
+  
   const isUrl = profileData.profile_pic.startsWith('http');
 
   return (
@@ -187,6 +207,41 @@ const handleUpdatePreferences = async (e: React.FormEvent) => {
                     />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">Email Address</label>
+                        <div className="relative mt-1">
+                            <Mail className="absolute left-3 top-3.5 w-5 h-5 text-stone-400" />
+                            <input 
+                                type="email"
+                                className="w-full pl-10 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-indigo-500 transition" 
+                                value={profileData.email} 
+                                onChange={e => setProfileData({...profileData, email: e.target.value})}
+                                placeholder="Link Email"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1 flex justify-between items-center">
+                            <span>WhatsApp / Mobile</span>
+                            {hasMobileLocked && <span className="text-emerald-500 flex items-center gap-1 normal-case text-[10px]"><Lock size={10}/> Locked</span>}
+                        </label>
+                        <div className="relative mt-1">
+                            <Phone className={`absolute left-3 top-3.5 w-5 h-5 ${hasMobileLocked ? 'text-emerald-500' : 'text-stone-400'}`} />
+                            <input 
+                                type="tel"
+                                disabled={hasMobileLocked}
+                                className={`w-full pl-10 p-3 rounded-xl outline-none font-bold transition border-2 border-transparent ${hasMobileLocked ? 'bg-stone-100 dark:bg-slate-900 text-stone-500 dark:text-slate-500 cursor-not-allowed' : 'bg-stone-50 dark:bg-slate-800 text-stone-700 dark:text-white focus:border-indigo-500'}`} 
+                                value={profileData.mobile} 
+                                onChange={e => setProfileData({...profileData, mobile: e.target.value})}
+                                placeholder="Link Mobile"
+                            />
+                        </div>
+                        {!hasMobileLocked && <p className="text-[10px] text-amber-500 font-bold ml-1 mt-1">Cannot be changed once linked.</p>}
+                    </div>
+                </div>
+
                 <button disabled={loading} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-indigo-200 dark:shadow-none">
                     <Save size={18} /> Update Profile
                 </button>
@@ -222,45 +277,45 @@ const handleUpdatePreferences = async (e: React.FormEvent) => {
             </form>
         </div>
 
-<div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-stone-100 dark:border-slate-800">
-    <h3 className="text-lg font-bold text-stone-800 dark:text-white mb-6 flex items-center gap-2">
-        <IndianRupee size={20} className="text-emerald-500" /> Financial Preferences
-    </h3>
-    
-    <form onSubmit={handleUpdatePreferences} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label className="text-xs font-bold text-stone-400 uppercase ml-1">Default Currency</label>
-                <select 
-                    className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition"
-                    value={prefData.currency}
-                    onChange={e => setPrefData({...prefData, currency: e.target.value})}>
-                    {CURRENCIES.map(c => (
-                        <option key={c.code} value={c.symbol}>
-                            {c.symbol} ({c.code}) - {c.name}
-                        </option>
-                    ))}
-                </select>
-            </div>
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-stone-100 dark:border-slate-800">
+            <h3 className="text-lg font-bold text-stone-800 dark:text-white mb-6 flex items-center gap-2">
+                <IndianRupee size={20} className="text-emerald-500" /> Financial Preferences
+            </h3>
             
-            <div>
-                <label className="text-xs font-bold text-stone-400 uppercase ml-1">Month Starts On (Date)</label>
-                <input 
-                    type="number" 
-                    min="1" max="31"
-                    className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition"
-                    value={prefData.month_start_date}
-                    onChange={e => setPrefData({...prefData, month_start_date: Number(e.target.value)})}
-                />
-                <p className="text-[10px] text-stone-400 mt-1 ml-1">Used for calculating monthly budgets and analytics.</p>
-            </div>
-        </div>
+            <form onSubmit={handleUpdatePreferences} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">Default Currency</label>
+                        <select 
+                            className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition cursor-pointer"
+                            value={prefData.currency}
+                            onChange={e => setPrefData({...prefData, currency: e.target.value})}>
+                            {CURRENCIES.map(c => (
+                                <option key={c.code} value={c.symbol}>
+                                    {c.symbol} ({c.code}) - {c.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">Month Starts On (Date)</label>
+                        <input 
+                            type="number" 
+                            min="1" max="31"
+                            className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition"
+                            value={prefData.month_start_date}
+                            onChange={e => setPrefData({...prefData, month_start_date: Number(e.target.value)})}
+                        />
+                        <p className="text-[10px] text-stone-400 mt-1 ml-1 font-medium">Used for calculating monthly budgets and analytics.</p>
+                    </div>
+                </div>
 
-        <button disabled={loading} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-emerald-200 dark:shadow-none">
-            <Save size={18} /> Save Preferences
-        </button>
-    </form>
-</div>
+                <button disabled={loading} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-emerald-200 dark:shadow-none">
+                    <Save size={18} /> Save Preferences
+                </button>
+            </form>
+        </div>
     </div>
   );
 }

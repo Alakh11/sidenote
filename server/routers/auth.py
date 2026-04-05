@@ -127,7 +127,8 @@ def verify_otp(data: VerifyOTP):
             "token": token, 
             "user": {
                 "name": user_db.get('name'), 
-                "email": user_db.get('email') or user_db.get('mobile'), 
+                "email": user_db.get('email'),
+                "mobile": user_db.get('mobile'),
                 "picture": user_db.get('profile_pic') or "",
                 "role": user_db.get('role', 'user')
             }
@@ -159,7 +160,8 @@ def login(data: UserLogin):
             "token": token, 
             "user": {
                 "name": user['name'], 
-                "email": user['email'] or user['mobile'], 
+                "email": user['email'],
+                "mobile": user['mobile'],
                 "picture": user['profile_pic'] or "",
                 "role": user.get('role', 'user')
             }
@@ -199,7 +201,8 @@ def google_login(data: GoogleAuth):
             "token": token, 
             "user": {
                 "name": user['name'], 
-                "email": user['email'], 
+                "email": user['email'],
+                "mobile": user.get('mobile'),
                 "picture": user['profile_pic'],
                 "role": user.get('role', 'user')
             }
@@ -251,17 +254,48 @@ async def reset_password(data: ResetPassword):
     finally:
         conn.close()
 
-# --- 1. Update Profile (Name & Icon) ---
+# --- 1. Update Profile (Name, Icon, Email, Mobile) ---
 @router.put("/profile")
-def update_profile(data: UserUpdateProfile, email: str = Depends(get_current_user)):
+def update_profile(data: UserUpdateProfile, identifier: str = Depends(get_current_user)):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("UPDATE users SET name = %s, profile_pic = %s WHERE email = %s", (data.name, data.profile_pic, email))
+        # Fetch current user
+        cursor.execute("SELECT * FROM users WHERE email = %s OR mobile = %s", (identifier, identifier))
+        user: Any = cursor.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # RULE: Mobile number cannot be changed once linked
+        if user['mobile'] and data.mobile and user['mobile'] != data.mobile:
+            raise HTTPException(status_code=400, detail="Mobile number cannot be changed once linked.")
+
+        # Check Uniqueness if changing Email
+        if data.email and data.email != user['email']:
+            cursor.execute("SELECT id FROM users WHERE email = %s", (data.email,))
+            if cursor.fetchone():
+                raise HTTPException(status_code=400, detail="Email is already in use by another account.")
+
+        # Check Uniqueness if linking Mobile for the first time
+        if data.mobile and not user['mobile']:
+            cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
+            if cursor.fetchone():
+                raise HTTPException(status_code=400, detail="Mobile number is already linked to another account.")
+
+        new_mobile = user['mobile'] if user['mobile'] else data.mobile
+
+        # Execute Update
+        cursor.execute("""
+            UPDATE users 
+            SET name = %s, profile_pic = %s, email = %s, mobile = %s 
+            WHERE id = %s
+        """, (data.name, data.profile_pic, data.email, new_mobile, user['id']))
+        
         conn.commit()
         return {"message": "Profile updated successfully"}
     except Exception as e:
         conn.rollback()
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()

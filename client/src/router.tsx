@@ -26,8 +26,12 @@ import Home from './components/Home/home';
 import Auth from './components/Auth/Auth';
 import Feedback from './components/Support/Feedback';
 
+interface UserWithRole extends User {
+  role?: 'admin' | 'superadmin' | string;
+}
+
 interface RouterContext {
-  user: User | null;
+  user: UserWithRole | null;
   handleLogout: () => void;
 }
 
@@ -243,8 +247,8 @@ const adminRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/admin',
   beforeLoad: ({ context }) => {
-    if (context.user?.email !== "alakhchaturvedi2002@gmail.com") {
-      throw redirect({ to: '/dashboard' });
+    if (context.user?.role !== 'admin' && context.user?.role !== 'superadmin') {
+      throw redirect({ to: '/dashboard' })
     }
   },
   loader: async () => {

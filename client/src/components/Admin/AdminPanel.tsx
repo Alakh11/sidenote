@@ -23,7 +23,7 @@ export default function AdminPanel() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  const [formData, setFormData] = useState({ name: '', contact: '', password: '', role: 'user' });
+  const [formData, setFormData] = useState({ name: '', email: '', mobile: '', password: '', role: 'user' });
 
   const handleDelete = async (id: number) => {
       if(!confirm("DELETE USER? This will erase ALL their data PERMANENTLY.")) return;
@@ -39,8 +39,8 @@ export default function AdminPanel() {
       try {
           const payload = {
               name: formData.name,
-              contact: formData.contact,
-              contact_type: formData.contact.includes('@') ? 'email' : 'mobile',
+              email: formData.email || null,
+              mobile: formData.mobile || null,
               password: formData.password || undefined,
               new_password: formData.password,
               role: formData.role
@@ -57,7 +57,7 @@ export default function AdminPanel() {
           
           setIsCreating(false);
           setEditingUser(null);
-          setFormData({ name: '', contact: '', password: '', role: 'user' });
+          setFormData({ name: '', email: '', mobile: '', password: '', role: 'user' });
           router.invalidate();
           alert("Success!");
       } catch(e: any) { alert(e.response?.data?.detail || "Operation failed"); }
@@ -91,7 +91,7 @@ export default function AdminPanel() {
                 <p className="text-2xl font-black text-indigo-600">{stats.total_transactions}</p>
             </div>
             <button 
-                onClick={() => { setIsCreating(true); setFormData({name:'', contact:'', password:'', role: 'user'}); }}
+                onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user'}); }}
                 className="bg-indigo-600 text-white px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
             >
                 <Plus size={24} />
@@ -117,7 +117,13 @@ export default function AdminPanel() {
               <div className="overflow-x-auto">
                   <table className="w-full text-left">
                       <thead className="bg-stone-50 dark:bg-slate-800 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
-                          <tr><th className="p-5">User</th><th className="p-5">Contact / Status</th><th className="p-5 text-center">Actions</th></tr>
+                          <tr>
+                                <th className="p-5">User</th>
+                                <th className="p-5">Email</th>
+                                <th className="p-5">Mobile</th>
+                                <th className="p-5">Status</th>
+                                <th className="p-5 text-center">Actions</th>
+                            </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-100 dark:divide-slate-800">
                           {filteredUsers.map((user: any) => {
@@ -126,9 +132,10 @@ export default function AdminPanel() {
                               
                               return (
                               <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
+                                    {/* User Column remains the same... */}
                                   <td className="p-5 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800">
-                                          {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" alt={user.name} /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
+                                          {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
                                       </div>
                                       <div>
                                           <div className="flex items-center gap-2">
@@ -140,16 +147,21 @@ export default function AdminPanel() {
                                       </div>
                                   </td>
                                   <td className="p-5">
-                                      <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.email || user.mobile}</p>
-                                      <div className="mt-1">
+                                      <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.email || <span className="text-stone-400 italic">Unlinked</span>}</p>
+                                    </td>
+                                    <td className="p-5">
+                                        <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.mobile || <span className="text-stone-400 italic">Unlinked</span>}</p>
+                                    </td>
+
+                                  <td className="p-5">
                                         {user.is_verified ? <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400"><CheckCircle2 size={10} /> Verified</span> : <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400"><XCircle size={10} /> Unverified</span>}
-                                      </div>
                                   </td>
+                                    
                                   <td className="p-5 flex justify-center gap-2">
                                       <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="View Full Data"><Eye size={16} /></button>
                                       {(isSuperAdmin || user.role === 'user') && (
                                           <>
-                                            <button onClick={() => { setEditingUser(user); setFormData({name: user.name, contact: user.email || user.mobile, password: '', role: user.role || 'user'}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
+                                            <button onClick={() => { setEditingUser(user); setFormData({name: user.name, email: user.email || '', mobile: user.mobile || '', password: '', role: user.role || 'user'}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
                                             <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
                                           </>
                                       )}
@@ -194,8 +206,12 @@ export default function AdminPanel() {
                           <input className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                       </div>
                       <div className="space-y-1">
-                          <label className="text-xs font-bold uppercase text-stone-400 ml-1">Contact (Email/Mobile)</label>
-                          <input className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} />
+                          <label className="text-xs font-bold uppercase text-stone-400 ml-1">Email Address</label>
+                          <input type="email" className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Email Id" />
+                      </div>
+                      <div className="space-y-1">
+                          <label className="text-xs font-bold uppercase text-stone-400 ml-1">Mobile Number</label>
+                          <input type="tel" className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} placeholder="Mobile Number" />
                       </div>
                       <div className="space-y-1 relative">
                           <label className="text-xs font-bold uppercase text-stone-400 ml-1">{isCreating ? "Password" : "New Password (Optional)"}</label>

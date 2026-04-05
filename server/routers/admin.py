@@ -15,14 +15,26 @@ def get_all_users(admin_email: str = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
-            SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
-            FROM users 
-            ORDER BY created_at DESC
-        """)
+        cursor.execute("SELECT role FROM users WHERE email = %s OR mobile = %s", (admin_email, admin_email))
+        requester: Any = cursor.fetchone()
+        req_role = requester['role'] if requester else 'user'
+
+        if req_role == 'superadmin':
+            cursor.execute("""
+                SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
+                FROM users 
+                ORDER BY created_at DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
+                FROM users 
+                WHERE role != 'superadmin'
+                ORDER BY created_at DESC
+            """)
+            
         users: list[Any] = cursor.fetchall()
         
-        # Get total stats for the dashboard
         cursor.execute("SELECT COUNT(*) as count FROM users")
         user_row: Any = cursor.fetchone()
         total_users = user_row['count'] if user_row else 0
@@ -100,19 +112,13 @@ def admin_update_user(user_id: int, data: AdminUpdateUser, admin_email: str = De
     conn = get_db()
     cursor = conn.cursor()
     try:
-        # Determine if updating email or mobile
-        is_email = "@" in data.contact
-        field = "email" if is_email else "mobile"
-        
         if data.new_password:
-            # Update With Password Reset
             hashed_pw = pwd_context.hash(data.new_password)
-            query = f"UPDATE users SET name = %s, {field} = %s, password_hash = %s WHERE id = %s"
-            cursor.execute(query, (data.name, data.contact, hashed_pw, user_id))
+            query = "UPDATE users SET name = %s, email = %s, mobile = %s, role = %s, password_hash = %s WHERE id = %s"
+            cursor.execute(query, (data.name, data.email, data.mobile, data.role, hashed_pw, user_id))
         else:
-            # Update Profile Only
-            query = f"UPDATE users SET name = %s, {field} = %s WHERE id = %s"
-            cursor.execute(query, (data.name, data.contact, user_id))
+            query = "UPDATE users SET name = %s, email = %s, mobile = %s, role = %s WHERE id = %s"
+            cursor.execute(query, (data.name, data.email, data.mobile, data.role, user_id))
             
         conn.commit()
         return {"message": "User updated successfully"}

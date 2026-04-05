@@ -7,15 +7,16 @@ class UserRegister(BaseModel):
     contact: str # Email or Mobile
     password: str
     contact_type: str # 'email' or 'mobile'
+    extra_mobile: Optional[str] = None
     role: Optional[str] = 'user'
 
 class UserLogin(BaseModel):
     contact: str
     password: str
 
-# class VerifyOTP(BaseModel):
-#     contact: str
-#     otp: str
+class VerifyOTP(BaseModel):
+    contact: str
+    otp: str
     
 class GoogleAuth(BaseModel):
     email: str
@@ -29,17 +30,28 @@ class ResetPassword(BaseModel):
 
 class UserUpdateProfile(BaseModel):
     name: str
-    profile_pic: str
+    profile_pic: Optional[str] = None
+    email: Optional[str] = None
+    mobile: Optional[str] = None
 
 class UserChangePassword(BaseModel):
     old_password: str
     new_password: str
 
 # Admin Models
+class AdminCreateUser(BaseModel):
+    name: str
+    email: Optional[str] = None
+    mobile: Optional[str] = None
+    password: str
+    role: Optional[str] = 'user'
+
 class AdminUpdateUser(BaseModel):
     name: str
-    contact: str # Email or Mobile
+    email: Optional[str] = None
+    mobile: Optional[str] = None
     new_password: Optional[str] = None
+    role: str
 
 class ProfileCompletionRequest(BaseModel):
     mobile: str
