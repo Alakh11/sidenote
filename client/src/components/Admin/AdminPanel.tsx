@@ -37,22 +37,28 @@ export default function AdminPanel() {
 
   const handleSaveUser = async () => {
       try {
-          const payload = {
-              name: formData.name,
-              email: formData.email || null,
-              mobile: formData.mobile || null,
-              password: formData.password || undefined,
-              new_password: formData.password,
-              role: formData.role
-          };
-          
           const token = localStorage.getItem('token');
           const config = { headers: { Authorization: `Bearer ${token}` } };
 
           if (isCreating) {
-              await axios.post(`${API_URL}/admin/users`, payload, config);
+              const isEmail = !!formData.email;
+              const creationPayload = {
+                  name: formData.name,
+                  contact: isEmail ? formData.email : formData.mobile,
+                  contact_type: isEmail ? 'email' : 'mobile',
+                  password: formData.password,
+                  role: formData.role
+              };
+              await axios.post(`${API_URL}/admin/users`, creationPayload, config);
           } else if (editingUser) {
-              await axios.put(`${API_URL}/admin/users/${editingUser.id}`, payload, config);
+              const updatePayload = {
+                  name: formData.name,
+                  email: formData.email || null,
+                  mobile: formData.mobile || null,
+                  new_password: formData.password || undefined,
+                  role: formData.role
+              };
+              await axios.put(`${API_URL}/admin/users/${editingUser.id}`, updatePayload, config);
           }
           
           setIsCreating(false);
@@ -132,7 +138,6 @@ export default function AdminPanel() {
                               
                               return (
                               <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
-                                    {/* User Column remains the same... */}
                                   <td className="p-5 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800">
                                           {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
@@ -299,7 +304,7 @@ function AdminFeedbackView() {
                             </div>
                             <div>
                                 <p className="font-bold text-stone-800 dark:text-white text-sm">{t.user_name || "Unknown User"}</p>
-                                <p className="text-xs text-stone-500 dark:text-slate-400">{t.user_email}</p>
+                                <p className="text-xs text-stone-500 dark:text-slate-400">{t.user_email || `User ID: ${t.user_id}`}</p>
                             </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">

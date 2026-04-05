@@ -32,7 +32,7 @@ export default function BudgetPlanner() {
       {isEditing && (
         <BudgetForm 
             categories={categories} 
-            userEmail={user.email || ''}
+            userId={user.id}
             onClose={() => setIsEditing(false)} 
         />
       )}
