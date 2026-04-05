@@ -7,6 +7,7 @@ from security import pwd_context, create_access_token, get_current_user
 from utils import create_default_categories
 import logging
 import random
+import posthog
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_text
 
@@ -74,6 +75,19 @@ async def register(payload: RegisterPayload):
             await generate_and_send_otp(cursor, target_mobile, payload.name)
         
         conn.commit()
+
+        try:
+            posthog.capture(
+                payload.contact, 
+                'user_signed_up', # type: ignore
+                {
+                    'contact_type': payload.contact_type,
+                    'name': payload.name
+                }
+            )
+        except Exception as e:
+            logger.error(f"PostHog Error: {e}")
+            
         return {"message": "OTP sent to your WhatsApp!"}
         
     except Exception as e:
