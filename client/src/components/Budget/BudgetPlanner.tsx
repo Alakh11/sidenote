@@ -29,11 +29,10 @@ export default function BudgetPlanner() {
       {/* Overview Cards */}
       <BudgetOverview budgets={budgets} />
 
-      {/* Add Budget Form (Toggleable) */}
       {isEditing && (
         <BudgetForm 
             categories={categories} 
-            userEmail={user.email} 
+            userEmail={user.email || ''}
             onClose={() => setIsEditing(false)} 
         />
       )}

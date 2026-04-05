@@ -76,7 +76,7 @@ export default function Dashboard() {
         
         <RecentTransactions transactions={transactions} />
       </div>
-      <TrendChart userEmail={user.email} />
+      <TrendChart userEmail={user.email || ""} />
     </div>
   );
 }
