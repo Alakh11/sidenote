@@ -130,6 +130,13 @@ def add_category(cat: CategoryCreate):
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute(
+            "SELECT id FROM categories WHERE user_id = %s AND name = %s AND type = %s",
+            (cat.user_id, cat.name, cat.type)
+        )
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="A category with this name already exists.")
+
+        cursor.execute(
             "INSERT INTO categories (user_id, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, FALSE)", 
             (cat.user_id, cat.name, cat.color, cat.type, cat.icon)
         )
