@@ -128,7 +128,8 @@ def verify_otp(data: VerifyOTP):
             "user": {
                 "name": user_db.get('name'), 
                 "email": user_db.get('email') or user_db.get('mobile'), 
-                "picture": user_db.get('profile_pic') or ""
+                "picture": user_db.get('profile_pic') or "",
+                "role": user_db.get('role', 'user')
             }
         }
     finally:
@@ -159,7 +160,8 @@ def login(data: UserLogin):
             "user": {
                 "name": user['name'], 
                 "email": user['email'] or user['mobile'], 
-                "picture": user['profile_pic'] or ""
+                "picture": user['profile_pic'] or "",
+                "role": user.get('role', 'user')
             }
         }
     finally:
@@ -198,7 +200,8 @@ def google_login(data: GoogleAuth):
             "user": {
                 "name": user['name'], 
                 "email": user['email'], 
-                "picture": user['profile_pic']
+                "picture": user['profile_pic'],
+                "role": user.get('role', 'user')
             }
         }
     except Exception as e:
