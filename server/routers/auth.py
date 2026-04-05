@@ -302,12 +302,11 @@ def update_profile(data: UserUpdateProfile, identifier: str = Depends(get_curren
 
 # --- 2. Change Password ---
 @router.put("/password")
-def change_password(data: UserChangePassword, email: str = Depends(get_current_user)):
+def change_password(data: UserChangePassword, identifier: str = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # 1. Get current password hash
-        cursor.execute("SELECT password_hash FROM users WHERE email = %s", (email,))
+        cursor.execute("SELECT id, password_hash FROM users WHERE email = %s OR mobile = %s", (identifier, identifier))
         user: Any = cursor.fetchone()
         
         if not user:
@@ -319,13 +318,12 @@ def change_password(data: UserChangePassword, email: str = Depends(get_current_u
             
         # 3. Hash New Password & Update
         new_hash = pwd_context.hash(data.new_password)
-        cursor.execute("UPDATE users SET password_hash = %s WHERE email = %s", (new_hash, email))
+        cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
         
         conn.commit()
         return {"message": "Password changed successfully"}
     except Exception as e:
         conn.rollback()
-        # Re-raise HTTP exceptions (like 400 Incorrect Password)
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=str(e))
@@ -372,7 +370,7 @@ def complete_profile(request: ProfileCompletionRequest):
         conn.close()
         
 @router.put("/preferences")
-def update_preferences(data: UserPreferencesUpdate, email: str = Depends(get_current_user)):
+def update_preferences(data: UserPreferencesUpdate, identifier: str = Depends(get_current_user)):
     if data.month_start_date < 1 or data.month_start_date > 31:
         raise HTTPException(status_code=400, detail="Start date must be between 1 and 31")
 
@@ -382,8 +380,8 @@ def update_preferences(data: UserPreferencesUpdate, email: str = Depends(get_cur
         cursor.execute("""
             UPDATE users 
             SET currency = %s, month_start_date = %s 
-            WHERE email = %s
-        """, (data.currency, data.month_start_date, email))
+            WHERE email = %s OR mobile = %s
+        """, (data.currency, data.month_start_date, identifier, identifier))
         conn.commit()
         return {"message": "Preferences updated"}
     except Exception as e:
