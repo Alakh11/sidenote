@@ -1,14 +1,17 @@
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Edit2, Trash2 } from 'lucide-react';
 import { usePreferences } from '../../../context/PreferencesContext';
 
 interface Props {
   budgets: any[];
+  onEdit: (category: any) => void;
+  onDelete: (id: number, name: string) => void;
 }
 
-export default function BudgetList({ budgets }: Props) {
+export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
     const { currency } = usePreferences();
-  return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-stone-50 dark:border-slate-800 shadow-sm space-y-8 transition-colors duration-300">
+    
+    return (
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-stone-50 dark:border-slate-800 shadow-sm space-y-10 transition-colors duration-300">
         <div className="flex items-center justify-between">
             <h3 className="font-bold text-stone-700 dark:text-white text-lg">Category Breakdown</h3>
             <span className="text-xs font-bold text-stone-400 dark:text-slate-500 bg-stone-50 dark:bg-slate-800 px-3 py-1 rounded-full">
@@ -21,73 +24,94 @@ export default function BudgetList({ budgets }: Props) {
                 No budgets set. Click the "+" button to start planning.
             </div>
         ) : (
-            budgets.map((b: any) => {
-                const excess = b.spent - b.budget_limit;
-                return (
-                <div key={b.category_id} className="group relative">
-                    
-                    {/* Top Row: Icon | Name | Limit Badge */}
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                            <span className="text-2xl bg-stone-50 dark:bg-slate-800 w-10 h-10 flex items-center justify-center rounded-xl shadow-sm border border-stone-100 dark:border-slate-700">
-                                {b.icon}
-                            </span>
-                            <div>
-                                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
-                                    <p className="font-bold text-stone-800 dark:text-white">{b.name}</p>
-                                    <span className="text-[10px] font-bold text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-md w-fit">
-                                        Limit: {currency}{b.budget_limit.toLocaleString()}
-                                    </span>
-                                </div>
-                            </div>
+            <div className="space-y-10">
+                {budgets.map((b: any) => {
+                    const excess = b.spent - b.budget_limit;
+                    return (
+                    <div key={b.category_id} className="group relative">
+                        
+                        <div className="absolute -top-8 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10">
+                            <button 
+                                onClick={() => onEdit(b)}
+                                className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-blue-500 hover:border-blue-200 transition-colors"
+                                title="Edit Category"
+                            >
+                                <Edit2 size={12} />
+                            </button>
+                            <button 
+                                onClick={() => onDelete(b.category_id, b.name)}
+                                className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-rose-500 hover:border-rose-200 transition-colors"
+                                title="Delete Category"
+                            >
+                                <Trash2 size={12} />
+                            </button>
                         </div>
 
-                        {/* Status Icon (Right Side) */}
-                        {b.is_over ? (
-                            <div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-3 py-1.5 rounded-xl text-xs font-bold animate-pulse">
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                <span className="hidden md:inline">Over Budget</span>
-                                <span className="md:hidden">Over</span>
+                        {/* Top Row: Icon | Name | Limit Badge */}
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl bg-stone-50 dark:bg-slate-800 w-10 h-10 flex items-center justify-center rounded-xl shadow-sm border border-stone-100 dark:border-slate-700 group-hover:scale-110 transition-transform">
+                                    {b.icon}
+                                </span>
+                                <div>
+                                    <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                                        <p className="font-bold text-stone-800 dark:text-white leading-tight">{b.name}</p>
+                                        <span className="text-[10px] font-bold text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-md w-fit">
+                                            Limit: {currency}{b.budget_limit.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                        ) : (
-                            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-xl text-xs font-bold">
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                <span className="hidden md:inline">On Track</span>
-                                <span className="md:hidden">Good</span>
-                            </div>
-                        )}
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    <div className="h-3 w-full bg-stone-100 dark:bg-slate-800 rounded-full overflow-hidden mb-2 border border-stone-50 dark:border-slate-800">
-                        <div 
-                            className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                                b.is_over ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 
-                                b.percentage > 85 ? 'bg-gradient-to-r from-amber-300 to-amber-500' : 
-                                'bg-gradient-to-r from-emerald-300 to-emerald-500'
-                            }`}
-                            style={{ width: `${Math.min(b.percentage, 100)}%` }}
-                        ></div>
-                    </div>
 
-                    {/* Bottom Row: Spent vs Excess Message */}
-                    <div className="flex justify-between items-center text-xs font-medium">
-                        <span className="text-stone-500 dark:text-slate-400">
-                            Spent: <span className="text-stone-900 dark:text-white font-bold">{currency}{b.spent.toLocaleString()}</span>
-                        </span>
+                            {/* Status Icon */}
+                            <div className="group-hover:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                {b.is_over ? (
+                                    <div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-3 py-1.5 rounded-xl text-xs font-bold animate-pulse">
+                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                        <span className="hidden md:inline">Over Budget</span>
+                                        <span className="md:hidden">Over</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-xl text-xs font-bold">
+                                        <CheckCircle className="w-3.5 h-3.5" />
+                                        <span className="hidden md:inline">On Track</span>
+                                        <span className="md:hidden">Good</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         
-                        {b.is_over ? (
-                            <span className="text-rose-600 dark:text-rose-400 font-bold">
-                                Exceeded by {currency}{excess.toLocaleString()}!
+                        {/* Progress Bar */}
+                        <div className="h-3 w-full bg-stone-100 dark:bg-slate-800 rounded-full overflow-hidden mb-2 border border-stone-50 dark:border-slate-800">
+                            <div 
+                                className={`h-full rounded-full transition-all duration-1000 ease-out ${
+                                    b.is_over ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 
+                                    b.percentage > 85 ? 'bg-gradient-to-r from-amber-300 to-amber-500' : 
+                                    'bg-gradient-to-r from-emerald-300 to-emerald-500'
+                                }`}
+                                style={{ width: `${Math.min(b.percentage, 100)}%` }}
+                            ></div>
+                        </div>
+
+                        {/* Bottom Row: Spent vs Excess Message */}
+                        <div className="flex justify-between items-center text-xs font-medium">
+                            <span className="text-stone-500 dark:text-slate-400">
+                                Spent: <span className="text-stone-900 dark:text-white font-bold">{currency}{b.spent.toLocaleString()}</span>
                             </span>
-                        ) : (
-                            <span className="text-stone-400 dark:text-slate-500">
-                                {Math.round(100 - b.percentage)}% remaining
-                            </span>
-                        )}
+                            
+                            {b.is_over ? (
+                                <span className="text-rose-600 dark:text-rose-400 font-bold">
+                                    Exceeded by {currency}{excess.toLocaleString()}!
+                                </span>
+                            ) : (
+                                <span className="text-stone-400 dark:text-slate-500">
+                                    {Math.round(100 - b.percentage)}% remaining
+                                </span>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )})
+                )})}
+            </div>
         )}
     </div>
   );
