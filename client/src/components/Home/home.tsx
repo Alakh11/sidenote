@@ -1,28 +1,30 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from '@tanstack/react-router';
 import { 
-  MessageCircle, Zap, ShieldCheck, LayoutGrid, Target, ArrowRight, Check
+  MessageCircle, Zap, ShieldCheck, LayoutGrid, Target, ArrowRight, Check, ChevronDown
   //  Wallet, TrendingUp, TrendingDown 
 } from 'lucide-react';
 import Logo from '../Logo';
 
 const WHATSAPP_NUMBER = "918796022992"; 
-const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi`;
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi!`;
 
 // --- Scripted conversation data ---
 const simulationScript = [
-  { text: "200 autos", isSent: true, time: "11:02 AM", delay: 1000 },
-  { text: "Noted ₹200 for transport.<br/> noted ₹200 today.", isSent: false, time: "11:02 AM", delay: 1500 },
+  { text: "200 breakfast", isSent: true, time: "11:02 AM", delay: 1000 },
+  { text: "Noted ₹200 for breakfast.<br/> Your total for today is ₹200.<br/>", isSent: false, time: "11:02 AM", delay: 1500 },
   { text: "500 dinner", isSent: true, time: "11:04 AM", delay: 2500 },
-  { text: "Got it. ₹500 for food.", isSent: false, time: "11:04 AM", delay: 1200 },
+  { text: "Noted ₹500 for dinner.<br/> Your total for today is ₹700.", isSent: false, time: "11:04 AM", delay: 1200 },
   { text: "summary", isSent: true, time: "11:05 AM", delay: 2000 },
   { text: "<strong>Today: ₹700</strong><br/>Week: ₹4,200", isSent: false, time: "11:05 AM", delay: 1500 },
 ];
 const featureScript = [
   { text: "petrol 250", isSent: true, time: "11:02 AM", delay: 600 },
-  { text: "Noted ₹250 for petrol.<br/> noted ₹250 today.", isSent: false, time: "11:02 AM", delay: 1000 },
+  { text: "Noted ₹250 for petrol.<br/> Your total for today is ₹250.", isSent: false, time: "11:02 AM", delay: 1000 },
+  { text: "coffee 750", isSent: true, time: "11:02 AM", delay: 600 },
+  { text: "Noted ₹750 for coffee.<br/> Your total for today is ₹1,000.", isSent: false, time: "11:02 AM", delay: 1000 },
   { text: "summary", isSent: true, time: "11:04 AM", delay: 1200 },
-  { text: "<strong>Today: ₹250</strong><br/>Week: ₹1250", isSent: false, time: "11:04 AM", delay: 1000 }
+  { text: "<strong>Today: ₹1,000</strong><br/>Week: ₹5,000", isSent: false, time: "11:04 AM", delay: 1000 }
 ];
 
 export default function Home() {
@@ -30,6 +32,7 @@ export default function Home() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [featureMessages, setFeatureMessages] = useState<any[]>([]);
   const featureChatContainerRef = useRef<HTMLDivElement>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
     let currentTimeout: ReturnType<typeof setTimeout>;
@@ -75,6 +78,29 @@ export default function Home() {
     if (featureChatContainerRef.current) featureChatContainerRef.current.scrollTop = featureChatContainerRef.current.scrollHeight;
   }, [featureMessages]);
 
+  const faqs = [
+    {
+      q: "What is SideNote?",
+      a: "SideNote is a free WhatsApp-based expense tracker. Note daily expenses by sending simple messages. No app needed."
+    },
+    {
+      q: "How do I track expenses without an app?",
+      a: "Open WhatsApp, message SideNote, send your expense. Done. Nothing to install or set up."
+    },
+    {
+      q: "Is there a free expense tracker that works on WhatsApp?",
+      a: "Yes. SideNote is free and works entirely inside WhatsApp. No app, no login, no categories needed."
+    },
+    {
+      q: "How do I see my totals?",
+      a: 'Type "summary" anytime to see today\'s and this week\'s total.'
+    },
+    {
+      q: "Is my data safe?",
+      a: "Yes. Your data is stored securely and never sold."
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-white font-sans text-[#111111] selection:bg-[#25D366]/30 relative overflow-x-hidden">
       
@@ -115,14 +141,13 @@ export default function Home() {
             <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
             Live on WhatsApp
           </div>
-          <h1 className="text-5xl md:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
-            Just send your <br/>
-            <span className="text-[#25D366]">expenses</span> like <br/>
-            a message.
+          <h1 className="text-5xl md:text-5xl lg:text-5xl font-extrabold tracking-tight leading-[1.05] mb-6">
+            Track Expenses on <br/>
+            <span className="text-[#25D366]">WhatsApp</span><br/>
           </h1>
           <p className="text-lg md:text-xl text-slate-500 font-medium mb-8 leading-relaxed max-w-md mx-auto md:mx-0">
-            No apps. No categories. No login. <br className="hidden md:block" />
-            Just type it and it's noted.
+            Just type it and it's noted. <br className="hidden md:block" />
+            No apps. No categories. No login.
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
             <a 
@@ -137,7 +162,7 @@ export default function Home() {
           </div>
           <div className="mt-10 flex items-center justify-center md:justify-start gap-3">
             <div className="flex -space-x-3">
-              {['AK', 'SR', 'PG', 'MN'].map((init, i) => (
+              {['AC', 'RV', 'KB', 'YY'].map((init, i) => (
                 <div key={i} className="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center text-[10px] font-bold ring-2 ring-white opacity-90">
                   {init}
                 </div>
@@ -345,6 +370,49 @@ export default function Home() {
         </div>
       </section> */}
 
+      <section className="py-20 md:py-24 bg-slate-50 border-t border-slate-100">
+          <div className="max-w-3xl mx-auto px-6">
+              <div className="text-center mb-12">
+                  <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800 mb-4">Frequently Asked Questions</h2>
+                  <p className="text-slate-500 font-medium">Everything you need to know about SideNote.</p>
+              </div>
+
+              <div className="space-y-4">
+                  {faqs.map((faq, index) => {
+                      const isOpen = openFaq === index;
+                      return (
+                          <div 
+                              key={index} 
+                              className={`bg-white rounded-[1.5rem] border transition-all duration-300 overflow-hidden ${
+                                  isOpen ? 'border-[#25D366] shadow-md shadow-[#25D366]/5' : 'border-slate-200 hover:border-slate-300'
+                              }`}
+                          >
+                              <button 
+                                  onClick={() => setOpenFaq(isOpen ? null : index)}
+                                  className="w-full px-6 py-5 flex items-center justify-between gap-4 text-left focus:outline-none"
+                              >
+                                  <span className={`font-bold text-lg transition-colors ${isOpen ? 'text-[#111111]' : 'text-slate-700'}`}>
+                                      {faq.q}
+                                  </span>
+                                  <div className={`p-1 rounded-full flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180 bg-[#25D366]/10 text-[#25D366]' : 'bg-slate-100 text-slate-400'}`}>
+                                      <ChevronDown size={20} />
+                                  </div>
+                              </button>
+                              
+                              <div className={`grid transition-all duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                                  <div className="overflow-hidden">
+                                      <div className="px-6 pb-6 text-slate-500 leading-relaxed border-t border-slate-50 pt-4 mt-2 mx-2">
+                                          {faq.a}
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      </section>
+
       <section className="py-20 md:py-24 bg-white border-t border-slate-100 text-center px-6">
          <div className="flex justify-center gap-1.5 mb-6">
             {[1,2,3,4,5].map(i => <Check key={i} className="w-5 h-5 text-[#25D366]" strokeWidth={3.5} />)}
@@ -358,11 +426,11 @@ export default function Home() {
       {/* --- Bottom CTA Section --- */}
       <section className="bg-[#111111] py-20 md:py-24 px-6 text-center">
          <h2 className="text-3xl md:text-6xl font-extrabold tracking-tight text-white leading-tight mb-4 md:mb-6">
-            Start recording your <br/>
+            Start tracking your <br/>
             <span className="text-[#25D366]">spending in seconds.</span>
          </h2>
          <p className="text-slate-400 font-medium text-sm md:text-lg mb-8 md:mb-10 max-w-lg mx-auto">
-            No installation. No signup. Just open WhatsApp and send your first expense.
+            No installation. No signup.<br className="hidden md:block" /> Just open WhatsApp and send your first expense.
          </p>
          <div className="flex flex-col items-center justify-center gap-4">
             <a 
@@ -372,13 +440,21 @@ export default function Home() {
               <MessageCircle className="w-5 h-5 md:w-6 md:h-6 fill-current" /> Open WhatsApp
             </a>
             <p className="text-slate-600 text-[10px] md:text-xs font-semibold mt-2 md:mt-4">
-              Secure and private. No data sold. Ever.
+              Secure and private. Your expense data is yours. Always.
             </p>
          </div>
       </section>
+      
+      <div className="bg-white pt-16 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+            <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
+                SideNote is a free WhatsApp expense tracker that helps you track daily expenses without installing any app. Send messages like "200 chai" and instantly see your totals. Designed for people who want a fast, simple way to track expenses without using traditional apps.
+            </p>
+        </div>
+      </div>
 
       {/* --- Footer --- */}
-      <footer className="border-t border-slate-100 py-8 md:py-12 px-6 bg-white">
+      <footer className=" py-8 md:py-12 px-6 bg-white">
          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
                 <Logo variant="app-icon" textSize="text-lg" />

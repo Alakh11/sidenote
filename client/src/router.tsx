@@ -23,7 +23,6 @@ import Debts from './components/Debts/Debts';
 import AdminPanel from './components/Admin/AdminPanel';
 import ProfileSettings from './components/Settings/ProfileSettings';
 import Home from './components/Home/home';
-import HomeNew from './components/Home/home-new';
 import Auth from './components/Auth/Auth';
 import Feedback from './components/Support/Feedback';
 import FAQ from './components/Support/FAQ';
@@ -234,11 +233,6 @@ const indexRoute = createRoute({
   component: Home,
 });
 
-const homeRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/home',
-  component: HomeNew,
-});
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -330,7 +324,6 @@ const routeTree = rootRoute.addChildren([
   faqRoute,
   termsRoute,
   privacyRoute,
-  homeRoute,
   authRoute.addChildren([
     dashboardRoute,
     transactionsRoute,
