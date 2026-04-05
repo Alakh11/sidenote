@@ -7,6 +7,16 @@ const API_URL = "https://api.sidenote.in";
 
 const AVATARS = ['😎', '👻', '🤖', '🐯', '👽', '🐶', '👑', '💼', '🧢', '🦄', '🦉', '👨‍💻'];
 
+const COUNTRY_CODES = [
+    { code: '91', label: '+91 (IN)', len: 10 },
+    { code: '1', label: '+1 (US/CA)', len: 10 },
+    { code: '44', label: '+44 (UK)', len: 10 },
+    { code: '61', label: '+61 (AU)', len: 9 },
+    { code: '971', label: '+971 (AE)', len: 9 },
+    { code: '65', label: '+65 (SG)', len: 8 },
+    { code: '27', label: '+27 (ZA)', len: 9 },
+];
+
 export default function ProfileSettings() {
   const router = useRouter();
   const user = router.options.context?.user as any;
@@ -44,6 +54,7 @@ export default function ProfileSettings() {
       email: user?.email || '',
       mobile: user?.mobile || ''
   });
+  const [countryCode, setCountryCode] = useState('91');
   const [passData, setPassData] = useState({ old: '', new: '', confirm: '' });
   
   const [loading, setLoading] = useState(false);
@@ -65,12 +76,18 @@ export default function ProfileSettings() {
       e.preventDefault();
       setLoading(true);
       setMsg(null);
+      
+      let finalMobile = profileData.mobile;
+      if (!hasMobileLocked && finalMobile) {
+          finalMobile = `${countryCode}${finalMobile.replace(/\D/g, '')}`;
+      }
+
       try {
           await axios.put(`${API_URL}/auth/profile`, {
               name: profileData.name,
               profile_pic: profileData.profile_pic,
               email: profileData.email || null,
-              mobile: profileData.mobile || null
+              mobile: finalMobile || null
           });
           
           const updatedUser = { 
@@ -78,7 +95,7 @@ export default function ProfileSettings() {
               name: profileData.name, 
               picture: profileData.profile_pic,
               email: profileData.email,
-              mobile: profileData.mobile
+              mobile: finalMobile
           };
           localStorage.setItem('user_data', JSON.stringify(updatedUser));
           
@@ -199,22 +216,24 @@ export default function ProfileSettings() {
                 </div>
 
                 <div>
-                    <label className="text-xs font-bold text-stone-400 uppercase ml-1">Full Name</label>
+                    <label className="text-xs font-bold text-stone-400 uppercase ml-1 block mb-1">Full Name</label>
                     <input 
-                        className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-indigo-500 transition" 
+                        className="w-full p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-indigo-500 transition" 
                         value={profileData.name} 
                         onChange={e => setProfileData({...profileData, name: e.target.value})}
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">Email Address</label>
-                        <div className="relative mt-1">
-                            <Mail className="absolute left-3 top-3.5 w-5 h-5 text-stone-400" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
+                    <div className="flex flex-col">
+                        <div className="flex items-center justify-between min-h-[24px] mb-1">
+                            <label className="text-xs font-bold text-stone-400 uppercase ml-1">Email Address</label>
+                        </div>
+                        <div className="relative flex-1">
+                            <Mail className="absolute left-3 top-3.5 w-5 h-5 text-stone-400 pointer-events-none" />
                             <input 
                                 type="email"
-                                className="w-full pl-10 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-indigo-500 transition" 
+                                className="w-full h-[52px] pl-10 px-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-indigo-500 transition" 
                                 value={profileData.email} 
                                 onChange={e => setProfileData({...profileData, email: e.target.value})}
                                 placeholder="Link Email"
@@ -222,27 +241,51 @@ export default function ProfileSettings() {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="text-xs font-bold text-stone-400 uppercase ml-1 flex justify-between items-center">
-                            <span>WhatsApp / Mobile</span>
+                    <div className="flex flex-col relative">
+                        <div className="flex items-center justify-between min-h-[24px] mb-1">
+                            <label className="text-xs font-bold text-stone-400 uppercase ml-1">WhatsApp / Mobile</label>
                             {hasMobileLocked && <span className="text-emerald-500 flex items-center gap-1 normal-case text-[10px]"><Lock size={10}/> Locked</span>}
-                        </label>
-                        <div className="relative mt-1">
-                            <Phone className={`absolute left-3 top-3.5 w-5 h-5 ${hasMobileLocked ? 'text-emerald-500' : 'text-stone-400'}`} />
-                            <input 
-                                type="tel"
-                                disabled={hasMobileLocked}
-                                className={`w-full pl-10 p-3 rounded-xl outline-none font-bold transition border-2 border-transparent ${hasMobileLocked ? 'bg-stone-100 dark:bg-slate-900 text-stone-500 dark:text-slate-500 cursor-not-allowed' : 'bg-stone-50 dark:bg-slate-800 text-stone-700 dark:text-white focus:border-indigo-500'}`} 
-                                value={profileData.mobile} 
-                                onChange={e => setProfileData({...profileData, mobile: e.target.value})}
-                                placeholder="Link Mobile"
-                            />
                         </div>
-                        {!hasMobileLocked && <p className="text-[10px] text-amber-500 font-bold ml-1 mt-1">Cannot be changed once linked.</p>}
+                        
+                        <div className="relative flex-1">
+                            {hasMobileLocked ? (
+                                <>
+                                    <Phone className="absolute left-3 top-3.5 w-5 h-5 text-emerald-500 pointer-events-none" />
+                                    <input 
+                                        type="tel"
+                                        disabled
+                                        className="w-full h-[52px] pl-10 px-3 rounded-xl outline-none font-bold transition border-2 border-transparent bg-stone-100 dark:bg-slate-900 text-stone-500 dark:text-slate-500 cursor-not-allowed" 
+                                        value={profileData.mobile} 
+                                    />
+                                </>
+                            ) : (
+                                <div className="flex items-center w-full h-[52px] bg-stone-50 dark:bg-slate-800 rounded-xl border-2 border-transparent focus-within:border-indigo-500 transition overflow-hidden">
+                                    <div className="relative flex items-center border-r border-stone-200 dark:border-slate-700 h-full bg-stone-50 dark:bg-slate-800">
+                                        <Phone className="absolute left-2.5 w-4 h-4 text-stone-400 pointer-events-none" />
+                                        <select 
+                                            value={countryCode}
+                                            onChange={(e) => setCountryCode(e.target.value)}
+                                            className="pl-8 pr-1 py-3 h-full bg-transparent outline-none text-xs font-bold text-stone-700 dark:text-white cursor-pointer appearance-none"
+                                        >
+                                            {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
+                                        </select>
+                                    </div>
+                                    <input 
+                                        type="tel"
+                                        maxLength={COUNTRY_CODES.find(c => c.code === countryCode)?.len || 10}
+                                        className="w-full h-full pl-3 pr-4 bg-transparent outline-none font-bold text-stone-700 dark:text-white" 
+                                        value={profileData.mobile} 
+                                        onChange={e => setProfileData({...profileData, mobile: e.target.value.replace(/\D/g, '')})}
+                                        placeholder="Mobile Number"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        {!hasMobileLocked && <p className="absolute -bottom-5 left-1 text-[10px] text-amber-500 font-bold">Cannot be changed once linked.</p>}
                     </div>
                 </div>
 
-                <button disabled={loading} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-indigo-200 dark:shadow-none">
+                <button disabled={loading} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-indigo-200 dark:shadow-none mt-2">
                     <Save size={18} /> Update Profile
                 </button>
             </form>
@@ -256,18 +299,18 @@ export default function ProfileSettings() {
             
             <form onSubmit={handleChangePassword} className="space-y-4">
                 <div>
-                    <label className="text-xs font-bold text-stone-400 uppercase ml-1">Current Password</label>
-                    <input type="password" required className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-rose-500 transition" placeholder="••••••••" value={passData.old} onChange={e => setPassData({...passData, old: e.target.value})} />
+                    <label className="text-xs font-bold text-stone-400 uppercase ml-1 block mb-1">Current Password</label>
+                    <input type="password" required className="w-full p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-rose-500 transition" placeholder="••••••••" value={passData.old} onChange={e => setPassData({...passData, old: e.target.value})} />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">New Password</label>
-                        <input type="password" required className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-rose-500 transition" placeholder="New Password" value={passData.new} onChange={e => setPassData({...passData, new: e.target.value})} />
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1 block mb-1">New Password</label>
+                        <input type="password" required className="w-full p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-rose-500 transition" placeholder="New Password" value={passData.new} onChange={e => setPassData({...passData, new: e.target.value})} />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">Confirm Password</label>
-                        <input type="password" required className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-rose-500 transition" placeholder="Confirm New" value={passData.confirm} onChange={e => setPassData({...passData, confirm: e.target.value})} />
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1 block mb-1">Confirm Password</label>
+                        <input type="password" required className="w-full p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-rose-500 transition" placeholder="Confirm New" value={passData.confirm} onChange={e => setPassData({...passData, confirm: e.target.value})} />
                     </div>
                 </div>
 
@@ -285,9 +328,9 @@ export default function ProfileSettings() {
             <form onSubmit={handleUpdatePreferences} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">Default Currency</label>
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1 block mb-1">Default Currency</label>
                         <select 
-                            className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition cursor-pointer"
+                            className="w-full p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition cursor-pointer"
                             value={prefData.currency}
                             onChange={e => setPrefData({...prefData, currency: e.target.value})}>
                             {CURRENCIES.map(c => (
@@ -299,11 +342,11 @@ export default function ProfileSettings() {
                     </div>
                     
                     <div>
-                        <label className="text-xs font-bold text-stone-400 uppercase ml-1">Month Starts On (Date)</label>
+                        <label className="text-xs font-bold text-stone-400 uppercase ml-1 block mb-1">Month Starts On (Date)</label>
                         <input 
                             type="number" 
                             min="1" max="31"
-                            className="w-full mt-1 p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition"
+                            className="w-full p-3 bg-stone-50 dark:bg-slate-800 rounded-xl outline-none font-bold text-stone-700 dark:text-white border-2 border-transparent focus:border-emerald-500 transition"
                             value={prefData.month_start_date}
                             onChange={e => setPrefData({...prefData, month_start_date: Number(e.target.value)})}
                         />

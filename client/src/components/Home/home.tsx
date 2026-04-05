@@ -162,7 +162,7 @@ export default function Home() {
           </div>
           <div className="mt-10 flex items-center justify-center md:justify-start gap-3">
             <div className="flex -space-x-3">
-              {['AC', 'RV', 'KB', 'YY'].map((init, i) => (
+              {['YY', 'KB', 'RV', 'AC'].map((init, i) => (
                 <div key={i} className="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center text-[10px] font-bold ring-2 ring-white opacity-90">
                   {init}
                 </div>
