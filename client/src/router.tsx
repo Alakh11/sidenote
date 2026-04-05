@@ -28,6 +28,7 @@ import Feedback from './components/Support/Feedback';
 import FAQ from './components/Support/FAQ';
 import TermsAndConditions from './components/Legal/Terms';
 import PrivacyPolicy from './components/Legal/PrivacyPolicy';
+import ResetPassword from './components/Auth/ResetPassword';
 
 interface UserWithRole extends User {
   id: number;
@@ -62,6 +63,7 @@ const authRoute = createRoute({
       throw redirect({ to: '/login' });
     }
   },
+  
   component: () => (
     <Layout>
       <Outlet />
@@ -263,6 +265,12 @@ const loginRoute = createRoute({
   }
 });
 
+const resetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/reset-password',
+  component: ResetPassword,
+});
+
 // --- 12. Admin Route ---
 const adminRoute = createRoute({
   getParentRoute: () => authRoute,
@@ -323,6 +331,7 @@ const notFoundRoute = new NotFoundRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  resetRoute,
   faqRoute,
   termsRoute,
   privacyRoute,

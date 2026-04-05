@@ -122,8 +122,11 @@ def verify_otp(data: VerifyOTP):
         
         token = create_access_token({"sub": str(user_db['id']), "name": user_db.get('name')})
         
+        cursor.execute("UPDATE users SET is_verified = TRUE WHERE mobile = %s", (data.contact,))
+        
         # Cleanup OTP
         cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.contact,))
+        
         conn.commit()
         
         return {
@@ -137,6 +140,9 @@ def verify_otp(data: VerifyOTP):
                 "role": user_db.get('role', 'user')
             }
         }
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
 
