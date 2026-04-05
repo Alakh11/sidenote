@@ -61,7 +61,7 @@ class UserPreferencesUpdate(BaseModel):
     
 # Transaction Models
 class TransactionCreate(BaseModel):
-    user_email: str
+    user_id: int
     amount: float
     type: str
     category: str
@@ -71,7 +71,7 @@ class TransactionCreate(BaseModel):
     is_recurring: bool = False
 
 class CategoryCreate(BaseModel):
-    user_email: str
+    user_id: int
     name: str
     color: str
     type: str # 'income' or 'expense'
@@ -84,13 +84,13 @@ class CategoryUpdate(BaseModel):
     type: str
 
 class BudgetSchema(BaseModel):
-    user_email: str
+    user_id: int
     category_id: int
     amount: float
 
 # Feature Models (Goals, Loans, Debts)
 class GoalCreate(BaseModel):
-    user_email: str
+    user_id: int
     name: str
     target_amount: float
     deadline: Optional[str] = None
@@ -100,7 +100,7 @@ class GoalUpdate(BaseModel):
     amount_added: float
 
 class LoanCreate(BaseModel):
-    user_email: str
+    user_id: int
     name: str
     total_amount: float
     interest_rate: float
@@ -115,14 +115,14 @@ class LoanUpdate(BaseModel):
     start_date: str
 
 class BorrowerCreate(BaseModel):
-    user_email: str
+    user_id: int
     name: str
     phone: Optional[str] = None
 
 class DebtCreate(BaseModel):
     borrower_id: Optional[int] = None 
     new_borrower_name: Optional[str] = None
-    user_email: str
+    user_id: int
     amount: float
     date: str
     due_date: Optional[str] = None

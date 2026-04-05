@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Any
 from database import get_db
 
 # Configuration
@@ -21,23 +21,23 @@ def create_access_token(data: dict):
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: Optional[str] = payload.get("sub") 
-        if email is None:
+        user_id_str: Optional[str] = str(payload.get("sub")) 
+        if not user_id_str:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        return email
+        return int(user_id_str)
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
-def require_admin(email: str = Depends(get_current_user)):
+def require_admin(user_id: int = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT role FROM users WHERE email = %s OR mobile = %s", (email, email))
-        user = cursor.fetchone()
+        cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+        user: Any = cursor.fetchone()
         
         if not user or user.get('role') not in ['admin', 'superadmin']:
             raise HTTPException(status_code=403, detail="Access Forbidden: Admins Only")
             
-        return email
+        return user_id
     finally:
         conn.close()

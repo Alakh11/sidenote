@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 export interface User {
   id: number;
   name: string;
-  email: string;
+  email?: string;
   picture?: string;
   mobile?: string;
   currency?: string;

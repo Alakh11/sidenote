@@ -1,6 +1,6 @@
 import { 
   FileText, Smartphone, UserCheck, ShieldAlert, Activity, 
-  Database, AlertTriangle, Power, RefreshCw, Mail 
+  Database, AlertTriangle, Power, RefreshCw, MessageCircle
 } from 'lucide-react';
 
 export default function TermsAndConditions() {
@@ -117,18 +117,19 @@ export default function TermsAndConditions() {
         </div>
 
         {/* Footer / Contact Section */}
-        <div className="bg-stone-50 dark:bg-slate-950 p-6 md:p-10 border-t border-stone-100 dark:border-slate-800 text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-6">
-            <div>
-                <h4 className="text-lg font-bold text-stone-800 dark:text-white mb-1">Questions or Support?</h4>
-                <p className="text-stone-500 dark:text-slate-400 text-sm">If you need clarification on any of these terms, please reach out to us.</p>
-            </div>
-            <a 
-              href="mailto:support@sidenote.in" 
-              className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl font-bold text-stone-700 dark:text-white hover:border-indigo-500 hover:text-indigo-600 dark:hover:border-indigo-400 transition-colors shadow-sm"
-            >
-                <Mail size={18} /> Contact Support
-            </a>
-        </div>
+        <div className="mt-12 bg-indigo-50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 text-center flex flex-col items-center">
+          <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm mb-4">
+              <MessageCircle size={24} />
+          </div>
+          <h3 className="text-xl font-bold text-stone-800 dark:text-white mb-2">Still have questions?</h3>
+          <p className="text-stone-500 dark:text-slate-400 mb-6">Can't find the answer you're looking for? We're here to help.</p>
+          <a 
+            href="/feedback" 
+            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
+          >
+            Contact Support
+          </a>
+      </div>
 
       </div>
     </div>

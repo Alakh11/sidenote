@@ -117,7 +117,7 @@ def verify_otp(data: VerifyOTP):
              
         user_db: dict[str, Any] = raw_user # type: ignore
         
-        token = create_access_token({"sub": user_db.get('email') or user_db.get('mobile'), "name": user_db.get('name')})
+        token = create_access_token({"sub": str(user_db['id']), "name": user_db.get('name')})
         
         # Cleanup OTP
         cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.contact,))
@@ -126,6 +126,7 @@ def verify_otp(data: VerifyOTP):
         return {
             "token": token, 
             "user": {
+                "id": user_db['id'],
                 "name": user_db.get('name'), 
                 "email": user_db.get('email'),
                 "mobile": user_db.get('mobile'),
@@ -154,11 +155,12 @@ def login(data: UserLogin):
         if not user['is_verified']:
             raise HTTPException(status_code=400, detail="Account not verified. Please register again.")
 
-        token = create_access_token({"sub": user['email'] or user['mobile'], "name": user['name']})
+        token = create_access_token({"sub": str(user['id']), "name": user['name']})
         
         return {
             "token": token, 
             "user": {
+                "id": user['id'],
                 "name": user['name'], 
                 "email": user['email'],
                 "mobile": user['mobile'],
@@ -194,12 +196,12 @@ def google_login(data: GoogleAuth):
             cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
             user = cursor.fetchone()
             
-        # Generate Token
-        token = create_access_token({"sub": user['email'], "name": user['name']})
+        token = create_access_token({"sub": str(user['id']), "name": user['name']})
         
         return {
             "token": token, 
             "user": {
+                "id": user['id'],
                 "name": user['name'], 
                 "email": user['email'],
                 "mobile": user.get('mobile'),
@@ -256,12 +258,11 @@ async def reset_password(data: ResetPassword):
 
 # --- 1. Update Profile (Name, Icon, Email, Mobile) ---
 @router.put("/profile")
-def update_profile(data: UserUpdateProfile, identifier: str = Depends(get_current_user)):
+def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Fetch current user
-        cursor.execute("SELECT * FROM users WHERE email = %s OR mobile = %s", (identifier, identifier))
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         user: Any = cursor.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -289,7 +290,7 @@ def update_profile(data: UserUpdateProfile, identifier: str = Depends(get_curren
             UPDATE users 
             SET name = %s, profile_pic = %s, email = %s, mobile = %s 
             WHERE id = %s
-        """, (data.name, data.profile_pic, data.email, new_mobile, user['id']))
+        """, (data.name, data.profile_pic, data.email, new_mobile, user_id))
         
         conn.commit()
         return {"message": "Profile updated successfully"}
@@ -302,11 +303,11 @@ def update_profile(data: UserUpdateProfile, identifier: str = Depends(get_curren
 
 # --- 2. Change Password ---
 @router.put("/password")
-def change_password(data: UserChangePassword, identifier: str = Depends(get_current_user)):
+def change_password(data: UserChangePassword, user_id: int = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id, password_hash FROM users WHERE email = %s OR mobile = %s", (identifier, identifier))
+        cursor.execute("SELECT id, password_hash FROM users WHERE id = %s", (user_id,))
         user: Any = cursor.fetchone()
         
         if not user:
@@ -318,7 +319,7 @@ def change_password(data: UserChangePassword, identifier: str = Depends(get_curr
             
         # 3. Hash New Password & Update
         new_hash = pwd_context.hash(data.new_password)
-        cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
+        cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user_id))
         
         conn.commit()
         return {"message": "Password changed successfully"}
@@ -370,7 +371,7 @@ def complete_profile(request: ProfileCompletionRequest):
         conn.close()
         
 @router.put("/preferences")
-def update_preferences(data: UserPreferencesUpdate, identifier: str = Depends(get_current_user)):
+def update_preferences(data: UserPreferencesUpdate, user_id: int = Depends(get_current_user)):
     if data.month_start_date < 1 or data.month_start_date > 31:
         raise HTTPException(status_code=400, detail="Start date must be between 1 and 31")
 
@@ -380,8 +381,8 @@ def update_preferences(data: UserPreferencesUpdate, identifier: str = Depends(ge
         cursor.execute("""
             UPDATE users 
             SET currency = %s, month_start_date = %s 
-            WHERE email = %s OR mobile = %s
-        """, (data.currency, data.month_start_date, identifier, identifier))
+            WHERE id = %s
+        """, (data.currency, data.month_start_date, user_id))
         conn.commit()
         return {"message": "Preferences updated"}
     except Exception as e:

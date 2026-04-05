@@ -396,6 +396,10 @@ export default function Home() {
                <a href="#why-sidenote" className="hover:text-[#111111] transition-colors">Why SideNote</a>
                {/* <a href="#demo" className="hover:text-[#111111] transition-colors">Demo</a> */}
                {/* <Link to="/login" className="hover:text-[#111111] transition-colors">Login</Link> */}
+               <Link to="/faq" className="hover:text-[#111111] transition-colors">FAQ</Link>
+               <Link to="/privacy" className="hover:text-[#111111] transition-colors">Privacy</Link>
+               <Link to="/terms" className="hover:text-[#111111] transition-colors">Terms</Link>
+               {/* <Link to="/feedback" className="hover:text-[#111111] transition-colors">Feedback</Link> */}
             </div>
          </div>
       </footer>

@@ -30,8 +30,10 @@ import TermsAndConditions from './components/Legal/Terms';
 import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 
 interface UserWithRole extends User {
+  id: number;
   role?: 'admin' | 'superadmin' | string;
   mobile?: string;
+  email?: string;
 }
 
 interface RouterContext {
@@ -71,7 +73,7 @@ const dashboardRoute = createRoute({
   path: '/dashboard',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month';
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     
     const [dashboard, categories, prediction, insights] = await Promise.all([
         axios.get(`${API_URL}/dashboard/${userId}?view_by=${viewMode}`),
@@ -96,7 +98,7 @@ const transactionsRoute = createRoute({
   path: '/transactions',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month';
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     const [transactions, categories] = await Promise.all([
         axios.get(`${API_URL}/transactions/${userId}?view_by=${viewMode}`),
         axios.get(`${API_URL}/categories/${userId}`)
@@ -115,7 +117,7 @@ const budgetRoute = createRoute({
   path: '/budget',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month'; 
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     const [status, categories, history] = await Promise.all([
         axios.get(`${API_URL}/budgets/${userId}?view_by=${viewMode}`), 
         axios.get(`${API_URL}/categories/${userId}`),
@@ -135,7 +137,7 @@ const goalsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/goals',
   loader: async ({ context }) => {
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/goals/${userId}`);
     return { goals: res.data };
   },
@@ -147,7 +149,7 @@ const recurringRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/recurring',
   loader: async ({ context }) => {
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/recurring/${userId}`);
     return res.data;
   },
@@ -160,7 +162,7 @@ const analyticsRoute = createRoute({
   path: '/analytics',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month';
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     const [analytics, dailyIncome, monthlyIncome, categoryMonthly, goals] = await Promise.all([
         axios.get(`${API_URL}/analytics/${userId}?view_by=${viewMode}`),
         axios.get(`${API_URL}/income/daily/${userId}`),
@@ -184,7 +186,7 @@ const categoriesRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/categories',
   loader: async ({ context }) => {
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/categories/${userId}`);
     return res.data;
   },
@@ -196,7 +198,7 @@ const loansRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/loans',
   loader: async ({ context }) => {
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/loans/${userId}`);
     return res.data;
   },
@@ -208,7 +210,7 @@ const debtsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/debts',
   loader: async ({ context }) => {
-    const userId = context.user!.email || context.user!.mobile;
+    const userId = context.user!.id;
 
     const [dashboardData, borrowersList] = await Promise.all([
         axios.get(`${API_URL}/debts/dashboard/${userId}`),
@@ -292,19 +294,19 @@ const feedbackRoute = createRoute({
 
 // --- 14. Legal & FAQ Routes ---
 const faqRoute = createRoute({
-  getParentRoute: () => authRoute,
+  getParentRoute: () => rootRoute,
   path: '/faq',
   component: FAQ,
 });
 
 const termsRoute = createRoute({
-  getParentRoute: () => authRoute,
+  getParentRoute: () => rootRoute,
   path: '/terms',
   component: TermsAndConditions,
 });
 
 const privacyRoute = createRoute({
-  getParentRoute: () => authRoute,
+  getParentRoute: () => rootRoute,
   path: '/privacy',
   component: PrivacyPolicy,
 });
@@ -318,6 +320,9 @@ const notFoundRoute = new NotFoundRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  faqRoute,
+  termsRoute,
+  privacyRoute,
   authRoute.addChildren([
     dashboardRoute,
     transactionsRoute,
@@ -331,9 +336,6 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     settingsRoute,
     feedbackRoute,
-    faqRoute,
-    termsRoute,
-    privacyRoute,
   ])
 ]);
 

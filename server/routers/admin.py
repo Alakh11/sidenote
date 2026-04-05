@@ -11,11 +11,11 @@ router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 logger = logging.getLogger(__name__)
 
 @router.get("/users")
-def get_all_users(admin_email: str = Depends(require_admin)):
+def get_all_users(admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT role FROM users WHERE email = %s OR mobile = %s", (admin_email, admin_email))
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
         req_role = requester['role'] if requester else 'user'
 
@@ -50,11 +50,11 @@ def get_all_users(admin_email: str = Depends(require_admin)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/users")
-def admin_create_user(user: UserRegister, admin_email: str = Depends(require_admin)):
+def admin_create_user(user: UserRegister, admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT role FROM users WHERE email = %s OR mobile = %s", (admin_email, admin_email))
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
         requester_role = requester['role'] if requester else 'user'
 
@@ -72,7 +72,7 @@ def admin_create_user(user: UserRegister, admin_email: str = Depends(require_adm
         query = f"INSERT INTO users (name, {field}, password_hash, is_verified, role) VALUES (%s, %s, %s, TRUE, %s)"
         cursor.execute(query, (user.name, user.contact, hashed_pw, target_role))
         conn.commit()
-        return {"message": "User created by SuperAdmin"}
+        return {"message": "User created successfully"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -80,19 +80,19 @@ def admin_create_user(user: UserRegister, admin_email: str = Depends(require_adm
         conn.close()
 
 @router.delete("/users/{user_id}")
-def admin_delete_user(user_id: int, admin_email: str = Depends(require_admin)):
+def admin_delete_user(user_id: int, admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT email, role FROM users WHERE id = %s", (user_id,))
+        cursor.execute("SELECT id, role FROM users WHERE id = %s", (user_id,))
         target: Any = cursor.fetchone()
         
-        cursor.execute("SELECT role FROM users WHERE email = %s OR mobile = %s", (admin_email, admin_email))
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
         requester_role = requester['role'] if requester else 'user'
 
         if target:
-            if target['email'] == admin_email:
+            if user_id == admin_id:
                  raise HTTPException(status_code=400, detail="Cannot delete your own account.")
             if target['role'] in ['admin', 'superadmin'] and requester_role != 'superadmin':
                  raise HTTPException(status_code=403, detail="Only Superadmins can delete other Admin accounts.")
@@ -108,7 +108,7 @@ def admin_delete_user(user_id: int, admin_email: str = Depends(require_admin)):
         conn.close()
 
 @router.put("/users/{user_id}")
-def admin_update_user(user_id: int, data: AdminUpdateUser, admin_email: str = Depends(require_admin)):
+def admin_update_user(user_id: int, data: AdminUpdateUser, admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor()
     try:
@@ -129,7 +129,7 @@ def admin_update_user(user_id: int, data: AdminUpdateUser, admin_email: str = De
         conn.close()
 
 @router.get("/users/{user_id}/full-data")
-def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
+def get_user_full_data(user_id: int, admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -137,33 +137,33 @@ def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
         target_user: Any = cursor.fetchone()
         if not target_user:
             raise HTTPException(status_code=404, detail="User not found")
-            
-        email = target_user['email'] or target_user['mobile'] # Identifier used in other tables
 
         # 1. Transactions
-        cursor.execute("SELECT * FROM transactions WHERE user_email = %s ORDER BY date DESC", (email,))
+        cursor.execute("SELECT * FROM transactions WHERE user_id = %s ORDER BY date DESC", (user_id,))
         transactions: list[Any] = cursor.fetchall()
 
         # 2. Goals
-        cursor.execute("SELECT * FROM goals WHERE user_email = %s", (email,))
+        cursor.execute("SELECT * FROM goals WHERE user_id = %s", (user_id,))
         goals: list[Any] = cursor.fetchall()
 
         # 3. Categories
-        cursor.execute("SELECT * FROM categories WHERE user_email = %s", (email,))
+        cursor.execute("SELECT * FROM categories WHERE user_id = %s", (user_id,))
         categories: list[Any] = cursor.fetchall()
 
         # 4. Loans (Liabilities)
-        cursor.execute("SELECT * FROM loans WHERE user_email = %s", (email,))
+        cursor.execute("SELECT * FROM loans WHERE user_id = %s", (user_id,))
         loans: list[Any] = cursor.fetchall()
 
-        cursor.execute("SELECT * FROM borrowers WHERE user_email = %s", (email,))
+        # 5. Borrowers
+        cursor.execute("SELECT * FROM borrowers WHERE user_id = %s", (user_id,))
         borrowers: list[Any] = cursor.fetchall()
         
+        # 6. Debts/Lent Records
         cursor.execute("""
             SELECT d.*, b.name as borrower_name 
             FROM debts d JOIN borrowers b ON d.borrower_id = b.id 
-            WHERE b.user_email = %s
-        """, (email,))
+            WHERE b.user_id = %s
+        """, (user_id,))
         lent_records: list[Any] = cursor.fetchall()
 
         return {
@@ -181,7 +181,7 @@ def get_user_full_data(user_id: int, admin_email: str = Depends(require_admin)):
         conn.close()
         
 @router.get("/metrics")
-def get_system_metrics(admin_email: str = Depends(require_admin)):
+def get_system_metrics(admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -242,10 +242,19 @@ def get_system_metrics(admin_email: str = Depends(require_admin)):
         conn.close()
         
 @router.get("/feedback")
-def get_all_feedback(admin_email: str = Depends(require_admin)):
+def get_all_feedback(admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("""
+            SELECT f.*, u.name as user_name, u.profile_pic 
+            FROM feedback f 
+            LEFT JOIN users u ON f.user_id = u.id
+            ORDER BY f.created_at DESC
+        """)
+        return cursor.fetchall()
+    except Exception as e:
+        logger.error(f"Admin Feedback Fetch Error: {e}")
         cursor.execute("""
             SELECT f.*, u.name as user_name, u.profile_pic 
             FROM feedback f 
@@ -260,7 +269,7 @@ class AdminReply(BaseModel):
     reply: str
 
 @router.post("/feedback/{ticket_id}/reply")
-def reply_to_feedback(ticket_id: int, data: AdminReply, admin_email: str = Depends(require_admin)):
+def reply_to_feedback(ticket_id: int, data: AdminReply, admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor()
     try:
@@ -280,7 +289,7 @@ def reply_to_feedback(ticket_id: int, data: AdminReply, admin_email: str = Depen
         conn.close()
         
 @router.delete("/feedback/{ticket_id}")
-def delete_feedback(ticket_id: int, admin_email: str = Depends(require_admin)):
+def delete_feedback(ticket_id: int, admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor()
     try:

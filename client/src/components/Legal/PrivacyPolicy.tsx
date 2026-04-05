@@ -1,6 +1,6 @@
 import { 
   ShieldCheck, Database, Settings, HardDrive, 
-  Share2, Clock, UserCog, MessageCircle, Mail, CheckCircle2 
+  Share2, Clock, UserCog, MessageCircle, CheckCircle2 
 } from 'lucide-react';
 
 export default function PrivacyPolicy() {
@@ -96,7 +96,7 @@ export default function PrivacyPolicy() {
           Privacy Policy
         </h1>
         <p className="text-stone-500 dark:text-slate-400 text-lg">
-          SideNote (“we”, “our”, “us”) provides a WhatsApp-based tool that allows users to note daily entries by sending messages.
+          SideNote provides a WhatsApp-based tool that allows users to note daily entries by sending messages.
         </p>
         <div className="mt-4 inline-block px-4 py-1.5 bg-stone-100 dark:bg-slate-800 rounded-full text-xs font-bold text-stone-500 dark:text-slate-400 uppercase tracking-wider">
           Effective Date: {lastUpdated}
@@ -149,18 +149,19 @@ export default function PrivacyPolicy() {
         </div>
 
         {/* Footer / Contact Section */}
-        <div className="bg-stone-50 dark:bg-slate-950 p-6 md:p-10 border-t border-stone-100 dark:border-slate-800 text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-6">
-            <div>
-                <h4 className="text-lg font-bold text-stone-800 dark:text-white mb-1">Questions about your privacy?</h4>
-                <p className="text-stone-500 dark:text-slate-400 text-sm">If you have any questions or wish to exercise your data rights, please contact us.</p>
-            </div>
-            <a 
-              href="mailto:support@sidenote.in" 
-              className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl font-bold text-stone-700 dark:text-white hover:border-emerald-500 hover:text-emerald-600 dark:hover:border-emerald-400 transition-colors shadow-sm whitespace-nowrap"
-            >
-                <Mail size={18} /> Email Privacy Team
-            </a>
-        </div>
+        <div className="mt-12 bg-indigo-50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 text-center flex flex-col items-center">
+                  <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm mb-4">
+                      <MessageCircle size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-stone-800 dark:text-white mb-2">Still have questions?</h3>
+                  <p className="text-stone-500 dark:text-slate-400 mb-6">Can't find the answer you're looking for? We're here to help.</p>
+                  <a 
+                    href="/feedback" 
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
+                  >
+                    Contact Support
+                  </a>
+              </div>
 
       </div>
     </div>

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { HelpCircle, ChevronDown, MessageCircle } from 'lucide-react';
 
 export default function FAQ() {
-  // State to track which accordion item is currently open
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const toggleFAQ = (index: number) => {
