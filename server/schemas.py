@@ -13,10 +13,6 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     contact: str
     password: str
-
-class VerifyOTP(BaseModel):
-    contact: str
-    otp: str
     
 class GoogleAuth(BaseModel):
     email: str

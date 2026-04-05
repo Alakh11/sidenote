@@ -31,6 +31,7 @@ import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 
 interface UserWithRole extends User {
   role?: 'admin' | 'superadmin' | string;
+  mobile?: string;
 }
 
 interface RouterContext {
@@ -70,11 +71,13 @@ const dashboardRoute = createRoute({
   path: '/dashboard',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month';
+    const userId = context.user!.email || context.user!.mobile;
+    
     const [dashboard, categories, prediction, insights] = await Promise.all([
-        axios.get(`${API_URL}/dashboard/${context.user!.email}?view_by=${viewMode}`),
-        axios.get(`${API_URL}/categories/${context.user!.email}`),
-        axios.get(`${API_URL}/predict/${context.user!.email}`),
-        axios.get(`${API_URL}/insights/${context.user!.email}`)
+        axios.get(`${API_URL}/dashboard/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/categories/${userId}`),
+        axios.get(`${API_URL}/predict/${userId}`),
+        axios.get(`${API_URL}/insights/${userId}`)
     ]);
 
     return { 
@@ -93,9 +96,10 @@ const transactionsRoute = createRoute({
   path: '/transactions',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month';
+    const userId = context.user!.email || context.user!.mobile;
     const [transactions, categories] = await Promise.all([
-        axios.get(`${API_URL}/transactions/${context.user!.email}?view_by=${viewMode}`),
-        axios.get(`${API_URL}/categories/${context.user!.email}`)
+        axios.get(`${API_URL}/transactions/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/categories/${userId}`)
     ]);
     return { 
         initialTransactions: transactions.data, 
@@ -111,10 +115,11 @@ const budgetRoute = createRoute({
   path: '/budget',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month'; 
+    const userId = context.user!.email || context.user!.mobile;
     const [status, categories, history] = await Promise.all([
-        axios.get(`${API_URL}/budgets/${context.user!.email}?view_by=${viewMode}`), 
-        axios.get(`${API_URL}/categories/${context.user!.email}`),
-        axios.get(`${API_URL}/budgets/history/${context.user!.email}`)
+        axios.get(`${API_URL}/budgets/${userId}?view_by=${viewMode}`), 
+        axios.get(`${API_URL}/categories/${userId}`),
+        axios.get(`${API_URL}/budgets/history/${userId}`)
     ]);
     return { 
         budgets: status.data, 
@@ -130,7 +135,8 @@ const goalsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/goals',
   loader: async ({ context }) => {
-    const res = await axios.get(`${API_URL}/goals/${context.user!.email}`);
+    const userId = context.user!.email || context.user!.mobile;
+    const res = await axios.get(`${API_URL}/goals/${userId}`);
     return { goals: res.data };
   },
   component: Goals,
@@ -141,7 +147,8 @@ const recurringRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/recurring',
   loader: async ({ context }) => {
-    const res = await axios.get(`${API_URL}/recurring/${context.user!.email}`);
+    const userId = context.user!.email || context.user!.mobile;
+    const res = await axios.get(`${API_URL}/recurring/${userId}`);
     return res.data;
   },
   component: Recurring,
@@ -153,12 +160,13 @@ const analyticsRoute = createRoute({
   path: '/analytics',
   loader: async ({ context }) => {
     const viewMode = localStorage.getItem('viewMode') || 'month';
+    const userId = context.user!.email || context.user!.mobile;
     const [analytics, dailyIncome, monthlyIncome, categoryMonthly, goals] = await Promise.all([
-        axios.get(`${API_URL}/analytics/${context.user!.email}?view_by=${viewMode}`),
-        axios.get(`${API_URL}/income/daily/${context.user!.email}`),
-        axios.get(`${API_URL}/income/monthly/${context.user!.email}`),
-        axios.get(`${API_URL}/analytics/category-monthly/${context.user!.email}`),
-        axios.get(`${API_URL}/goals/${context.user!.email}`)
+        axios.get(`${API_URL}/analytics/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/income/daily/${userId}`),
+        axios.get(`${API_URL}/income/monthly/${userId}`),
+        axios.get(`${API_URL}/analytics/category-monthly/${userId}`),
+        axios.get(`${API_URL}/goals/${userId}`)
     ]);
     return { 
         ...analytics.data, 
@@ -176,7 +184,8 @@ const categoriesRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/categories',
   loader: async ({ context }) => {
-    const res = await axios.get(`${API_URL}/categories/${context.user!.email}`);
+    const userId = context.user!.email || context.user!.mobile;
+    const res = await axios.get(`${API_URL}/categories/${userId}`);
     return res.data;
   },
   component: CategoryManager,
@@ -187,7 +196,8 @@ const loansRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/loans',
   loader: async ({ context }) => {
-    const res = await axios.get(`${API_URL}/loans/${context.user!.email}`);
+    const userId = context.user!.email || context.user!.mobile;
+    const res = await axios.get(`${API_URL}/loans/${userId}`);
     return res.data;
   },
   component: LoanTracker,
@@ -198,9 +208,11 @@ const debtsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/debts',
   loader: async ({ context }) => {
+    const userId = context.user!.email || context.user!.mobile;
+
     const [dashboardData, borrowersList] = await Promise.all([
-        axios.get(`${API_URL}/debts/dashboard/${context.user!.email}`),
-        axios.get(`${API_URL}/debts/borrowers/${context.user!.email}`)
+        axios.get(`${API_URL}/debts/dashboard/${userId}`),
+        axios.get(`${API_URL}/debts/borrowers/${userId}`)
     ]);
     
     return {
@@ -301,7 +313,6 @@ const notFoundRoute = new NotFoundRoute({
   getParentRoute: () => rootRoute,
   component: NotFound,
 });
-
 
 // --- Assemble Route Tree ---
 const routeTree = rootRoute.addChildren([
