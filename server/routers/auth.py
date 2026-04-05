@@ -71,8 +71,14 @@ async def register(payload: RegisterPayload):
             else:
                  raise HTTPException(status_code=400, detail="User already exists.")
         else:
-            query = f"INSERT INTO users (name, {field}, mobile, password_hash, is_verified) VALUES (%s, %s, %s, %s, FALSE)"
-            cursor.execute(query, (payload.name, payload.contact if field == 'email' else None, target_mobile, hashed_pw))
+            email_val = payload.contact if payload.contact_type == 'email' else None
+            mobile_val = payload.contact if payload.contact_type == 'mobile' else payload.extra_mobile
+            
+            query = """
+                INSERT INTO users (name, email, mobile, password_hash, is_verified) 
+                VALUES (%s, %s, %s, %s, FALSE)
+            """
+            cursor.execute(query, (payload.name, email_val, mobile_val, hashed_pw))
             
             user_id = cursor.lastrowid
             if user_id:
