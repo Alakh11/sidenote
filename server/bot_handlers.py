@@ -365,7 +365,7 @@ async def handle_dashboard_request(phone: str):
         
         if row and row[0]: # type: ignore
             msg = (
-                "🌐 *SideNote Web Dashboard*\n\n"
+                "*SideNote Web Dashboard*\n\n"
                 "Access your full financial reports and charts here:\n"
                 "🔗 https://www.sidenote.in/login\n\n"
                 "Use your registered email to log in."
@@ -414,7 +414,7 @@ async def handle_today_request(phone: str):
             
         total_spent = 0.0
         total_income = 0.0
-        details = ["📅 *Today's Activity:*\n"]
+        details = ["*Today's Activity:*\n"]
         
         for t in transactions:
             amt = float(str(t[0])) # type: ignore
@@ -444,17 +444,17 @@ async def handle_today_request(phone: str):
         
 async def handle_menu_request(phone: str):
     buttons = [
-        {"id": "cmd_summary", "title": "📊 Summary"},
-        {"id": "cmd_today", "title": "📅 Today"},
-        {"id": "cmd_more", "title": "⚙️ More Options"}
+        {"id": "cmd_summary", "title": "Summary"},
+        {"id": "cmd_today", "title": "Today"},
+        {"id": "cmd_more", "title": "More Options"}
     ]
-    await send_whatsapp_interactive_buttons(phone, "📋 *Main Menu*\nChoose an option below:", buttons)
+    await send_whatsapp_interactive_buttons(phone, "*Main Menu*\nChoose an option below:", buttons)
 
 async def handle_more_request(phone: str):
     """Second Menu (Triggered by typing 'more' or clicking 'More Options')"""
     buttons = [
-        {"id": "cmd_dashboard", "title": "🌐 Dashboard"},
-        {"id": "cmd_week", "title": "📅 This Week"},
-        {"id": "cmd_help", "title": "❓ Help"}
+        {"id": "cmd_dashboard", "title": "Web Dashboard"},
+        {"id": "cmd_week", "title": "This Week"},
+        {"id": "cmd_help", "title": "Help"}
     ]
-    await send_whatsapp_interactive_buttons(phone, "⚙️ *More Options*\nChoose an option below:", buttons)
+    await send_whatsapp_interactive_buttons(phone, "*More Options*\nChoose an option below:", buttons)
