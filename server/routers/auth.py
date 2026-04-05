@@ -7,6 +7,7 @@ from security import pwd_context, create_access_token, get_current_user
 from utils import create_default_categories
 import logging
 import random
+import os
 from posthog import Posthog
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_text
