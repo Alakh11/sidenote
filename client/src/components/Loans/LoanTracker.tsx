@@ -75,7 +75,7 @@ export default function LoanTracker() {
       e.preventDefault();
       try {
           const payload = {
-              user_email: user.email,
+              user_id: user.id,
               name: formData.name,
               total_amount: parseFloat(formData.total_amount),
               interest_rate: parseFloat(formData.interest_rate),

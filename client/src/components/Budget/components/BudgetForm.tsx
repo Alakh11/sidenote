@@ -5,10 +5,10 @@ import { useRouter } from '@tanstack/react-router';
 interface Props {
   categories: any[];
   onClose: () => void;
-  userEmail: string;
+  userid: number;
 }
 
-export default function BudgetForm({ categories, onClose, userEmail }: Props) {
+export default function BudgetForm({ categories, onClose, userid }: Props) {
   const router = useRouter();
   const [selectedCat, setSelectedCat] = useState('');
   const [amount, setAmount] = useState('');
@@ -22,7 +22,7 @@ export default function BudgetForm({ categories, onClose, userEmail }: Props) {
 
     try {
         await axios.post(`${API_URL}/budgets`, {
-            user_email: userEmail,
+            user_id: userid,
             category_id: parseInt(selectedCat),
             amount: parseFloat(amount)
         });

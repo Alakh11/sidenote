@@ -8,7 +8,6 @@ import SmartInsights from './components/SmartInsights';
 import QuickAddForm from './components/QuickAddForm';
 import RecentTransactions from './components/RecentTransactions';
 import TrendChart from './components/TrendChart';
-// import { usePreferences } from '../../context/PreferencesContext';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -38,7 +37,7 @@ export default function Dashboard() {
     setIsSubmitting(true);
     try {
       await axios.post(`${API_URL}/transactions`, {
-        user_email: user.email,
+        user_id: user.id,
         amount: parseFloat(txData.amount),
         type: txData.type,
         category: txData.category,
@@ -76,7 +75,7 @@ export default function Dashboard() {
         
         <RecentTransactions transactions={transactions} />
       </div>
-      <TrendChart userEmail={user.email || ""} />
+      <TrendChart userId={user.id} /> 
     </div>
   );
 }

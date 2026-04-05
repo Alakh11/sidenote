@@ -35,7 +35,7 @@ export default function Transactions() {
   };
 
   const applyFilters = async () => {
-    if (!user?.email) return;
+    if (!user?.id) return;
     setLoading(true);
     try {
         const params: any = {};
@@ -47,7 +47,7 @@ export default function Transactions() {
         if(filters.max_amount) params.max_amount = filters.max_amount;
         if(filters.payment_mode) params.payment_mode = filters.payment_mode;
 
-        const res = await axios.get(`${API_URL}/transactions/all/${user.email}`, { params });
+        const res = await axios.get(`${API_URL}/transactions/all/${user.id}`, { params });
         setTransactions(res.data);
     } catch (error) {
         console.error("Filter failed", error);
@@ -57,11 +57,11 @@ export default function Transactions() {
   };
 
   const clearFilters = async () => {
-    if (!user?.email) return;
+    if (!user?.id) return;
     setFilters({ search: '', start_date: '', end_date: '', category_id: '', min_amount: '', max_amount: '', payment_mode: '' });
     setLoading(true);
     try {
-        const res = await axios.get(`${API_URL}/transactions/all/${user.email}`);
+        const res = await axios.get(`${API_URL}/transactions/all/${user.id}`);
         setTransactions(res.data);
     } catch (error) {
         console.error("Reset failed", error);
@@ -87,7 +87,7 @@ export default function Transactions() {
 
       try {
           await axios.put(`${API_URL}/transactions/${editingTx.id}`, {
-              user_email: user.email,
+              user_id: user.id,
               amount: Number(editingTx.amount),
               type: editingTx.type,
               category: editingTx.category_name, 

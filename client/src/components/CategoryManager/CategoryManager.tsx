@@ -29,7 +29,7 @@ export default function CategoryManager() {
   // Handle Create or Update
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if(!formData.name || !user?.email) return;
+    if(!formData.name || !user?.id) return;
     
     setLoading(true);
     try {
@@ -42,7 +42,7 @@ export default function CategoryManager() {
             });
         } else {
             await axios.post(`${API_URL}/categories`, {
-                user_email: user.email,
+                user_id: user.id,
                 name: formData.name,
                 color: formData.color,
                 type: formData.type,

@@ -42,7 +42,7 @@ export default function Debts() {
       e.preventDefault();
       try {
           await axios.post(`${API_URL}/debts/lend`, {
-              user_email: user.email,
+              user_id: user.id,
               borrower_id: formData.borrower_id ? parseInt(formData.borrower_id) : null,
               new_borrower_name: formData.new_borrower_name,
               amount: parseFloat(formData.amount),

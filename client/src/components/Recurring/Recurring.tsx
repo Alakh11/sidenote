@@ -20,7 +20,7 @@ export default function Recurring() {
       setProcessingId(tx.id);
       try {
         await axios.post(`${API_URL}/transactions`, {
-            user_email: user.email,
+            user_id: user.id,
             amount: tx.amount,
             type: tx.type,
             category: tx.category,

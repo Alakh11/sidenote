@@ -5,7 +5,7 @@ import { usePreferences } from '../../../context/PreferencesContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { Loader2 } from 'lucide-react';
 
-export default function TrendChart({ userEmail }: { userEmail: string }) {
+export default function TrendChart({ userId }: { userId: number }) {
     const { viewMode, currency } = usePreferences();
     const { theme } = useTheme();
     const isDark = theme === 'dark';
@@ -15,10 +15,10 @@ export default function TrendChart({ userEmail }: { userEmail: string }) {
 
     useEffect(() => {
         setLoading(true);
-        axios.get(`https://api.sidenote.in/trends/${userEmail}?view_by=${viewMode}`)
+        axios.get(`https://api.sidenote.in/trends/${userId}?view_by=${viewMode}`)
              .then(res => setData(res.data))
              .finally(() => setLoading(false));
-    }, [viewMode, userEmail]);
+    }, [viewMode, userId]);
 
     if (loading) return <div className="h-80 flex items-center justify-center bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800"><Loader2 className="animate-spin text-blue-500" /></div>;
 

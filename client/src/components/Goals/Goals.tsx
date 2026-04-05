@@ -39,7 +39,7 @@ export default function Goals() {
   const createGoal = async () => {
      if(!newGoal.name || !newGoal.target) return;
      await axios.post(`${API_URL}/goals`, {
-        user_email: user.email,
+        user_id: user.id,
         name: newGoal.name,
         target_amount: parseFloat(newGoal.target),
         deadline: newGoal.deadline || null
