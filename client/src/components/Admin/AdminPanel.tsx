@@ -2,7 +2,7 @@ import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { 
   Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
   Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap, Clock,
-  MessageSquare, Bug, Star, HelpCircle, Send
+  MessageSquare, Bug, Star, HelpCircle, Send, Crown
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -12,26 +12,27 @@ const API_URL = "https://api.sidenote.in";
 export default function AdminPanel() {
   const router = useRouter();
   const { users, stats } = useLoaderData({ from: '/_auth/admin' });
+  const { user: currentUser } = router.options.context as any;
+  const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
+  const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
+
   const [search, setSearch] = useState('');
   const [adminTab, setAdminTab] = useState<'users' | 'metrics' | 'feedback'>('users');
   
-  // States for Modals/Views
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Form States
-  const [formData, setFormData] = useState({ name: '', contact: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', contact: '', password: '', role: 'user' });
 
-  // ACTIONS
   const handleDelete = async (id: number) => {
-      if(!confirm("DELETE USER? This will erase ALL their data (Loans, Transactions, etc) PERMANENTLY.")) return;
+      if(!confirm("DELETE USER? This will erase ALL their data PERMANENTLY.")) return;
       try {
           await axios.delete(`${API_URL}/admin/users/${id}`, {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
           router.invalidate();
-      } catch(e) { alert("Delete failed"); }
+      } catch(e: any) { alert(e.response?.data?.detail || "Delete failed"); }
   };
 
   const handleSaveUser = async () => {
@@ -41,7 +42,8 @@ export default function AdminPanel() {
               contact: formData.contact,
               contact_type: formData.contact.includes('@') ? 'email' : 'mobile',
               password: formData.password || undefined,
-              new_password: formData.password
+              new_password: formData.password,
+              role: formData.role
           };
           
           const token = localStorage.getItem('token');
@@ -55,10 +57,10 @@ export default function AdminPanel() {
           
           setIsCreating(false);
           setEditingUser(null);
-          setFormData({ name: '', contact: '', password: '' });
+          setFormData({ name: '', contact: '', password: '', role: 'user' });
           router.invalidate();
           alert("Success!");
-      } catch(e) { alert("Operation failed"); }
+      } catch(e: any) { alert(e.response?.data?.detail || "Operation failed"); }
   };
 
   const filteredUsers = users.filter((u: any) => 
@@ -67,9 +69,7 @@ export default function AdminPanel() {
     (u.mobile && u.mobile.includes(search))
   );
 
-  if (viewUser) {
-      return <UserDetailView userId={viewUser.id} onBack={() => setViewUser(null)} />;
-  }
+  if (viewUser) return <UserDetailView userId={viewUser.id} onBack={() => setViewUser(null)} />;
 
   return (
     <div className="space-y-8 animate-fade-in pb-20">
@@ -81,24 +81,17 @@ export default function AdminPanel() {
             <p className="text-stone-500 dark:text-slate-400">System Overview & User Management</p>
         </div>
         
-        {/* Stats Row */}
         <div className="flex gap-4">
             <div className="bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[140px]">
-                <div className="flex items-center gap-2 mb-1">
-                    <Users size={14} className="text-stone-400" />
-                    <p className="text-xs font-bold uppercase text-stone-400">Total Users</p>
-                </div>
+                <div className="flex items-center gap-2 mb-1"><Users size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Users</p></div>
                 <p className="text-2xl font-black text-stone-800 dark:text-white">{stats.total_users}</p>
             </div>
             <div className="bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[140px]">
-                 <div className="flex items-center gap-2 mb-1">
-                    <Wallet size={14} className="text-stone-400" />
-                    <p className="text-xs font-bold uppercase text-stone-400">Total Tx</p>
-                </div>
+                 <div className="flex items-center gap-2 mb-1"><Wallet size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Tx</p></div>
                 <p className="text-2xl font-black text-indigo-600">{stats.total_transactions}</p>
             </div>
             <button 
-                onClick={() => { setIsCreating(true); setFormData({name:'', contact:'', password:''}); }}
+                onClick={() => { setIsCreating(true); setFormData({name:'', contact:'', password:'', role: 'user'}); }}
                 className="bg-indigo-600 text-white px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
             >
                 <Plus size={24} />
@@ -108,24 +101,9 @@ export default function AdminPanel() {
       </div>
 
       <div className="flex gap-2 border-b border-stone-200 dark:border-slate-800 pb-px overflow-x-auto scrollbar-hide">
-          <button 
-              onClick={() => setAdminTab('users')} 
-              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'users' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
-          >
-              <Users size={16} /> User Management
-          </button>
-          <button 
-              onClick={() => setAdminTab('metrics')} 
-              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'metrics' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
-          >
-              <Activity size={16} /> System Performance
-          </button>
-          <button 
-              onClick={() => setAdminTab('feedback')} 
-              className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'feedback' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}
-          >
-              <HelpCircle size={16} /> Support Tickets
-          </button>
+          <button onClick={() => setAdminTab('users')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'users' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Users size={16} /> User Management</button>
+          <button onClick={() => setAdminTab('metrics')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'metrics' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Activity size={16} /> System Performance</button>
+          <button onClick={() => setAdminTab('feedback')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'feedback' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><HelpCircle size={16} /> Support Tickets</button>
       </div>
 
       {adminTab === 'users' && (
@@ -150,34 +128,31 @@ export default function AdminPanel() {
                               <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
                                   <td className="p-5 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800">
-                                          {isUrl ? (
-                                              <img src={user.profile_pic} className="w-full h-full object-cover" alt={user.name} />
-                                          ) : isEmoji ? (
-                                              <span>{user.profile_pic}</span>
-                                          ) : (
-                                              user.name.charAt(0).toUpperCase()
-                                          )}
+                                          {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" alt={user.name} /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
                                       </div>
-                                      <div><p className="font-bold text-stone-800 dark:text-white">{user.name}</p><p className="text-xs text-stone-400">ID: {user.id}</p></div>
+                                      <div>
+                                          <div className="flex items-center gap-2">
+                                            <p className="font-bold text-stone-800 dark:text-white">{user.name}</p>
+                                            {user.role === 'superadmin' && <span className="bg-purple-100 text-purple-600 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1 dark:bg-purple-900/30 dark:text-purple-400"><Crown size={10}/> Super</span>}
+                                            {user.role === 'admin' && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1 dark:bg-indigo-900/30 dark:text-indigo-400"><Shield size={10}/> Admin</span>}
+                                          </div>
+                                          <p className="text-xs text-stone-400">ID: {user.id}</p>
+                                      </div>
                                   </td>
                                   <td className="p-5">
                                       <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.email || user.mobile}</p>
                                       <div className="mt-1">
-                                        {user.is_verified ? (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400">
-                                                <CheckCircle2 size={10} /> Verified
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400">
-                                                <XCircle size={10} /> Unverified
-                                            </span>
-                                        )}
+                                        {user.is_verified ? <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400"><CheckCircle2 size={10} /> Verified</span> : <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400"><XCircle size={10} /> Unverified</span>}
                                       </div>
                                   </td>
                                   <td className="p-5 flex justify-center gap-2">
                                       <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="View Full Data"><Eye size={16} /></button>
-                                      <button onClick={() => { setEditingUser(user); setFormData({name: user.name, contact: user.email || user.mobile, password: ''}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
-                                      <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
+                                      {(isSuperAdmin || user.role === 'user') && (
+                                          <>
+                                            <button onClick={() => { setEditingUser(user); setFormData({name: user.name, contact: user.email || user.mobile, password: '', role: user.role || 'user'}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
+                                            <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
+                                          </>
+                                      )}
                                   </td>
                               </tr>
                           )})}
@@ -199,23 +174,38 @@ export default function AdminPanel() {
                       {isCreating ? 'Create New User' : 'Edit User Profile'}
                   </h3>
                   <div className="space-y-4">
+                      
+                      {isSuperAdmin && (
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold uppercase text-stone-400 ml-1">Account Role</label>
+                            <select 
+                                className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition appearance-none cursor-pointer" 
+                                value={formData.role} 
+                                onChange={e => setFormData({...formData, role: e.target.value})}
+                            >
+                                <option value="user">Standard User</option>
+                                <option value="admin">Administrator</option>
+                            </select>
+                        </div>
+                      )}
+
                       <div className="space-y-1">
                           <label className="text-xs font-bold uppercase text-stone-400 ml-1">Full Name</label>
-                          <input className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                          <input className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                       </div>
                       <div className="space-y-1">
                           <label className="text-xs font-bold uppercase text-stone-400 ml-1">Contact (Email/Mobile)</label>
-                          <input className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} />
+                          <input className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} />
                       </div>
                       <div className="space-y-1 relative">
                           <label className="text-xs font-bold uppercase text-stone-400 ml-1">{isCreating ? "Password" : "New Password (Optional)"}</label>
-                          <input className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-                          <Key className="absolute right-3 top-8 text-stone-400" size={16} />
+                          <input className="w-full p-3.5 pr-10 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                          <Key className="absolute right-4 top-9 text-stone-400" size={16} />
                       </div>
                   </div>
                   <div className="flex gap-3 mt-8">
-                      <button onClick={() => { setIsCreating(false); setEditingUser(null); }} className="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-600 hover:bg-stone-200 dark:bg-slate-800 dark:text-slate-300">Cancel</button>
-                      <button onClick={handleSaveUser} className="flex-1 py-3 bg-indigo-600 rounded-xl font-bold text-white hover:bg-indigo-700 flex justify-center items-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none">
+                      <button onClick={() => { setIsCreating(false); setEditingUser(null); }} className="flex-1 py-3.5 bg-stone-100 rounded-xl font-bold text-stone-600 hover:bg-stone-200 dark:bg-slate-800 dark:text-slate-300">Cancel</button>
+                      <button onClick={handleSaveUser} className="flex-1 py-3.5 bg-indigo-600 rounded-xl font-bold text-white hover:bg-indigo-700 flex justify-center items-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none">
                           <Save size={18} /> Save
                       </button>
                   </div>

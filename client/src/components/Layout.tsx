@@ -38,8 +38,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   
   const router = useRouter();
   const { user, handleLogout } = router.options.context as any;
-  const ADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const { viewMode, setViewMode } = usePreferences();
 
   const menuItems = [

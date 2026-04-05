@@ -7,6 +7,7 @@ class UserRegister(BaseModel):
     contact: str # Email or Mobile
     password: str
     contact_type: str # 'email' or 'mobile'
+    role: Optional[str] = 'user'
 
 class UserLogin(BaseModel):
     contact: str

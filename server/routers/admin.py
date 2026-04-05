@@ -16,7 +16,7 @@ def get_all_users(admin_email: str = Depends(require_admin)):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT id, name, email, mobile, is_verified, created_at, profile_pic 
+            SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
             FROM users 
             ORDER BY created_at DESC
         """)
@@ -42,17 +42,25 @@ def admin_create_user(user: UserRegister, admin_email: str = Depends(require_adm
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Check existence
+        cursor.execute("SELECT role FROM users WHERE email = %s OR mobile = %s", (admin_email, admin_email))
+        requester: Any = cursor.fetchone()
+        requester_role = requester['role'] if requester else 'user'
+
+        target_role = getattr(user, 'role', 'user')
+
+        if target_role in ['admin', 'superadmin'] and requester_role != 'superadmin':
+            raise HTTPException(status_code=403, detail="Only Superadmins can create Admin accounts.")
+
         field = "email" if user.contact_type == 'email' else "mobile"
         cursor.execute(f"SELECT id FROM users WHERE {field} = %s", (user.contact,))
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="User exists")
 
         hashed_pw = pwd_context.hash(user.password)
-        query = f"INSERT INTO users (name, {field}, password_hash, is_verified) VALUES (%s, %s, %s, TRUE)"
-        cursor.execute(query, (user.name, user.contact, hashed_pw))
+        query = f"INSERT INTO users (name, {field}, password_hash, is_verified, role) VALUES (%s, %s, %s, TRUE, %s)"
+        cursor.execute(query, (user.name, user.contact, hashed_pw, target_role))
         conn.commit()
-        return {"message": "User created by Admin"}
+        return {"message": "User created by SuperAdmin"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -62,19 +70,27 @@ def admin_create_user(user: UserRegister, admin_email: str = Depends(require_adm
 @router.delete("/users/{user_id}")
 def admin_delete_user(user_id: int, admin_email: str = Depends(require_admin)):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     try:
-        # Prevent deleting self
-        cursor.execute("SELECT email FROM users WHERE id = %s", (user_id,))
+        cursor.execute("SELECT email, role FROM users WHERE id = %s", (user_id,))
         target: Any = cursor.fetchone()
-        if target and target[0] == admin_email:
-             raise HTTPException(status_code=400, detail="Cannot delete your own Admin account")
+        
+        cursor.execute("SELECT role FROM users WHERE email = %s OR mobile = %s", (admin_email, admin_email))
+        requester: Any = cursor.fetchone()
+        requester_role = requester['role'] if requester else 'user'
+
+        if target:
+            if target['email'] == admin_email:
+                 raise HTTPException(status_code=400, detail="Cannot delete your own account.")
+            if target['role'] in ['admin', 'superadmin'] and requester_role != 'superadmin':
+                 raise HTTPException(status_code=403, detail="Only Superadmins can delete other Admin accounts.")
 
         cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
         return {"message": "User and all data permanently deleted"}
     except Exception as e:
         conn.rollback()
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
