@@ -56,7 +56,9 @@ const authRoute = createRoute({
   id: '_auth',
   getParentRoute: () => rootRoute,
   beforeLoad: ({ context }) => {
-    if (!context.user) {
+    if (!context.user || !context.user.id) {
+      localStorage.removeItem('user_data');
+      localStorage.removeItem('token');
       throw redirect({ to: '/login' });
     }
   },
@@ -238,7 +240,7 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: ({ context }) => {
-    if (context.user) {
+    if (context.user && context.user.id) {
       throw redirect({ to: '/dashboard' });
     }
   },
