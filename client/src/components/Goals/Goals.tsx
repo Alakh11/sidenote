@@ -176,7 +176,7 @@ export default function Goals() {
                                ))}
                            </div>
                        ) : (
-                           <div className="text-center py-10 text-stone-400 italic bg-stone-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-stone-200 dark:border-slate-700">No transactions recorded yet.</div>
+                           <div className="text-center py-10 text-stone-400 italic bg-stone-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-stone-200 dark:border-slate-700">No transactions noted yet.</div>
                        )}
                    </div>
                </div>

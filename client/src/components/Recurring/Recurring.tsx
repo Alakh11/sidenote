@@ -31,7 +31,7 @@ export default function Recurring() {
         });
         
         setTimeout(() => {
-            alert(`✅ Recorded payment for ${tx.note}!`);
+            alert(`✅ noted payment for ${tx.note}!`);
             router.invalidate();
             setProcessingId(null);
         }, 500);

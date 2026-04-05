@@ -385,7 +385,7 @@ function SystemMetricsView() {
     }, []);
 
     if (loading) return <div className="p-10 text-center text-stone-500 animate-pulse">Loading system metrics...</div>;
-    if (!metrics || !metrics.pulse) return <div className="p-10 text-center text-rose-500">No performance data recorded yet.</div>;
+    if (!metrics || !metrics.pulse) return <div className="p-10 text-center text-rose-500">No performance data noted yet.</div>;
 
     const getColor = (ms: number) => {
         if (ms < 300) return 'bg-emerald-500';
@@ -394,7 +394,7 @@ function SystemMetricsView() {
     };
 
     const renderMetricList = (data: any[] = [], maxVal: number, isTraffic = false) => {
-        if (data.length === 0) return <p className="text-sm text-stone-500 italic">No data recorded in the last 24h.</p>;
+        if (data.length === 0) return <p className="text-sm text-stone-500 italic">No data noted in the last 24h.</p>;
         
         return data.map((route: any, i: number) => {
             const val = isTraffic ? route.total_calls : route.avg_time_ms;

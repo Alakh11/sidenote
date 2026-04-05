@@ -12,7 +12,7 @@ const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi`;
 // --- Scripted conversation data ---
 const simulationScript = [
   { text: "200 autos", isSent: true, time: "11:02 AM", delay: 1000 },
-  { text: "Noted ₹200 for transport.<br/> recorded ₹200 today.", isSent: false, time: "11:02 AM", delay: 1500 },
+  { text: "Noted ₹200 for transport.<br/> noted ₹200 today.", isSent: false, time: "11:02 AM", delay: 1500 },
   { text: "500 dinner", isSent: true, time: "11:04 AM", delay: 2500 },
   { text: "Got it. ₹500 for food.", isSent: false, time: "11:04 AM", delay: 1200 },
   { text: "summary", isSent: true, time: "11:05 AM", delay: 2000 },
@@ -20,7 +20,7 @@ const simulationScript = [
 ];
 const featureScript = [
   { text: "petrol 250", isSent: true, time: "11:02 AM", delay: 600 },
-  { text: "Noted ₹250 for petrol.<br/> recorded ₹250 today.", isSent: false, time: "11:02 AM", delay: 1000 },
+  { text: "Noted ₹250 for petrol.<br/> noted ₹250 today.", isSent: false, time: "11:02 AM", delay: 1000 },
   { text: "summary", isSent: true, time: "11:04 AM", delay: 1200 },
   { text: "<strong>Today: ₹250</strong><br/>Week: ₹1250", isSent: false, time: "11:04 AM", delay: 1000 }
 ];
@@ -122,7 +122,7 @@ export default function Home() {
           </h1>
           <p className="text-lg md:text-xl text-slate-500 font-medium mb-8 leading-relaxed max-w-md mx-auto md:mx-0">
             No apps. No categories. No login. <br className="hidden md:block" />
-            Just type it and it's recorded.
+            Just type it and it's noted.
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
             <a 
@@ -197,7 +197,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             {[
               { num: 1, title: "Send a message", desc: 'Type "200 chai" or "450 uber" the moment you spend.' },
-              { num: 2, title: "It gets recorded instantly", desc: 'Logged in your private ledger — zero extra taps.' },
+              { num: 2, title: "It gets noted instantly", desc: 'Logged in your private ledger — zero extra taps.' },
               { num: 3, title: "See your summary anytime", desc: 'Just type "summary" for today\'s or this week\'s total.' },
             ].map((step) => (
               <div key={step.num} className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-100 text-left">
@@ -388,7 +388,7 @@ export default function Home() {
             </div>
             
             <p className="text-slate-400 text-xs font-semibold md:order-2 order-3">
-              © {new Date().getFullYear()} SideNote. Track easier.
+              © {new Date().getFullYear()} SideNote.
             </p>
             
             <div className="flex gap-4 md:gap-6 text-xs font-bold text-slate-400 md:order-3 order-2">
