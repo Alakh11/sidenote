@@ -6,7 +6,7 @@ import {
 import Logo from '../Logo';
 
 const WHATSAPP_NUMBER = "918796022992"; 
-const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi`;
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Track%20this%20expense:%20₹`;
 
 // --- Scripted conversation data (Updated to match Demo One) ---
 const simulationScript = [
@@ -108,7 +108,7 @@ export default function Home() {
             <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
             Live on WhatsApp
           </div>
-          <h1 className="text-5xl md:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05] mb-6">
             Track Expenses on <br/>
             <span className="text-[#25D366]">WhatsApp</span>
           </h1>
