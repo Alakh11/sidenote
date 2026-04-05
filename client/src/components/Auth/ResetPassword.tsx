@@ -97,7 +97,6 @@ export default function ResetPassword() {
                         <span className="font-extrabold tracking-tight text-3xl md:text-4xl text-[#111111] dark:text-white leading-none">Side<span className="text-[#25D366]">Note</span></span>
                     </div>
                     <h1 className="text-lg md:text-xl font-bold text-[#111111] dark:text-white">Reset Password</h1>
-                    {step === 'identify' && <p className="text-slate-500 dark:text-slate-400 text-xs mt-2">Registered via Email? Please <Link to="/login" className="text-[#25D366] hover:underline font-bold">login with Google</Link>.</p>}
                 </div>
 
                 <div className="space-y-4">

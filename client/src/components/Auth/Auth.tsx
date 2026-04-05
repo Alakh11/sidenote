@@ -3,7 +3,7 @@ import axios from 'axios';
 import Logo from '../Logo';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
-import { Mail, Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Sun, Moon, Eye, EyeOff } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from '@tanstack/react-router';
 
@@ -24,33 +24,24 @@ const COUNTRY_CODES = [
 export default function Auth({ onLoginSuccess }: AuthProps) {
   const { theme, toggleTheme } = useTheme();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [method, setMethod] = useState<'email' | 'mobile'>('email');
-  const [authStep, setAuthStep] = useState<'form' | 'collect_mobile' | 'otp'>('form');
+  const [authStep, setAuthStep] = useState<'form' | 'otp'>('form');
   
   const [countryCode, setCountryCode] = useState('91');
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({ name: '', contact: '', password: '', extraMobile: '', otp: '' });
+  const [formData, setFormData] = useState({ name: '', contact: '', password: '', otp: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   const API_URL = "https://api.sidenote.in";
   const currentConfig = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
+  const targetMobile = `${countryCode}${formData.contact}`;
 
   const isFormValid = () => {
     if (authStep === 'otp') return formData.otp.length === 4;
-    if (authStep === 'collect_mobile') {
-        return formData.extraMobile.length === currentConfig.len && 
-               (countryCode === '91' ? /^[6-9]/.test(formData.extraMobile) : true);
-    }
 
-    let isContactValid = false;
-    if (method === 'email') {
-        isContactValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contact);
-    } else {
-        isContactValid = formData.contact.length === currentConfig.len &&
+    const isContactValid = formData.contact.length === currentConfig.len &&
                          (countryCode === '91' ? /^[6-9]/.test(formData.contact) : true);
-    }
 
     const isPasswordValid = mode === 'login' 
         ? formData.password.length > 0
@@ -62,14 +53,9 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   };
 
   const validateForm = () => {
-    if (method === 'mobile' || authStep === 'collect_mobile') {
-        const val = authStep === 'collect_mobile' ? formData.extraMobile : formData.contact;
-        if (val.length !== currentConfig.len) return `${currentConfig.len} digit mobile number required.`;
-        if (countryCode === '91' && !/^[6-9]/.test(val)) return "Indian mobile numbers must start with 6, 7, 8, or 9.";
-    }
-
-    if (method === 'email' && authStep === 'form') {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contact)) return "Please enter a valid email address.";
+    if (authStep === 'form') {
+        if (formData.contact.length !== currentConfig.len) return `${currentConfig.len} digit mobile number required.`;
+        if (countryCode === '91' && !/^[6-9]/.test(formData.contact)) return "Indian mobile numbers must start with 6, 7, 8, or 9.";
     }
 
     if (mode === 'signup') {
@@ -91,28 +77,25 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
     const validationError = validateForm();
     if (validationError) return setError(validationError);
 
-    if (mode === 'signup' && method === 'email' && authStep === 'form') return setAuthStep('collect_mobile');
     if (authStep === 'otp') return verifyOTP();
 
     await processBackendRequest();
   };
 
-  const getTargetMobile = () => method === 'mobile' ? `${countryCode}${formData.contact}` : `${countryCode}${formData.extraMobile}`;
-
   const processBackendRequest = async () => {
     setLoading(true);
-    const finalContact = method === 'mobile' ? getTargetMobile() : formData.contact;
-    
     try {
         if (mode === 'signup') {
             await axios.post(`${API_URL}/auth/register`, {
-                name: formData.name, contact: finalContact, password: formData.password,
-                contact_type: method, extra_mobile: method === 'email' ? getTargetMobile() : undefined
+                name: formData.name, 
+                contact: targetMobile, 
+                password: formData.password,
+                contact_type: 'mobile'
             });
             setSuccessMsg("OTP sent to your WhatsApp!");
             setAuthStep('otp');
         } else {
-            const res = await axios.post(`${API_URL}/auth/login`, { contact: finalContact, password: formData.password });
+            const res = await axios.post(`${API_URL}/auth/login`, { contact: targetMobile, password: formData.password });
             onLoginSuccess(res.data.user, res.data.token);
         }
     } catch (err: any) {
@@ -125,7 +108,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   const verifyOTP = async () => {
       setLoading(true);
       try {
-          const res = await axios.post(`${API_URL}/auth/verify`, { contact: getTargetMobile(), otp: formData.otp });
+          const res = await axios.post(`${API_URL}/auth/verify`, { contact: targetMobile, otp: formData.otp });
           onLoginSuccess(res.data.user, res.data.token);
       } catch (err: any) {
           setError(err.response?.data?.detail || "Invalid OTP");
@@ -148,7 +131,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   };
 
   return (
-    <div className="relative w-full max-w-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-white/50 dark:border-slate-800 animate-fade-in-up">
+    <div className="relative w-full max-w-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-white/50 dark:border-slate-800 animate-fade-in-up transition-all duration-300">
         
         <button onClick={toggleTheme} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 rounded-xl text-stone-500 hover:bg-stone-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors z-10">
             {theme === 'dark' ? <Sun size={20} className="text-amber-400"/> : <Moon size={20} className="text-indigo-500"/>}
@@ -173,17 +156,13 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                         shape="pill" width="100%" text={mode === 'login' ? "signin_with" : "signup_with"}
                     />
                 </div>
+                
                 <div className="relative mb-6">
                     <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-slate-700"></div></div>
-                    <div className="relative flex justify-center text-xs md:text-sm"><span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">Or continue with</span></div>
+                    <div className="relative flex justify-center text-xs md:text-sm"><span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">Or continue with mobile</span></div>
                 </div>
 
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-5 md:mb-6">
-                    <button onClick={() => { setMethod('email'); setError(''); }} className={`flex-1 py-1.5 md:py-2 rounded-lg text-sm font-bold transition ${method === 'email' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#25D366]' : 'text-slate-500 dark:text-slate-400'}`}>Email</button>
-                    <button onClick={() => { setMethod('mobile'); setError(''); }} className={`flex-1 py-1.5 md:py-2 rounded-lg text-sm font-bold transition ${method === 'mobile' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#25D366]' : 'text-slate-500 dark:text-slate-400'}`}>Mobile</button>
-                </div>
-
-                <div className="space-y-3 md:space-y-4">
+                <div className="space-y-3 md:space-y-4 mt-2">
                     {mode === 'signup' && (
                         <div className="relative group animate-in slide-in-from-top-2 fade-in">
                             <UserIcon className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
@@ -195,29 +174,19 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                     )}
 
                     <div className="relative group flex">
-                        {method === 'email' ? (
-                            <>
-                                <Mail className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors z-10" />
-                                <input 
-                                    type="text" className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
-                                    placeholder="Email Address" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})}
-                                />
-                            </>
-                        ) : (
-                            <div className="flex w-full">
-                                <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
-                                    <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
-                                    <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
-                                        {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
-                                    </select>
-                                </div>
-                                <input 
-                                    type="tel" maxLength={currentConfig.len}
-                                    className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
-                                    placeholder="Mobile Number" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value.replace(/\D/g, '')})}
-                                />
+                        <div className="flex w-full">
+                            <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
+                                <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
+                                <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
+                                    {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
+                                </select>
                             </div>
-                        )}
+                            <input 
+                                type="tel" maxLength={currentConfig.len}
+                                className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
+                                placeholder="WhatsApp Number" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value.replace(/\D/g, '')})}
+                            />
+                        </div>
                     </div>
                     
                     <div className="relative group">
@@ -243,25 +212,6 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             </>
         )}
 
-        {authStep === 'collect_mobile' && (
-            <div className="space-y-4 text-center animate-in slide-in-from-right-4">
-                <p className="text-sm text-slate-500 mb-6">Link your WhatsApp to receive your OTP.</p>
-                <div className="flex w-full">
-                    <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
-                        <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
-                        <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
-                            {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
-                        </select>
-                    </div>
-                    <input 
-                        type="tel" maxLength={currentConfig.len}
-                        className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
-                        placeholder="WhatsApp Number" value={formData.extraMobile} onChange={e => setFormData({...formData, extraMobile: e.target.value.replace(/\D/g, '')})}
-                    />
-                </div>
-            </div>
-        )}
-
         {authStep === 'otp' && (
             <div className="text-center space-y-4 animate-in slide-in-from-right-4">
                 <p className="text-sm text-slate-500 mb-6">We've sent a 4-digit code to your WhatsApp.</p>
@@ -273,14 +223,14 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             </div>
         )}
 
-        {error && <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in slide-in-from-top-1 border border-rose-100 dark:border-rose-900/30"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span className="leading-tight">{error}</span></div>}
-        {successMsg && <div className="flex items-center gap-2 mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in slide-in-from-top-1 border border-emerald-100 dark:border-emerald-900/30"><CheckCircle className="w-4 h-4 shrink-0" />{successMsg}</div>}
+        {error && <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in border border-rose-100 dark:border-rose-900/30"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span className="leading-tight">{error}</span></div>}
+        {successMsg && <div className="flex items-center gap-2 mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in border border-emerald-100 dark:border-emerald-900/30"><CheckCircle className="w-4 h-4 shrink-0" />{successMsg}</div>}
 
         <button 
             onClick={handleNextStep} disabled={loading || !isFormValid()}
             className="w-full mt-5 md:mt-6 bg-[#111111] dark:bg-[#25D366] text-white py-3 md:py-3.5 rounded-xl font-bold hover:bg-black dark:hover:bg-[#1EA952] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-200 dark:shadow-[#25D366]/20 text-sm md:text-base"
         >
-            {loading ? 'Processing...' : (authStep === 'form' ? (mode === 'login' ? 'Sign In' : 'Continue') : (authStep === 'otp' ? 'Verify' : 'Send Code'))}
+            {loading ? 'Processing...' : (authStep === 'form' ? (mode === 'login' ? 'Sign In' : 'Continue') : 'Verify')}
             {!loading && <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />}
         </button>
 
@@ -292,7 +242,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             ) : (
                 <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">
                     {mode === 'login' ? "Don't have an account?" : "Already have an account?"} 
-                    <button onClick={() => {setMode(mode === 'login' ? 'signup' : 'login'); setError('');}} className="ml-1.5 md:ml-2 font-bold text-[#25D366] hover:underline">
+                    <button onClick={() => {setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setFormData({name: '', contact: '', password: '', otp: ''})}} className="ml-1.5 md:ml-2 font-bold text-[#25D366] hover:underline">
                         {mode === 'login' ? 'Sign Up' : 'Login'}
                     </button>
                 </p>
