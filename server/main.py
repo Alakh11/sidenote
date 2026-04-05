@@ -15,15 +15,18 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_insights import send_weekly_proactive_insights
 from pydantic import BaseModel
 from typing import Optional
-import posthog
+from posthog import Posthog
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
-posthog.project_api_key = os.getenv("POSTHOG_API_KEY")
-posthog.host = 'https://app.posthog.com'
+
+posthog_client = Posthog(
+    os.getenv("POSTHOG_API_KEY"), # type: ignore
+    host='https://app.posthog.com'
+)
 
 # CORS Setup
 origins = [
@@ -268,10 +271,10 @@ def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: 
         
     if not endpoint.startswith("/admin"):
         try:
-            posthog.capture(
-                'server_backend',
-                'api_request_made', # type: ignore
-                {
+            posthog_client.capture(
+                distinct_id='server_backend',
+                event='api_request_made',
+                properties={
                     'endpoint': endpoint,
                     'method': method,
                     'status_code': status_code,
