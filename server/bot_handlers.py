@@ -6,11 +6,13 @@ from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_wh
 from ai_service import extract_receipt_data, extract_voice_data
 from constants import *
 
-def get_identifier(cursor: Any, phone: str) -> str:
-    cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+def get_user_id(cursor: Any, phone: str) -> int | None:
+    """Fetches the user_id associated with the mobile number."""
+    cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
     user_row = cursor.fetchone()
-    u_row = tuple(user_row) if user_row else ()
-    return str(u_row[0]) if u_row and u_row[0] else phone
+    if user_row:
+        return int(tuple(user_row)[0])
+    return None
 
 async def process_whatsapp_text(phone: str, text: str):
     text = text.strip().lower()
@@ -80,9 +82,8 @@ async def handle_budget_set(phone: str, text: str):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        identifier = get_identifier(cursor, phone)
         
-        cursor.execute("UPDATE users SET monthly_budget = %s WHERE email = %s OR mobile = %s", (new_budget, identifier, phone))
+        cursor.execute("UPDATE users SET monthly_budget = %s WHERE mobile = %s", (new_budget, phone))
         conn.commit()
         
         await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.")
@@ -103,13 +104,16 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
         cursor.execute("SET time_zone = '+05:30'")
         
         # User Check
-        cursor.execute("SELECT email, monthly_budget FROM users WHERE mobile = %s", (phone,))
+        cursor.execute("SELECT id, monthly_budget FROM users WHERE mobile = %s", (phone,))
         user_data = cursor.fetchone()
         u_data = tuple(user_data) if user_data else ()
         
         if not u_data:
             cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
             conn.commit()
+            user_id = cursor.lastrowid
+            budget_limit = 0.0
+            
             await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
             
             welcome_link_msg = (
@@ -120,10 +124,8 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
                 "(Or type 'menu' anytime to see your options)"
             )
             await send_whatsapp_text(phone, welcome_link_msg)
-            identifier = phone
-            budget_limit = 0.0
         else:
-            identifier = str(u_data[0]) if u_data[0] else phone
+            user_id = int(str(u_data[0]))
             budget_limit = float(str(u_data[1])) if u_data[1] else 0.0
             
         category_id = None
@@ -135,34 +137,34 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
                 break
                 
         if target_category_name:
-            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s AND name = %s LIMIT 1", (identifier, tx_type, target_category_name))
+            cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s AND name = %s LIMIT 1", (user_id, tx_type, target_category_name))
             cat_row = cursor.fetchone()
             if cat_row:
                 category_id = int(str(tuple(cat_row)[0]))
             else:
-                cursor.execute("INSERT INTO categories (user_email, name, type, is_default) VALUES (%s, %s, %s, TRUE)", (identifier, target_category_name, tx_type))
+                cursor.execute("INSERT INTO categories (user_id, name, type, is_default) VALUES (%s, %s, %s, TRUE)", (user_id, target_category_name, tx_type))
                 conn.commit()
                 category_id = cursor.lastrowid
 
         if not category_id:
-            cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s LIMIT 1", (identifier, tx_type))
+            cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (user_id, tx_type))
             cat_row = cursor.fetchone()
             
             if not cat_row:
-                cursor.execute("SELECT id FROM categories WHERE (user_email = %s OR user_email IS NULL) AND type = %s LIMIT 1", (identifier, tx_type))
+                cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (user_id, tx_type))
                 cat_row = cursor.fetchone()
                 
             if cat_row:
                 category_id = int(str(tuple(cat_row)[0]))
 
         # Save Entry
-        cursor.execute("INSERT INTO transactions (user_email, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (identifier, amount, tx_type, item, category_id))
+        cursor.execute("INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (user_id, amount, tx_type, item, category_id))
         conn.commit()
 
         # Budget Check Logic
         budget_note = ""
         if tx_type == 'expense' and budget_limit > 0:
-            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (identifier,))
+            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (user_id,))
             month_row = tuple(cursor.fetchone() or (0,))
             month_total = float(str(month_row[0])) if month_row[0] else 0.0
             
@@ -180,7 +182,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
         if is_income:
             await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{item}' added.")
         else:
-            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email = %s AND type = 'expense' AND DATE(date) = CURDATE()", (identifier,))
+            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
             today_row = tuple(cursor.fetchone() or (0,))
             today_total = float(str(today_row[0])) if today_row[0] else 0.0
             
@@ -199,9 +201,12 @@ async def handle_undo_request(phone: str):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        identifier = get_identifier(cursor, phone)
-        
-        cursor.execute("SELECT id, amount, note FROM transactions WHERE user_email = %s ORDER BY date DESC LIMIT 2", (identifier,))
+        user_id = get_user_id(cursor, phone)
+        if not user_id:
+            await send_whatsapp_text(phone, "You don't have any recent entries to undo.")
+            return
+            
+        cursor.execute("SELECT id, amount, note FROM transactions WHERE user_id = %s ORDER BY date DESC LIMIT 2", (user_id,))
         rows = cursor.fetchall()
         
         if not rows:
@@ -225,9 +230,10 @@ async def handle_undo_action(phone: str, tx_id: int):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        identifier = get_identifier(cursor, phone)
+        user_id = get_user_id(cursor, phone)
+        if not user_id: return
         
-        cursor.execute("DELETE FROM transactions WHERE id = %s AND user_email = %s", (tx_id, identifier))
+        cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s", (tx_id, user_id))
         conn.commit()
         
         if cursor.rowcount > 0:
@@ -239,7 +245,6 @@ async def handle_undo_action(phone: str, tx_id: int):
     finally:
         if conn: conn.close()
 
-
 async def handle_fallback(phone: str):
     fallback_message = f"Hey! Just send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options or *{CMD_UNDO}* to delete a mistake."
     await send_whatsapp_text(phone, fallback_message)
@@ -250,21 +255,25 @@ async def handle_summary_request(phone: str):
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute("SET time_zone = '+05:30'")
-        identifier = get_identifier(cursor, phone)
+        user_id = get_user_id(cursor, phone)
         
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email=%s AND type='expense' AND DATE(date)=CURDATE()", (identifier,))
+        if not user_id:
+            await send_whatsapp_text(phone, "You haven't made any entries yet. Try sending `100 lunch` to start!")
+            return
+        
+        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND DATE(date)=CURDATE()", (user_id,))
         t_row = tuple(cursor.fetchone() or ())
         today_total = float(str(t_row[0])) if t_row and t_row[0] else 0.0
         
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email=%s AND type='expense' AND YEARWEEK(date, 1)=YEARWEEK(CURDATE(), 1)", (identifier,))
+        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND YEARWEEK(date, 1)=YEARWEEK(CURDATE(), 1)", (user_id,))
         w_row = tuple(cursor.fetchone() or ())
         week_total = float(str(w_row[0])) if w_row and w_row[0] else 0.0
         
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (identifier,))
+        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (user_id,))
         m_row = tuple(cursor.fetchone() or ())
         month_total = float(str(m_row[0])) if m_row and m_row[0] else 0.0
 
-        cursor.execute("SELECT note, amount FROM transactions WHERE user_email=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE()) ORDER BY amount DESC LIMIT 1", (identifier,))
+        cursor.execute("SELECT note, amount FROM transactions WHERE user_id=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE()) ORDER BY amount DESC LIMIT 1", (user_id,))
         h_row = tuple(cursor.fetchone() or ())
         highest_item = str(h_row[0]) if h_row and h_row[0] else "None"
         highest_amount = float(str(h_row[1])) if h_row else 0.0
@@ -279,9 +288,10 @@ async def handle_weekly_request(phone: str):
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute("SET time_zone = '+05:30'")
-        identifier = get_identifier(cursor, phone)
+        user_id = get_user_id(cursor, phone)
+        if not user_id: return
         
-        cursor.execute("SELECT WEEKDAY(date), SUM(amount) FROM transactions WHERE user_email = %s AND type = 'expense' AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1) GROUP BY WEEKDAY(date)", (identifier,))
+        cursor.execute("SELECT WEEKDAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1) GROUP BY WEEKDAY(date)", (user_id,))
         days = [0.0] * 7 
         for row in cursor.fetchall():
             r = tuple(row)
@@ -300,9 +310,10 @@ async def handle_monthly_request(phone: str):
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute("SET time_zone = '+05:30'")
-        identifier = get_identifier(cursor, phone)
+        user_id = get_user_id(cursor, phone)
+        if not user_id: return
         
-        cursor.execute("SELECT DAY(date), SUM(amount) FROM transactions WHERE user_email = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE()) GROUP BY DAY(date)", (identifier,))
+        cursor.execute("SELECT DAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE()) GROUP BY DAY(date)", (user_id,))
         weeks, month_total = [0.0, 0.0, 0.0, 0.0], 0.0
         
         for row in cursor.fetchall():
@@ -370,8 +381,6 @@ async def handle_dashboard_request(phone: str):
             )
             await send_whatsapp_text(phone, msg)
             
-        await send_whatsapp_text(phone, msg)
-            
     except Exception as e:
         print(f"Dashboard Link Error: {e}")
     finally:
@@ -385,16 +394,17 @@ async def handle_today_request(phone: str):
         cursor = conn.cursor()
         cursor.execute("SET time_zone = '+05:30'")
         
-        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        user_data = cursor.fetchone()
-        identifier = str(user_data[0]) if user_data and user_data[0] else phone # type: ignore
+        user_id = get_user_id(cursor, phone)
+        if not user_id:
+            await send_whatsapp_text(phone, "✨ *No transactions today!* Your wallet is happy.")
+            return
         
         cursor.execute("""
             SELECT amount, note, type 
             FROM transactions 
-            WHERE user_email = %s AND DATE(date) = CURDATE()
+            WHERE user_id = %s AND DATE(date) = CURDATE()
             ORDER BY id DESC
-        """, (identifier,))
+        """, (user_id,))
         
         transactions = cursor.fetchall()
         
@@ -413,10 +423,10 @@ async def handle_today_request(phone: str):
             
             if t_type == 'expense':
                 total_spent += amt
-                details.append(f"🔴 ₹{amt:g} - {note}")
+                details.append(f"₹{amt:g} - {note}")
             else:
                 total_income += amt
-                details.append(f"🟢 ₹{amt:g} - {note}")
+                details.append(f"₹{amt:g} - {note}")
                 
         details.append("\n" + "━" * 15)
         if total_spent > 0:

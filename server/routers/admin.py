@@ -17,7 +17,7 @@ def get_all_users(admin_id: int = Depends(require_admin)):
     try:
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
-        req_role = requester['role'] if requester else 'user'
+        req_role = requester.get('role', 'user') if isinstance(requester, dict) else 'user'
 
         if req_role == 'superadmin':
             cursor.execute("""
@@ -37,17 +37,18 @@ def get_all_users(admin_id: int = Depends(require_admin)):
         
         cursor.execute("SELECT COUNT(*) as count FROM users")
         user_row: Any = cursor.fetchone()
-        total_users = user_row['count'] if user_row else 0
+        total_users = int(user_row['count']) if isinstance(user_row, dict) and user_row.get('count') else 0
         
         cursor.execute("SELECT COUNT(*) as count FROM transactions")
         tx_row: Any = cursor.fetchone()
-        total_tx = tx_row['count'] if tx_row else 0
+        total_tx = int(tx_row['count']) if isinstance(tx_row, dict) and tx_row.get('count') else 0
         
-        conn.close()
         return {"users": users, "stats": {"total_users": total_users, "total_transactions": total_tx}}
     except Exception as e:
         logger.error(f"Admin Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 @router.post("/users")
 def admin_create_user(user: UserRegister, admin_id: int = Depends(require_admin)):
@@ -56,7 +57,7 @@ def admin_create_user(user: UserRegister, admin_id: int = Depends(require_admin)
     try:
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
-        requester_role = requester['role'] if requester else 'user'
+        requester_role = requester.get('role', 'user') if isinstance(requester, dict) else 'user'
 
         target_role = getattr(user, 'role', 'user')
 
@@ -89,12 +90,12 @@ def admin_delete_user(user_id: int, admin_id: int = Depends(require_admin)):
         
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
-        requester_role = requester['role'] if requester else 'user'
+        requester_role = requester.get('role', 'user') if isinstance(requester, dict) else 'user'
 
-        if target:
+        if isinstance(target, dict):
             if user_id == admin_id:
                  raise HTTPException(status_code=400, detail="Cannot delete your own account.")
-            if target['role'] in ['admin', 'superadmin'] and requester_role != 'superadmin':
+            if target.get('role') in ['admin', 'superadmin'] and requester_role != 'superadmin':
                  raise HTTPException(status_code=403, detail="Only Superadmins can delete other Admin accounts.")
 
         cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
@@ -194,7 +195,6 @@ def get_system_metrics(admin_id: int = Depends(require_admin)):
         """)
         slowest = cursor.fetchall()
 
-        # 2. Most Used Endpoints
         cursor.execute("""
             SELECT method, endpoint, COUNT(*) as total_calls, ROUND(AVG(response_time_ms), 2) as avg_time_ms
             FROM api_metrics 
@@ -204,7 +204,6 @@ def get_system_metrics(admin_id: int = Depends(require_admin)):
         """)
         most_used = cursor.fetchall()
 
-        # 3. Errors
         cursor.execute("""
             SELECT method, endpoint, status_code, COUNT(*) as error_count
             FROM api_metrics 
@@ -214,7 +213,6 @@ def get_system_metrics(admin_id: int = Depends(require_admin)):
         """)
         errors = cursor.fetchall()
 
-        # 4. System Health Pulse
         cursor.execute("""
             SELECT 
                 COUNT(*) as total_requests_24h,
@@ -224,15 +222,15 @@ def get_system_metrics(admin_id: int = Depends(require_admin)):
         """)
         pulse_raw = cursor.fetchone()
         
-        pulse: dict[str, Any] = pulse_raw or {"total_requests_24h": 0, "global_avg_ms": 0} # type: ignore
+        pulse: dict[str, Any] = pulse_raw if isinstance(pulse_raw, dict) else {"total_requests_24h": 0, "global_avg_ms": 0}
 
         return {
             "slowest": slowest, 
             "most_used": most_used, 
             "errors": errors,
             "pulse": {
-                "total_requests": pulse.get("total_requests_24h") or 0,
-                "average_time": pulse.get("global_avg_ms") or 0
+                "total_requests": pulse.get("total_requests_24h", 0) or 0,
+                "average_time": pulse.get("global_avg_ms", 0) or 0
             }
         }
     except Exception as e:
@@ -254,7 +252,7 @@ def get_all_feedback(admin_id: int = Depends(require_admin)):
         """)
         return cursor.fetchall()
     except Exception as e:
-        logger.error(f"Admin Feedback Fetch Error: {e}")
+        logger.error(f"Admin Feedback Fetch Error (Attempting Fallback): {e}")
         cursor.execute("""
             SELECT f.*, u.name as user_name, u.profile_pic 
             FROM feedback f 

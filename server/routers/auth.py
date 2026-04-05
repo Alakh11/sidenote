@@ -73,7 +73,10 @@ async def register(payload: RegisterPayload):
         else:
             query = f"INSERT INTO users (name, {field}, mobile, password_hash, is_verified) VALUES (%s, %s, %s, %s, FALSE)"
             cursor.execute(query, (payload.name, payload.contact if field == 'email' else None, target_mobile, hashed_pw))
-            create_default_categories(payload.contact, cursor)
+            
+            user_id = cursor.lastrowid
+            if user_id:
+                create_default_categories(int(user_id), cursor)
 
         # Generate and Send OTP
         if target_mobile:
@@ -187,13 +190,14 @@ def google_login(data: GoogleAuth):
                 (data.name, data.email, data.picture)
             )
             
-            # ADD DEFAULTS
-            create_default_categories(data.email, cursor)
+            user_id = cursor.lastrowid
+            if user_id:
+                create_default_categories(int(user_id), cursor)
             
             conn.commit()
             
             # Fetch the new user to get details
-            cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
+            cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
             user = cursor.fetchone()
             
         token = create_access_token({"sub": str(user['id']), "name": user['name']})
@@ -356,7 +360,8 @@ def complete_profile(request: ProfileCompletionRequest):
             WHERE mobile = %s
         """, (request.name, request.email, hashed_pw, request.mobile))
         
-        create_default_categories(request.email, cursor)
+        if user.get('id'):
+            create_default_categories(int(user['id']), cursor)
         
         conn.commit()
         return {"status": "success", "message": "Profile completed! You can now log in."}

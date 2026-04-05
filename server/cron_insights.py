@@ -18,7 +18,7 @@ async def send_weekly_proactive_insights():
         cursor.execute("SET time_zone = '+05:30'")
         
         # Find all active WhatsApp users
-        cursor.execute("SELECT mobile, email FROM users WHERE mobile IS NOT NULL")
+        cursor.execute("SELECT id, mobile FROM users WHERE mobile IS NOT NULL")
         users = cursor.fetchall()
         
         for user_row in users:
@@ -26,16 +26,15 @@ async def send_weekly_proactive_insights():
             if not user: 
                 continue
             
-            # user[0] is mobile, user[1] is email
-            identifier = str(user[1]) if user[1] else str(user[0])
+            user_id = int(str(user[0]))
+            mobile = str(user[1])
             
-            # 1. Calculate their total expense for the current week
             cursor.execute("""
                 SELECT SUM(amount) FROM transactions 
-                WHERE user_email = %s 
+                WHERE user_id = %s 
                   AND type = 'expense' 
                   AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)
-            """, (identifier,))
+            """, (user_id,))
             
             week_row = cursor.fetchone()
             w_row = tuple(week_row) if week_row else ()
@@ -48,13 +47,13 @@ async def send_weekly_proactive_insights():
                     SELECT c.name, SUM(t.amount) as category_total
                     FROM transactions t
                     LEFT JOIN categories c ON t.category_id = c.id
-                    WHERE t.user_email = %s 
+                    WHERE t.user_id = %s 
                       AND t.type = 'expense' 
                       AND YEARWEEK(t.date, 1) = YEARWEEK(CURDATE(), 1)
                     GROUP BY c.name
                     ORDER BY category_total DESC
                     LIMIT 1
-                """, (identifier,))
+                """, (user_id,))
                 
                 cat_row = cursor.fetchone()
                 c_row = tuple(cat_row) if cat_row else ()
@@ -64,11 +63,11 @@ async def send_weekly_proactive_insights():
                 top_amount = float(str(c_row[1])) if c_row and c_row[1] else 0.0
                 
                 await send_whatsapp_template(
-                    to_number=str(user[0]), 
+                    to_number=mobile, 
                     template_name="weekly_insight_v1_1", 
                     variables=[f"{week_total:g}", top_category, f"{top_amount:g}"] 
                 )
-                logger.info(f"Insight sent to {user[0]}: {top_category} (₹{top_amount:g})")
+                logger.info(f"Insight sent to {mobile}: {top_category} (₹{top_amount:g})")
                 
     except Exception as e:
         logger.error(f"Error sending proactive insights: {e}")

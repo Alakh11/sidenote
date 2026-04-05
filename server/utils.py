@@ -23,7 +23,7 @@ def calculate_interest(principal, rate, period, start_date_str):
         
     return round(interest, 2)
 
-def create_default_categories(email: str, cursor):
+def create_default_categories(user_id: int, cursor):
     defaults = [
         # Income
         ("Salary", "#10B981", "income", "💰"),
@@ -41,16 +41,17 @@ def create_default_categories(email: str, cursor):
         ("Rent/Housing", "#6366F1", "expense", "🏠"),
     ]
     
-    query = "INSERT INTO categories (user_email, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, TRUE)"
-    data = [(email, d[0], d[1], d[2], d[3]) for d in defaults]
+    query = "INSERT INTO categories (user_id, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, TRUE)"
+    
+    data = [(user_id, d[0], d[1], d[2], d[3]) for d in defaults]
     cursor.executemany(query, data)
     
-def get_date_filter_sql(cursor, email, view_by, table_alias="t", date_column="date"):
+def get_date_filter_sql(cursor, user_id: int, view_by: str, table_alias="t", date_column="date"): # Changed email to user_id
     """
     Dynamically generates SQL to filter records based on 'day', 'week', 'month', 'year'
     while perfectly respecting the user's custom month_start_date.
     """
-    cursor.execute("SELECT month_start_date FROM users WHERE email = %s OR mobile = %s", (email, email))
+    cursor.execute("SELECT month_start_date FROM users WHERE id = %s", (user_id,))
     user = cursor.fetchone()
     
     start_date = 1

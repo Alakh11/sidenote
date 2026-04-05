@@ -72,6 +72,7 @@ def init_db():
                 mobile VARCHAR(20) UNIQUE,
                 password_hash VARCHAR(255),
                 profile_pic TEXT,
+                role VARCHAR(50) DEFAULT 'user',
                 currency VARCHAR(10) DEFAULT '₹',
                 month_start_date INT DEFAULT 1,
                 is_verified BOOLEAN DEFAULT FALSE,
@@ -85,12 +86,13 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS categories (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                user_email VARCHAR(255) NOT NULL,
+                user_id INT,
                 name VARCHAR(255) NOT NULL,
                 color VARCHAR(50),
                 type ENUM('income', 'expense') NOT NULL,
                 icon VARCHAR(50),
-                is_default BOOLEAN DEFAULT FALSE
+                is_default BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
 
@@ -98,13 +100,14 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS loans (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                user_email VARCHAR(255) NOT NULL,
+                user_id INT,
                 name VARCHAR(255) NOT NULL,
                 total_amount DECIMAL(15, 2) NOT NULL,
                 interest_rate DECIMAL(5, 2) NOT NULL,
                 tenure_months INT NOT NULL,
                 start_date DATE NOT NULL,
-                emi_amount DECIMAL(10, 2) NOT NULL
+                emi_amount DECIMAL(10, 2) NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
         
@@ -112,11 +115,12 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS goals (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                user_email VARCHAR(255) NOT NULL,
+                user_id INT,
                 name VARCHAR(255) NOT NULL,
                 target_amount DECIMAL(15, 2) NOT NULL,
                 current_amount DECIMAL(15, 2) DEFAULT 0,
-                deadline DATE
+                deadline DATE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
 
@@ -124,7 +128,7 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                user_email VARCHAR(255) NOT NULL,
+                user_id INT,
                 amount DECIMAL(15, 2) NOT NULL,
                 type ENUM('income', 'expense') NOT NULL,
                 category_id INT,
@@ -133,6 +137,7 @@ def init_db():
                 note TEXT,
                 is_recurring BOOLEAN DEFAULT FALSE,
                 goal_id INT,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
                 FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
             )
@@ -142,10 +147,11 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS budgets (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                user_email VARCHAR(255) NOT NULL,
+                user_id INT,
                 category_id INT NOT NULL,
                 amount DECIMAL(15, 2) NOT NULL,
-                UNIQUE KEY unique_budget (user_email, category_id),
+                UNIQUE KEY unique_budget (user_id, category_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
             )
         """)
@@ -154,12 +160,13 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS borrowers (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                user_email VARCHAR(255) NOT NULL,
+                user_id INT,
                 name VARCHAR(255) NOT NULL,
                 total_lent DECIMAL(15, 2) DEFAULT 0,
                 total_repaid DECIMAL(15, 2) DEFAULT 0,
                 current_balance DECIMAL(15, 2) DEFAULT 0,
-                last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
+                last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
 
@@ -168,6 +175,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS debts (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 borrower_id INT NOT NULL,
+                user_id INT,
                 amount DECIMAL(15, 2) NOT NULL,
                 date DATE NOT NULL,
                 due_date DATE,
@@ -307,15 +315,15 @@ class FeedbackSubmit(BaseModel):
     message: str
 
 @app.post("/support/feedback")
-def submit_feedback(data: FeedbackSubmit, email: str = Depends(get_current_user)):
+def submit_feedback(data: FeedbackSubmit, user_id: int = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor()
     try:
         ist_now = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.execute(
-            "INSERT INTO feedback (user_email, type, rating, subject, message, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
-            (email, data.type, data.rating, data.subject, data.message, ist_now)
+            "INSERT INTO feedback (user_id, type, rating, subject, message, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
+            (user_id, data.type, data.rating, data.subject, data.message, ist_now)
         )
         conn.commit()
         return {"message": "Feedback submitted successfully"}
@@ -326,11 +334,11 @@ def submit_feedback(data: FeedbackSubmit, email: str = Depends(get_current_user)
         conn.close()
         
 @app.get("/support/feedback/history")
-def get_user_feedback_history(email: str = Depends(get_current_user)):
+def get_user_feedback_history(user_id: int = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM feedback WHERE user_email = %s ORDER BY created_at DESC", (email,))
+        cursor.execute("SELECT * FROM feedback WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
         return cursor.fetchall()
     finally:
         conn.close()

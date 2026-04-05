@@ -16,15 +16,15 @@ def add_transaction(tx: TransactionCreate):
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute("SELECT id FROM categories WHERE name = %s AND user_email = %s AND type = %s", (tx.category, tx.user_email, tx.type))
+        cursor.execute("SELECT id FROM categories WHERE name = %s AND user_id = %s AND type = %s", (tx.category, tx.user_id, tx.type))
         result: Any = cursor.fetchone()
         if not result:
-             cursor.execute("SELECT id FROM categories WHERE user_email = %s AND type = %s LIMIT 1", (tx.user_email, tx.type))
+             cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
         cat_id = result[0] if result else 1
 
-        query = "INSERT INTO transactions (user_email, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-        cursor.execute(query, (tx.user_email, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring)) # type: ignore
+        query = "INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring)) # type: ignore
         conn.commit()
         return {"message": "Transaction Saved"}
     except Exception as e:
@@ -33,9 +33,9 @@ def add_transaction(tx: TransactionCreate):
     finally:
         conn.close()
 
-@router.get("/transactions/all/{email}")
+@router.get("/transactions/all/{user_id}")
 def get_all_transactions(
-    email: str,
+    user_id: int,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     category_id: Optional[int] = None,
@@ -52,10 +52,9 @@ def get_all_transactions(
             SELECT t.*, c.name as category_name, c.icon as category_icon
             FROM transactions t 
             LEFT JOIN categories c ON t.category_id = c.id 
-            WHERE t.user_email = %s
+            WHERE t.user_id = %s
         """
-        # Explicitly declare this as a list of Any, so floats/ints can be appended
-        params: list[Any] = [email] 
+        params: list[Any] = [user_id] 
 
         if start_date:
             query += " AND t.date >= %s"
@@ -116,11 +115,11 @@ def delete_transaction(id: int):
 
 # ================= CATEGORY ENDPOINTS =================
 
-@router.get("/categories/{email}")
-def get_categories(email: str):
+@router.get("/categories/{user_id}")
+def get_categories(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM categories WHERE user_email = %s", (email,))
+    cursor.execute("SELECT * FROM categories WHERE user_id = %s", (user_id,))
     data = cursor.fetchall()
     conn.close()
     return data
@@ -131,7 +130,8 @@ def add_category(cat: CategoryCreate):
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute(
-            "INSERT INTO categories (user_email, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, FALSE)", (cat.user_email, cat.name, cat.color, cat.type, cat.icon)
+            "INSERT INTO categories (user_id, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, FALSE)", 
+            (cat.user_id, cat.name, cat.color, cat.type, cat.icon)
         )
         conn.commit()
         return {"message": "Category created"}
@@ -182,23 +182,23 @@ def set_budget(budget: BudgetSchema):
         conn = get_db()
         cursor = conn.cursor(dictionary=True, buffered=True)
         cursor.execute("""
-            INSERT INTO budgets (user_email, category_id, amount)
+            INSERT INTO budgets (user_id, category_id, amount)
             VALUES (%s, %s, %s)
             ON DUPLICATE KEY UPDATE amount = %s
-        """, (budget.user_email, budget.category_id, budget.amount, budget.amount))
+        """, (budget.user_id, budget.category_id, budget.amount, budget.amount))
         conn.commit()
         conn.close()
         return {"message": "Budget saved"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/budgets/{email}")
-def get_budgets_status(email: str, view_by: str = Query("month")):
+@router.get("/budgets/{user_id}")
+def get_budgets_status(user_id: int, view_by: str = Query("month")):
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
         
-        date_filter = get_date_filter_sql(cursor, email, view_by, "t", "date")
+        date_filter = get_date_filter_sql(cursor, user_id, view_by, "t", "date")
 
         query = f"""
             SELECT 
@@ -209,19 +209,18 @@ def get_budgets_status(email: str, view_by: str = Query("month")):
                 COALESCE(b.amount, 0) as budget_limit,
                 COALESCE(SUM(t.amount), 0) as spent
             FROM categories c
-            LEFT JOIN budgets b ON c.id = b.category_id AND b.user_email = %s
+            LEFT JOIN budgets b ON c.id = b.category_id AND b.user_id = %s
             LEFT JOIN transactions t ON c.id = t.category_id 
-                 AND t.user_email = %s 
+                 AND t.user_id = %s 
                  AND t.type = 'expense'
                  AND {date_filter}
-            WHERE (c.user_email = %s OR c.user_email IS NULL) AND c.type = 'expense'
+            WHERE (c.user_id = %s OR c.user_id IS NULL) AND c.type = 'expense'
             GROUP BY c.id, c.name, c.color, c.icon, b.amount
         """
-        cursor.execute(query, (email, email, email))
-        budgets: list[Any] = cursor.fetchall() # Type hint to satisfy Pylance dict access
+        cursor.execute(query, (user_id, user_id, user_id))
+        budgets: list[Any] = cursor.fetchall()
 
         for b in budgets:
-            # Explicitly cast to float to satisfy Pylance
             limit = float(b['budget_limit'])
             spent = float(b['spent'])
             b['percentage'] = (spent / limit * 100) if limit > 0 else 0
@@ -233,15 +232,15 @@ def get_budgets_status(email: str, view_by: str = Query("month")):
         logger.error(f"Budget Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/budgets/history/{email}")
-def get_budget_history(email: str):
+@router.get("/budgets/history/{user_id}")
+def get_budget_history(user_id: int):
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
         
         # 1. Get Custom Date Offset
-        cursor.execute("SELECT month_start_date FROM users WHERE email = %s", (email,))
-        user: Any = cursor.fetchone() # Type hint
+        cursor.execute("SELECT month_start_date FROM users WHERE id = %s", (user_id,))
+        user: Any = cursor.fetchone() 
         offset = (int(user['month_start_date']) - 1) if user and user.get('month_start_date') else 0
         
         adjusted_date = f"DATE_SUB(date, INTERVAL {offset} DAY)"
@@ -250,17 +249,17 @@ def get_budget_history(email: str):
         query = f"""
             SELECT {adjusted_date} as adj_date, amount
             FROM transactions 
-            WHERE user_email = %s 
+            WHERE user_id = %s 
               AND type = 'expense'
               AND {adjusted_date} >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
             ORDER BY adj_date ASC
         """
-        cursor.execute(query, (email,))
-        transactions: list[Any] = cursor.fetchall() # Type hint
+        cursor.execute(query, (user_id,))
+        transactions: list[Any] = cursor.fetchall() 
         
         # 3. Get Budget Limit
-        cursor.execute("SELECT SUM(amount) as total_limit FROM budgets WHERE user_email = %s", (email,))
-        limit_row: Any = cursor.fetchone() # Type hint
+        cursor.execute("SELECT SUM(amount) as total_limit FROM budgets WHERE user_id = %s", (user_id,))
+        limit_row: Any = cursor.fetchone() 
         total_limit = float(limit_row['total_limit']) if limit_row and limit_row['total_limit'] else 0
         
         conn.close()
@@ -295,10 +294,10 @@ def update_transaction(id: int, tx: TransactionCreate):
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute("SELECT id FROM categories WHERE name = %s AND user_email = %s AND type = %s", (tx.category, tx.user_email, tx.type))
+        cursor.execute("SELECT id FROM categories WHERE name = %s AND user_id = %s AND type = %s", (tx.category, tx.user_id, tx.type))
         result: Any = cursor.fetchone()
         if not result:
-             cursor.execute("SELECT id FROM categories WHERE user_email = %s AND type = %s LIMIT 1", (tx.user_email, tx.type))
+             cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
         cat_id = result[0] if result else 1
 
@@ -317,21 +316,21 @@ def update_transaction(id: int, tx: TransactionCreate):
     finally:
         conn.close()
         
-@router.get("/transactions/{email}")
-def get_user_transactions(email: str, view_by: str = Query("month")):
+@router.get("/transactions/{user_id}")
+def get_user_transactions(user_id: int, view_by: str = Query("month")):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        date_filter = get_date_filter_sql(cursor, email, view_by, "t", "date")
+        date_filter = get_date_filter_sql(cursor, user_id, view_by, "t", "date")
         
         query = f"""
             SELECT t.*, c.name as category_name, c.icon as category_icon 
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.user_email = %s AND {date_filter}
+            WHERE t.user_id = %s AND {date_filter}
             ORDER BY t.date DESC
         """
-        cursor.execute(query, (email,))
+        cursor.execute(query, (user_id,))
         return cursor.fetchall()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

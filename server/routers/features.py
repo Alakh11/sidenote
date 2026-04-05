@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Any
 from database import get_db
 from schemas import (
@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 # ================= GOALS =================
 
-@router.get("/goals/{email}")
-def get_goals(email: str):
+@router.get("/goals/{user_id}")
+def get_goals(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM goals WHERE user_email = %s", (email,))
+    cursor.execute("SELECT * FROM goals WHERE user_id = %s", (user_id,)) # SQL Update
     data: list[Any] = cursor.fetchall()
     conn.close()
     return data
@@ -27,7 +27,7 @@ def get_goals(email: str):
 def add_goal(goal: GoalCreate):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO goals (user_email, name, target_amount, deadline) VALUES (%s, %s, %s, %s)", (goal.user_email, goal.name, goal.target_amount, goal.deadline))
+    cursor.execute("INSERT INTO goals (user_id, name, target_amount, deadline) VALUES (%s, %s, %s, %s)", (goal.user_id, goal.name, goal.target_amount, goal.deadline))
     conn.commit()
     conn.close()
     return {"message": "Goal added"}
@@ -57,18 +57,18 @@ def add_money_to_goal(update: GoalUpdate):
         tx_type = 'expense' if is_saving else 'income'
         tx_note = f"Saved for {goal['name']}" if is_saving else f"Withdrew from {goal['name']}"
         
-        cursor.execute("SELECT id FROM categories WHERE name = 'Savings' AND user_email = %s", (goal['user_email'],))
+        cursor.execute("SELECT id FROM categories WHERE name = 'Savings' AND user_id = %s", (goal['user_id'],))
         cat: Any = cursor.fetchone()
         if not cat:
-            cursor.execute("INSERT INTO categories (user_email, name, color, type, icon, is_default) VALUES (%s, 'Savings', '#10B981', 'expense', '🐷', TRUE)", (goal['user_email'],))
+            cursor.execute("INSERT INTO categories (user_id, name, color, type, icon, is_default) VALUES (%s, 'Savings', '#10B981', 'expense', '🐷', TRUE)", (goal['user_id'],))
             cat_id = cursor.lastrowid
         else:
             cat_id = cat['id']
 
         cursor.execute("""
-            INSERT INTO transactions (user_email, amount, type, category_id, payment_mode, date, note, goal_id) 
+            INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, goal_id) 
             VALUES (%s, %s, %s, %s, 'Transfer', NOW(), %s, %s)
-        """, (goal['user_email'], abs(update.amount_added), tx_type, cat_id, tx_note, update.goal_id))
+        """, (goal['user_id'], abs(update.amount_added), tx_type, cat_id, tx_note, update.goal_id))
 
         conn.commit()
         print("Money added to goal")
@@ -84,11 +84,7 @@ def get_goal_history(id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
-            SELECT * FROM transactions 
-            WHERE goal_id = %s 
-            ORDER BY date DESC
-        """, (id,))
+        cursor.execute("SELECT * FROM transactions WHERE goal_id = %s ORDER BY date DESC", (id,))
         data: list[Any] = cursor.fetchall()
         return data
     finally:
@@ -105,25 +101,22 @@ def add_loan(loan: LoanCreate):
     R = (loan.interest_rate / 12) / 100
     N = loan.tenure_months
     
-    if R == 0:
-        emi = P / N
-    else:
-        emi = (P * R * pow(1 + R, N)) / (pow(1 + R, N) - 1)
+    emi = (P / N) if R == 0 else (P * R * pow(1 + R, N)) / (pow(1 + R, N) - 1)
     
     cursor.execute("""
-        INSERT INTO loans (user_email, name, total_amount, interest_rate, tenure_months, start_date, emi_amount)
+        INSERT INTO loans (user_id, name, total_amount, interest_rate, tenure_months, start_date, emi_amount)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """, (loan.user_email, loan.name, loan.total_amount, loan.interest_rate, loan.tenure_months, loan.start_date, emi))
+    """, (loan.user_id, loan.name, loan.total_amount, loan.interest_rate, loan.tenure_months, loan.start_date, emi))
     
     conn.commit()
     conn.close()
     return {"message": "Loan added"}
 
-@router.get("/loans/{email}")
-def get_loans(email: str):
+@router.get("/loans/{user_id}")
+def get_loans(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM loans WHERE user_email = %s", (email,))
+    cursor.execute("SELECT * FROM loans WHERE user_id = %s", (user_id,))
     loans: list[Any] = cursor.fetchall()
     
     for loan in loans:
@@ -134,7 +127,6 @@ def get_loans(email: str):
         emi_amount = float(loan['emi_amount'])
         
         months_passed = max(0, min(months_passed, tenure_months))
-        
         loan['months_paid'] = months_passed
         loan['amount_paid'] = emi_amount * months_passed
         loan['amount_remaining'] = (emi_amount * tenure_months) - loan['amount_paid']
@@ -157,30 +149,15 @@ def update_loan(loan_id: int, loan: LoanUpdate):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
         r = (loan.interest_rate / 12) / 100
         n = loan.tenure_months
-        
-        if r == 0:
-            emi = loan.total_amount / n
-        else:
-            emi = (loan.total_amount * r * ((1 + r) ** n)) / (((1 + r) ** n) - 1)
+        emi = (loan.total_amount / n) if r == 0 else (loan.total_amount * r * ((1 + r) ** n)) / (((1 + r) ** n) - 1)
 
         query = """
-            UPDATE loans 
-            SET name = %s, total_amount = %s, interest_rate = %s, 
-                tenure_months = %s, start_date = %s, emi_amount = %s
-            WHERE id = %s
+            UPDATE loans SET name = %s, total_amount = %s, interest_rate = %s, 
+            tenure_months = %s, start_date = %s, emi_amount = %s WHERE id = %s
         """
-        cursor.execute(query, (
-            loan.name, 
-            loan.total_amount, 
-            loan.interest_rate, 
-            loan.tenure_months, 
-            loan.start_date, 
-            emi, 
-            loan_id
-        ))
+        cursor.execute(query, (loan.name, loan.total_amount, loan.interest_rate, loan.tenure_months, loan.start_date, emi, loan_id))
         conn.commit()
         conn.close()
         return {"message": "Loan updated successfully"}
@@ -190,35 +167,31 @@ def update_loan(loan_id: int, loan: LoanUpdate):
 
 # --- DEBT TRACKER ENDPOINTS ---
 
-@router.get("/debts/dashboard/{email}")
-def get_debt_dashboard(email: str):
+@router.get("/debts/dashboard/{user_id}")
+def get_debt_dashboard(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     
     cursor.execute("""
-        SELECT 
-            SUM(total_lent) as total_lent, 
-            SUM(total_repaid) as total_repaid,
-            SUM(current_balance) as outstanding
-        FROM borrowers WHERE user_email = %s
-    """, (email,))
+        SELECT SUM(total_lent) as total_lent, SUM(total_repaid) as total_repaid, SUM(current_balance) as outstanding
+        FROM borrowers WHERE user_id = %s
+    """, (user_id,))
     stats: Any = cursor.fetchone()
     
     cursor.execute("""
-        SELECT * FROM borrowers 
-        WHERE user_email = %s AND current_balance > 0 
+        SELECT * FROM borrowers WHERE user_id = %s AND current_balance > 0 
         ORDER BY current_balance DESC LIMIT 3
-    """, (email,))
+    """, (user_id,))
     top_borrowers: list[Any] = cursor.fetchall()
     
     conn.close()
     return {"stats": stats, "top_borrowers": top_borrowers}
 
-@router.get("/debts/borrowers/{email}")
-def get_borrowers(email: str):
+@router.get("/debts/borrowers/{user_id}")
+def get_borrowers(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM borrowers WHERE user_email = %s ORDER BY last_activity DESC", (email,))
+    cursor.execute("SELECT * FROM borrowers WHERE user_id = %s ORDER BY last_activity DESC", (user_id,)) # SQL Update
     borrowers: list[Any] = cursor.fetchall()
     conn.close()
     return borrowers
@@ -230,27 +203,21 @@ def lend_money(debt: DebtCreate):
     try:
         borrower_id = debt.borrower_id
         if not borrower_id and debt.new_borrower_name:
-            cursor.execute(
-                "INSERT INTO borrowers (user_email, name) VALUES (%s, %s)",
-                (debt.user_email, debt.new_borrower_name)
-            )
+            cursor.execute("INSERT INTO borrowers (user_id, name) VALUES (%s, %s)", (debt.user_id, debt.new_borrower_name))
             borrower_id = cursor.lastrowid
             
         if not borrower_id:
             raise HTTPException(status_code=400, detail="Borrower ID or Name required")
 
         cursor.execute("""
-            INSERT INTO debts (borrower_id, amount, date, due_date, reason, status, interest_rate, interest_period)
-            VALUES (%s, %s, %s, %s, %s, 'Pending', %s, %s)
-        """, (borrower_id, debt.amount, debt.date, debt.due_date, debt.reason, debt.interest_rate, debt.interest_period))
+            INSERT INTO debts (borrower_id, amount, date, due_date, reason, status, interest_rate, interest_period, user_id)
+            VALUES (%s, %s, %s, %s, %s, 'Pending', %s, %s, %s)
+        """, (borrower_id, debt.amount, debt.date, debt.due_date, debt.reason, debt.interest_rate, debt.interest_period, debt.user_id))
 
         cursor.execute("""
-            UPDATE borrowers 
-            SET total_lent = total_lent + %s, 
-                current_balance = current_balance + %s,
-                last_activity = NOW()
+            UPDATE borrowers SET total_lent = total_lent + %s, current_balance = current_balance + %s, last_activity = NOW()
             WHERE id = %s
-        """, (debt.amount, debt.amount, borrower_id)) # type: ignore
+        """, (debt.amount, debt.amount, borrower_id))
         
         conn.commit()
         return {"message": "Lending recorded successfully"}
@@ -264,7 +231,6 @@ def lend_money(debt: DebtCreate):
 def repay_money(repay: RepaymentCreate):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    
     try:
         cursor.execute("SELECT * FROM debts WHERE id = %s", (repay.debt_id,))
         debt: Any = cursor.fetchone()
@@ -275,22 +241,16 @@ def repay_money(repay: RepaymentCreate):
         is_fully_paid = new_repaid >= float(debt['amount'])
         new_status = 'Paid' if is_fully_paid else 'Partial'
         
-        cursor.execute("""
-            INSERT INTO repayments (debt_id, amount, date, mode)
-            VALUES (%s, %s, %s, %s)
-        """, (repay.debt_id, repay.amount, repay.date, repay.mode))
+        cursor.execute("INSERT INTO repayments (debt_id, amount, date, mode) VALUES (%s, %s, %s, %s)", 
+                       (repay.debt_id, repay.amount, repay.date, repay.mode))
+        
+        cursor.execute("UPDATE debts SET amount_repaid = %s, status = %s WHERE id = %s", 
+                       (new_repaid, new_status, repay.debt_id))
         
         cursor.execute("""
-            UPDATE debts SET amount_repaid = %s, status = %s WHERE id = %s
-        """, (new_repaid, new_status, repay.debt_id)) # type: ignore
-        
-        cursor.execute("""
-            UPDATE borrowers 
-            SET total_repaid = total_repaid + %s, 
-                current_balance = current_balance - %s,
-                last_activity = NOW()
+            UPDATE borrowers SET total_repaid = total_repaid + %s, current_balance = current_balance - %s, last_activity = NOW()
             WHERE id = %s
-        """, (repay.amount, repay.amount, debt['borrower_id'])) # type: ignore
+        """, (repay.amount, repay.amount, debt['borrower_id']))
         
         conn.commit()
         return {"message": "Repayment recorded"}
@@ -304,10 +264,8 @@ def repay_money(repay: RepaymentCreate):
 def get_ledger(borrower_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    
     cursor.execute("SELECT * FROM borrowers WHERE id = %s", (borrower_id,))
     borrower: Any = cursor.fetchone()
-    
     cursor.execute("SELECT * FROM debts WHERE borrower_id = %s ORDER BY date DESC", (borrower_id,))
     debts: list[Any] = cursor.fetchall()
     
@@ -330,17 +288,12 @@ def get_ledger(borrower_id: int):
             if date.today() > due_date:
                 d['is_overdue'] = True
                 risk_flags.append(f"Overdue: {d['reason']}")
-            else:
-                d['is_overdue'] = False
-        else:
-            d['is_overdue'] = False
+            else: d['is_overdue'] = False
+        else: d['is_overdue'] = False
 
     cursor.execute("""
-        SELECT r.*, d.reason as loan_reason 
-        FROM repayments r
-        JOIN debts d ON r.debt_id = d.id
-        WHERE d.borrower_id = %s
-        ORDER BY r.date DESC
+        SELECT r.*, d.reason as loan_reason FROM repayments r
+        JOIN debts d ON r.debt_id = d.id WHERE d.borrower_id = %s ORDER BY r.date DESC
     """, (borrower_id,))
     repayments: list[Any] = cursor.fetchall()
 
@@ -349,11 +302,8 @@ def get_ledger(borrower_id: int):
         
     conn.close()
     return {
-        "borrower": borrower, 
-        "debts": debts, 
-        "repayments": repayments, 
-        "total_interest": total_interest_accrued,
-        "risks": list(set(risk_flags))
+        "borrower": borrower, "debts": debts, "repayments": repayments, 
+        "total_interest": total_interest_accrued, "risks": list(set(risk_flags))
     }
 
 @router.post("/debts/mark-paid")
@@ -364,22 +314,15 @@ def mark_fully_paid(req: MarkPaidRequest):
         cursor.execute("SELECT * FROM debts WHERE id = %s", (req.debt_id,))
         debt: Any = cursor.fetchone()
         remaining = float(debt['amount']) - float(debt['amount_repaid'])
-        
-        if remaining <= 0:
-            return {"message": "Already paid"}
+        if remaining <= 0: return {"message": "Already paid"}
 
-        cursor.execute("""
-            INSERT INTO repayments (debt_id, amount, date, mode)
-            VALUES (%s, %s, %s, 'Cash')
-        """, (req.debt_id, remaining, req.date))
-        
+        cursor.execute("INSERT INTO repayments (debt_id, amount, date, mode) VALUES (%s, %s, %s, 'Cash')", 
+                       (req.debt_id, remaining, req.date))
         cursor.execute("UPDATE debts SET amount_repaid = amount, status = 'Paid' WHERE id = %s", (req.debt_id,))
-        
         cursor.execute("""
             UPDATE borrowers SET total_repaid = total_repaid + %s, current_balance = current_balance - %s, last_activity = NOW()
             WHERE id = %s
-        """, (remaining, remaining, debt['borrower_id'])) # type: ignore
-        
+        """, (remaining, remaining, debt['borrower_id']))
         conn.commit()
         return {"message": "Marked as paid"}
     except Exception as e:
@@ -395,8 +338,7 @@ def delete_debt(id: int):
     try:
         cursor.execute("SELECT * FROM debts WHERE id = %s", (id,))
         debt: Any = cursor.fetchone()
-        if not debt:
-            raise HTTPException(status_code=404, detail="Debt not found")
+        if not debt: raise HTTPException(status_code=404, detail="Debt not found")
             
         borrower_id = debt['borrower_id']
         amount_lent = float(debt['amount'])
@@ -404,15 +346,10 @@ def delete_debt(id: int):
         balance_to_reduce = amount_lent - amount_repaid
         
         cursor.execute("DELETE FROM debts WHERE id = %s", (id,))
-        
         cursor.execute("""
-            UPDATE borrowers 
-            SET total_lent = total_lent - %s,
-                total_repaid = total_repaid - %s,
-                current_balance = current_balance - %s
-            WHERE id = %s
-        """, (amount_lent, amount_repaid, balance_to_reduce, borrower_id)) # type: ignore
-        
+            UPDATE borrowers SET total_lent = total_lent - %s, total_repaid = total_repaid - %s,
+            current_balance = current_balance - %s WHERE id = %s
+        """, (amount_lent, amount_repaid, balance_to_reduce, borrower_id))
         conn.commit()
         return {"message": "Debt deleted"}
     except Exception as e:
