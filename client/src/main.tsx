@@ -5,10 +5,12 @@ import App from './App.tsx'
 import { ThemeProvider } from './context/ThemeContext';
 import posthog from 'posthog-js';
 
+const POSTHOG_API_KEY = "phc_wKFPSyD8ekMHmncoerxEaMy5yYL8ocxnbcPhtGpGbA7Z";
 if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/admin')) {
-  posthog.init('YOUR_POSTHOG_API_KEY', {
+  posthog.init(POSTHOG_API_KEY, {
     api_host: 'https://app.posthog.com',
     autocapture: true,
+    person_profiles: 'identified_only'
   });
 }
 
