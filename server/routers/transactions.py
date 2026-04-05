@@ -21,7 +21,7 @@ def add_transaction(tx: TransactionCreate):
         if not result:
              cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
-        cat_id = result[0] if result else 1
+        cat_id = result['id'] if result else 1
 
         query = "INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring)) # type: ignore
@@ -299,7 +299,7 @@ def update_transaction(id: int, tx: TransactionCreate):
         if not result:
              cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
-        cat_id = result[0] if result else 1
+        cat_id = result['id'] if result else 1
 
         query = """
             UPDATE transactions 
