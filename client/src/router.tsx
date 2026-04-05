@@ -25,6 +25,9 @@ import ProfileSettings from './components/Settings/ProfileSettings';
 import Home from './components/Home/home';
 import Auth from './components/Auth/Auth';
 import Feedback from './components/Support/Feedback';
+import FAQ from './components/Support/FAQ';
+import TermsAndConditions from './components/Legal/Terms';
+import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 
 interface UserWithRole extends User {
   role?: 'admin' | 'superadmin' | string;
@@ -234,7 +237,7 @@ const loginRoute = createRoute({
         <div className="relative z-10 w-full max-w-md p-4 flex justify-center">
             <Auth onLoginSuccess={(user, token) => {
               localStorage.setItem('token', token);
-              localStorage.setItem('user_data', JSON.stringify(user)); // <-- Fixed key to match App.tsx
+              localStorage.setItem('user_data', JSON.stringify(user)); 
               window.location.href = '/dashboard';
             }} />
         </div>
@@ -242,6 +245,7 @@ const loginRoute = createRoute({
     );
   }
 });
+
 // --- 12. Admin Route ---
 const adminRoute = createRoute({
   getParentRoute: () => authRoute,
@@ -261,6 +265,7 @@ const adminRoute = createRoute({
   component: AdminPanel,
 });
 
+// --- 13. Settings & Support Routes ---
 const settingsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: 'settings',
@@ -271,6 +276,25 @@ const feedbackRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/feedback',
   component: Feedback,
+});
+
+// --- 14. Legal & FAQ Routes ---
+const faqRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/faq',
+  component: FAQ,
+});
+
+const termsRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/terms',
+  component: TermsAndConditions,
+});
+
+const privacyRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/privacy',
+  component: PrivacyPolicy,
 });
 
 const notFoundRoute = new NotFoundRoute({
@@ -296,6 +320,9 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     settingsRoute,
     feedbackRoute,
+    faqRoute,
+    termsRoute,
+    privacyRoute,
   ])
 ]);
 

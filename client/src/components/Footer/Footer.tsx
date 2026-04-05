@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 
 const FOOTER_LINKS = [
   { label: 'Home', href: '/' },
+  { label: 'FAQ', href: '/faq' },
   { label: 'Terms & Conditions', href: '/terms' },
   { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Support & Feedback', href: '/feedback' },
@@ -14,7 +15,7 @@ export default function Footer() {
         
         {/* Copyright Section */}
         <div className="text-xs md:text-sm text-slate-500 dark:text-slate-400 font-medium text-center md:text-left">
-          &copy; 2026 <span className="font-bold text-[#111111] dark:text-white">Side<span className="text-[#25D366]">Note</span></span>. All rights reserved.
+          &copy; {new Date().getFullYear()} <span className="font-bold text-[#111111] dark:text-white">Side<span className="text-[#25D366]">Note</span></span>. All rights reserved.
         </div>
 
         {/* Dynamic Navigation Links */}
