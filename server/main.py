@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
-posthog.project_api_key = 'YOUR_POSTHOG_API_KEY'
+posthog.project_api_key = os.getenv("POSTHOG_API_KEY")
 posthog.host = 'https://app.posthog.com'
 
 # CORS Setup
