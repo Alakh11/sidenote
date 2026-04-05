@@ -38,7 +38,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   
   const router = useRouter();
   const { user, handleLogout } = router.options.context as any;
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const { viewMode, setViewMode } = usePreferences();
 
   const menuItems = [
