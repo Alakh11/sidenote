@@ -63,7 +63,7 @@ def get_all_users(
             SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
             FROM users 
             WHERE {where_str}
-            ORDER BY {sort_by} {sort_order} 
+            ORDER BY {sort_by} {sort_order}, id {sort_order} 
             LIMIT %s OFFSET %s
         """
         data_params = params + [limit, (page - 1) * limit]
