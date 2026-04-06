@@ -144,7 +144,6 @@ def delete_transaction(id: int):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-        return {"message": "Deleted"}
 
 # ================= CATEGORY ENDPOINTS =================
 
