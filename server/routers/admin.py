@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Any, Optional
 from database import get_db
 from security import require_admin, pwd_context
 from schemas import UserRegister, AdminUpdateUser
@@ -11,7 +11,21 @@ router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 logger = logging.getLogger(__name__)
 
 @router.get("/users")
-def get_all_users(admin_id: int = Depends(require_admin)):
+def get_all_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("DESC"),
+    admin_id: int = Depends(require_admin)
+):
+    valid_sort_columns = ["id", "name", "email", "mobile", "created_at"]
+    if sort_by not in valid_sort_columns:
+        sort_by = "created_at"
+    sort_order = "ASC" if sort_order.upper() == "ASC" else "DESC"
+
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -19,31 +33,57 @@ def get_all_users(admin_id: int = Depends(require_admin)):
         requester: Any = cursor.fetchone()
         req_role = requester.get('role', 'user') if isinstance(requester, dict) else 'user'
 
-        if req_role == 'superadmin':
-            cursor.execute("""
-                SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
-                FROM users 
-                ORDER BY created_at DESC
-            """)
-        else:
-            cursor.execute("""
-                SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
-                FROM users 
-                WHERE role != 'superadmin'
-                ORDER BY created_at DESC
-            """)
-            
+        where_clauses = ["1=1"]
+        params: list[Any] = []
+
+        if req_role != 'superadmin':
+            where_clauses.append("role != 'superadmin'")
+
+        if search:
+            search_term = f"%{search}%"
+            where_clauses.append("(name LIKE %s OR email LIKE %s OR mobile LIKE %s OR CAST(id AS CHAR) LIKE %s)")
+            params.extend([search_term, search_term, search_term, search_term])
+
+        if start_date:
+            where_clauses.append("DATE(created_at) >= %s")
+            params.append(start_date)
+        if end_date:
+            where_clauses.append("DATE(created_at) <= %s")
+            params.append(end_date)
+
+        where_str = " AND ".join(where_clauses)
+
+        count_query = f"SELECT COUNT(*) as count FROM users WHERE {where_str}"
+        cursor.execute(count_query, params)
+        count_row: Any = cursor.fetchone()
+        total_items = int(count_row['count']) if isinstance(count_row, dict) and count_row.get('count') else 0
+
+        data_query = f"""
+            SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
+            FROM users 
+            WHERE {where_str}
+            ORDER BY {sort_by} {sort_order} 
+            LIMIT %s OFFSET %s
+        """
+        data_params = params + [limit, (page - 1) * limit]
+        cursor.execute(data_query, data_params)
         users: list[Any] = cursor.fetchall()
-        
-        cursor.execute("SELECT COUNT(*) as count FROM users")
-        user_row: Any = cursor.fetchone()
-        total_users = int(user_row['count']) if isinstance(user_row, dict) and user_row.get('count') else 0
         
         cursor.execute("SELECT COUNT(*) as count FROM transactions")
         tx_row: Any = cursor.fetchone()
         total_tx = int(tx_row['count']) if isinstance(tx_row, dict) and tx_row.get('count') else 0
         
-        return {"users": users, "stats": {"total_users": total_users, "total_transactions": total_tx}}
+        return {
+            "data": users, 
+            "total": total_items,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_items + limit - 1) // limit,
+            "stats": {
+                "total_users": total_items, 
+                "total_transactions": total_tx
+            }
+        }
     except Exception as e:
         logger.error(f"Admin Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

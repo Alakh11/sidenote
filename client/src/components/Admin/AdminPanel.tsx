@@ -2,7 +2,7 @@ import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { 
   Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
   Plus, Save, X, Key, Wallet, Target, ReceiptIndianRupee, Activity, Zap, Clock,
-  MessageSquare, Bug, Star, HelpCircle, Send, Crown
+  MessageSquare, Bug, Star, HelpCircle, Send, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -11,10 +11,21 @@ const API_URL = "https://api.sidenote.in";
 
 export default function AdminPanel() {
   const router = useRouter();
-  const { users, stats } = useLoaderData({ from: '/_auth/admin' });
+  const { users: initialUsers, stats: initialStats } = useLoaderData({ from: '/_auth/admin' });
   const { user: currentUser } = router.options.context as any;
   const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
+
+  const [serverUsers, setServerUsers] = useState<any[]>(initialUsers || []);
+  const [serverStats, setServerStats] = useState<any>(initialStats || { total_users: 0, total_transactions: 0 });
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState<'ASC'|'DESC'>('DESC');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [search, setSearch] = useState('');
   const [adminTab, setAdminTab] = useState<'users' | 'metrics' | 'feedback'>('users');
@@ -25,13 +36,44 @@ export default function AdminPanel() {
 
   const [formData, setFormData] = useState({ name: '', email: '', mobile: '', password: '', role: 'user' });
 
+  useEffect(() => {
+      const timer = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 500);
+      return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchUsers = async () => {
+      try {
+          const res = await axios.get(`${API_URL}/admin/users`, {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+              params: { page, limit, search: debouncedSearch, start_date: startDate, end_date: endDate, sort_by: sortBy, sort_order: sortOrder }
+          });
+          setServerUsers(res.data.data);
+          setTotalPages(res.data.total_pages);
+          setServerStats(res.data.stats);
+      } catch (error) { console.error("Failed to fetch users"); }
+  };
+
+  useEffect(() => {
+      if (adminTab === 'users') fetchUsers();
+  }, [page, limit, debouncedSearch, startDate, endDate, sortBy, sortOrder, adminTab]);
+
+  const handleSort = (column: string) => {
+      if (sortBy === column) setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
+      else { setSortBy(column); setSortOrder('ASC'); }
+  };
+
+  const SortIcon = ({ col }: { col: string }) => {
+      if (sortBy !== col) return null;
+      return sortOrder === 'ASC' ? <ArrowUp size={12} className="inline ml-1"/> : <ArrowDown size={12} className="inline ml-1"/>;
+  };
+
   const handleDelete = async (id: number) => {
       if(!confirm("DELETE USER? This will erase ALL their data PERMANENTLY.")) return;
       try {
           await axios.delete(`${API_URL}/admin/users/${id}`, {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
-          router.invalidate();
+          fetchUsers();
       } catch(e: any) { alert(e.response?.data?.detail || "Delete failed"); }
   };
 
@@ -64,16 +106,10 @@ export default function AdminPanel() {
           setIsCreating(false);
           setEditingUser(null);
           setFormData({ name: '', email: '', mobile: '', password: '', role: 'user' });
-          router.invalidate();
+          fetchUsers();
           alert("Success!");
       } catch(e: any) { alert(e.response?.data?.detail || "Operation failed"); }
   };
-
-  const filteredUsers = users.filter((u: any) => 
-    u.name.toLowerCase().includes(search.toLowerCase()) || 
-    (u.email && u.email.toLowerCase().includes(search.toLowerCase())) ||
-    (u.mobile && u.mobile.includes(search))
-  );
 
   if (viewUser) return <UserDetailView userId={viewUser.id} onBack={() => setViewUser(null)} />;
 
@@ -90,11 +126,11 @@ export default function AdminPanel() {
         <div className="flex gap-4">
             <div className="bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[140px]">
                 <div className="flex items-center gap-2 mb-1"><Users size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Users</p></div>
-                <p className="text-2xl font-black text-stone-800 dark:text-white">{stats.total_users}</p>
+                <p className="text-2xl font-black text-stone-800 dark:text-white">{serverStats.total_users}</p>
             </div>
             <div className="bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[140px]">
                  <div className="flex items-center gap-2 mb-1"><Wallet size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Tx</p></div>
-                <p className="text-2xl font-black text-indigo-600">{stats.total_transactions}</p>
+                <p className="text-2xl font-black text-indigo-600">{serverStats.total_transactions}</p>
             </div>
             <button 
                 onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user'}); }}
@@ -114,32 +150,40 @@ export default function AdminPanel() {
 
       {adminTab === 'users' && (
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in">
-              <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex justify-between items-center bg-stone-50/50 dark:bg-slate-800/50">
-                  <div className="relative w-full max-w-md">
+              <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 bg-stone-50/50 dark:bg-slate-800/50">
+                  <div className="relative w-full md:max-w-xs">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                      <input placeholder="Search users..." className="w-full pl-9 pr-4 py-2 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500" value={search} onChange={e => setSearch(e.target.value)} />
+                      <input placeholder="Search users..." className="w-full pl-9 pr-4 py-2 rounded-xl bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+                  </div>
+                  
+                  <div className="flex items-center gap-2 w-full md:w-auto text-sm">
+                      <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                      <span className="text-stone-400 font-bold">to</span>
+                      <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                      {(search || startDate || endDate) && <button onClick={() => {setSearch(''); setStartDate(''); setEndDate('');}} className="text-rose-500 hover:underline text-xs font-bold px-2">Clear</button>}
                   </div>
               </div>
               <div className="overflow-x-auto">
                   <table className="w-full text-left">
                       <thead className="bg-stone-50 dark:bg-slate-800 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
                           <tr>
-                                <th className="p-5">User</th>
-                                <th className="p-5">Email</th>
-                                <th className="p-5">Mobile</th>
+                                <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('name')}>User <SortIcon col="name"/></th>
+                                <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('email')}>Email <SortIcon col="email"/></th>
+                                <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('mobile')}>Mobile <SortIcon col="mobile"/></th>
+                                <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('created_at')}>Joined <SortIcon col="created_at"/></th>
                                 <th className="p-5">Status</th>
                                 <th className="p-5 text-center">Actions</th>
                             </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-100 dark:divide-slate-800">
-                          {filteredUsers.map((user: any) => {
+                          {serverUsers.map((user: any) => {
                               const isUrl = user.profile_pic && user.profile_pic.startsWith('http');
                               const isEmoji = user.profile_pic && !isUrl;
                               
                               return (
                               <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
                                   <td className="p-5 flex items-center gap-3">
-                                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800">
+                                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800 shrink-0">
                                           {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
                                       </div>
                                       <div>
@@ -156,6 +200,9 @@ export default function AdminPanel() {
                                     </td>
                                     <td className="p-5">
                                         <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.mobile || <span className="text-stone-400 italic">Unlinked</span>}</p>
+                                    </td>
+                                    <td className="p-5 text-sm font-medium text-stone-500 dark:text-slate-400">
+                                        {user.created_at ? new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
                                     </td>
 
                                   <td className="p-5">
@@ -175,6 +222,24 @@ export default function AdminPanel() {
                           )})}
                       </tbody>
                   </table>
+              </div>
+              
+              <div className="p-4 border-t border-stone-100 dark:border-slate-800 flex justify-between items-center bg-stone-50/50 dark:bg-slate-800/50">
+                  <div className="flex items-center gap-2 text-sm text-stone-500 font-bold">
+                      <select value={limit} onChange={e => {setLimit(Number(e.target.value)); setPage(1);}} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-lg p-1 outline-none">
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                      </select>
+                      <span>per page</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                      <span className="text-sm text-stone-500 font-bold">Page {page} of {totalPages || 1}</span>
+                      <div className="flex gap-2">
+                          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-lg disabled:opacity-50"><ChevronLeft size={16} className="text-stone-600 dark:text-stone-400"/></button>
+                          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-lg disabled:opacity-50"><ChevronRight size={16} className="text-stone-600 dark:text-stone-400"/></button>
+                      </div>
+                  </div>
               </div>
           </div>
       )}
