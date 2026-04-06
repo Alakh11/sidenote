@@ -5,7 +5,7 @@ import { Megaphone, Send, X, AlertTriangle } from 'lucide-react';
 const API_URL = "https://api.sidenote.in";
 
 export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: () => void, selectedUserIds: number[] }) {
-    const [templateName, setTemplateName] = useState('sidenote_custom_alert');
+    const [templateName, setTemplateName] = useState('sidenote_welcome_v1');
     const [customMessage, setCustomMessage] = useState('');
     const [sendToAll, setSendToAll] = useState(selectedUserIds.length === 0);
     const [loading, setLoading] = useState(false);
