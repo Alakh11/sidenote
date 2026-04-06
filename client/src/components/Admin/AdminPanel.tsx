@@ -42,6 +42,12 @@ export default function AdminPanel() {
 
   const [formData, setFormData] = useState({ name: '', email: '', mobile: '', password: '', role: 'user' });
 
+  const formatLocalTime = (dateString: string) => {
+      if (!dateString) return null;
+      const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
+      return new Date(utcString);
+  };
+
   useEffect(() => {
       const timer = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 500);
       return () => clearTimeout(timer);
@@ -250,9 +256,9 @@ export default function AdminPanel() {
                                     <td className="p-5 text-sm font-medium text-stone-500 dark:text-slate-400">
                                         {user.created_at ? (
                                             <div className="flex flex-col">
-                                                <span>{new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                <span>{formatLocalTime(user.created_at)?.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                                 <span className="text-[10px] font-mono text-stone-400 dark:text-slate-500 mt-0.5">
-                                                    {new Date(user.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                    {formatLocalTime(user.created_at)?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                                 </span>
                                             </div>
                                         ) : (
