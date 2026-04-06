@@ -6,6 +6,7 @@ import { jwtDecode } from "jwt-decode";
 import { Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Sun, Moon, Eye, EyeOff } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from '@tanstack/react-router';
+import posthog from 'posthog-js';
 
 interface AuthProps {
   onLoginSuccess: (user: any, token: string) => void;
@@ -96,6 +97,12 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             setAuthStep('otp');
         } else {
             const res = await axios.post(`${API_URL}/auth/login`, { contact: targetMobile, password: formData.password });
+            posthog.identify(String(res.data.user.id), {
+                name: res.data.user.name,
+                email: res.data.user.email,
+                role: res.data.user.role
+            });
+
             onLoginSuccess(res.data.user, res.data.token);
         }
     } catch (err: any) {
@@ -109,6 +116,12 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
       setLoading(true);
       try {
           const res = await axios.post(`${API_URL}/auth/verify`, { contact: targetMobile, otp: formData.otp });
+          posthog.identify(String(res.data.user.id), {
+              name: res.data.user.name,
+              email: res.data.user.email,
+              role: res.data.user.role
+          });
+
           onLoginSuccess(res.data.user, res.data.token);
       } catch (err: any) {
           setError(err.response?.data?.detail || "Invalid OTP");
@@ -125,6 +138,12 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             const res = await axios.post(`${API_URL}/auth/google`, {
                 email: decoded.email, name: decoded.name, picture: decoded.picture
             });
+            posthog.identify(String(res.data.user.id), {
+                name: res.data.user.name,
+                email: res.data.user.email,
+                role: res.data.user.role
+            });
+
             onLoginSuccess(res.data.user, res.data.token);
         } catch (err) { setError("Google Login Failed"); } finally { setLoading(false); }
     }
