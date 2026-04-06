@@ -421,8 +421,9 @@ async def broadcast_whatsapp_message(payload: BroadcastPayload, admin_id: int = 
     try:
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         admin_data: Any = cursor.fetchone()
-        if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
-             raise HTTPException(status_code=403, detail="Only Superadmins can send broadcasts.")
+        
+        if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
+             raise HTTPException(status_code=403, detail="You do not have permission to send broadcasts.")
 
         query = "SELECT mobile FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL"
         params: list[Any] = []

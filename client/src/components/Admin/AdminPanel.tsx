@@ -17,6 +17,7 @@ export default function AdminPanel() {
   const { user: currentUser } = router.options.context as any;
   const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
+  const canBroadcast = isSuperAdmin || currentUser?.role === 'admin';
   
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
@@ -139,7 +140,7 @@ export default function AdminPanel() {
                 <p className="text-2xl font-black text-indigo-600">{serverStats.total_transactions}</p>
             </div>
             
-            {isSuperAdmin && (
+            {canBroadcast && (
                 <button 
                     onClick={() => setIsBroadcasting(true)}
                     className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-emerald-200 transition dark:bg-emerald-900/30 dark:text-emerald-400"
