@@ -5,6 +5,7 @@ from schemas import TransactionCreate, CategoryCreate, CategoryUpdate, BudgetSch
 import logging
 from datetime import datetime, timedelta
 from utils import get_date_filter_sql
+import mysql.connector 
 
 router = APIRouter(tags=["Transactions & Categories"])
 logger = logging.getLogger(__name__)
@@ -21,12 +22,16 @@ def add_transaction(tx: TransactionCreate):
         if not result:
              cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
-        cat_id = result['id'] if result else 1
+        
+        cat_id = result['id'] if result else None
 
         query = "INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring)) # type: ignore
         conn.commit()
         return {"message": "Transaction Saved"}
+    except mysql.connector.IntegrityError as e:
+        logger.error(f"Add Tx Integrity Error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid category or database constraint failed.")
     except Exception as e:
         logger.error(f"Error adding transaction: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -306,7 +311,7 @@ def update_transaction(id: int, tx: TransactionCreate):
         if not result:
              cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
-        cat_id = result['id'] if result else 1
+        cat_id = result['id'] if result else None
 
         query = """
             UPDATE transactions 
@@ -317,7 +322,12 @@ def update_transaction(id: int, tx: TransactionCreate):
         cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id)) # type: ignore
         conn.commit()
         return {"message": "Transaction updated"}
+    except mysql.connector.IntegrityError as e:
+        conn.rollback()
+        logger.error(f"Update Tx Integrity Error: {e}")
+        raise HTTPException(status_code=400, detail="The selected category does not exist.")
     except Exception as e:
+        conn.rollback()
         logger.error(f"Update Tx Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
