@@ -30,8 +30,6 @@ def get_all_users(
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
         req_role = requester.get('role', 'user') if isinstance(requester, dict) else 'user'
@@ -48,10 +46,10 @@ def get_all_users(
             params.extend([search_term, search_term, search_term, search_term])
 
         if start_date:
-            where_clauses.append("DATE(created_at) >= %s")
+            where_clauses.append("DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s")
             params.append(start_date)
         if end_date:
-            where_clauses.append("DATE(created_at) <= %s")
+            where_clauses.append("DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= %s")
             params.append(end_date)
 
         where_str = " AND ".join(where_clauses)
@@ -228,16 +226,14 @@ def get_system_metrics(
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         time_filter = "created_at >= NOW() - INTERVAL 24 HOUR"
         params: list[Any] = []
         
         if start_date and end_date:
-            time_filter = "DATE(created_at) >= %s AND DATE(created_at) <= %s"
+            time_filter = "DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s AND DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= %s"
             params = [start_date, end_date]
         elif start_date:
-            time_filter = "DATE(created_at) >= %s"
+            time_filter = "DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s"
             params = [start_date]
 
         cursor.execute(f"""
@@ -292,11 +288,10 @@ def get_system_metrics(
 
 @router.delete("/metrics")
 def truncate_metrics(start_date: str, end_date: str, admin_id: int = Depends(require_admin)):
-    """Deletes API metrics within a specific date range to free up database space."""
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM api_metrics WHERE DATE(created_at) >= %s AND DATE(created_at) <= %s", (start_date, end_date))
+        cursor.execute("DELETE FROM api_metrics WHERE DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s AND DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= %s", (start_date, end_date))
         deleted_count = cursor.rowcount
         conn.commit()
         return {"message": f"Successfully deleted {deleted_count} records."}
@@ -325,8 +320,6 @@ def get_all_feedback(
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         where_clauses = ["1=1"]
         params: list[Any] = []
 
@@ -336,23 +329,20 @@ def get_all_feedback(
             params.extend([search_term, search_term, search_term, search_term])
         
         if start_date:
-            where_clauses.append("DATE(f.created_at) >= %s")
+            where_clauses.append("DATE(CONVERT_TZ(f.created_at, '+00:00', '+05:30')) >= %s")
             params.append(start_date)
         if end_date:
-            where_clauses.append("DATE(f.created_at) <= %s")
+            where_clauses.append("DATE(CONVERT_TZ(f.created_at, '+00:00', '+05:30')) <= %s")
             params.append(end_date)
 
         where_str = " AND ".join(where_clauses)
         
-        # Join handles both proper user_id links and email/mobile fallback links
         join_clause = "LEFT JOIN users u ON f.user_id = u.id OR f.user_email = u.email OR f.user_email = u.mobile"
 
-        # Count total
         cursor.execute(f"SELECT COUNT(*) as count FROM feedback f {join_clause} WHERE {where_str}", params)
         count_row: Any = cursor.fetchone()
         total_items = int(count_row['count']) if isinstance(count_row, dict) and count_row.get('count') else 0
 
-        # Get paginated data
         query = f"""
             SELECT f.*, u.name as user_name, u.profile_pic 
             FROM feedback f 
