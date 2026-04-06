@@ -30,6 +30,8 @@ def get_all_users(
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         requester: Any = cursor.fetchone()
         req_role = requester.get('role', 'user') if isinstance(requester, dict) else 'user'
@@ -226,6 +228,8 @@ def get_system_metrics(
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         time_filter = "created_at >= NOW() - INTERVAL 24 HOUR"
         params: list[Any] = []
         
@@ -321,6 +325,8 @@ def get_all_feedback(
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         where_clauses = ["1=1"]
         params: list[Any] = []
 
