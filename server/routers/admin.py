@@ -78,7 +78,7 @@ def get_all_users(
             "total": total_items,
             "page": page,
             "limit": limit,
-            "total_pages": (total_items + limit - 1) // limit,
+            "total_pages": (total_items + limit - 1) // limit if limit else 1,
             "stats": {
                 "total_users": total_items, 
                 "total_transactions": total_tx
@@ -179,27 +179,21 @@ def get_user_full_data(user_id: int, admin_id: int = Depends(require_admin)):
         if not target_user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # 1. Transactions
         cursor.execute("SELECT * FROM transactions WHERE user_id = %s ORDER BY date DESC", (user_id,))
         transactions: list[Any] = cursor.fetchall()
 
-        # 2. Goals
         cursor.execute("SELECT * FROM goals WHERE user_id = %s", (user_id,))
         goals: list[Any] = cursor.fetchall()
 
-        # 3. Categories
         cursor.execute("SELECT * FROM categories WHERE user_id = %s", (user_id,))
         categories: list[Any] = cursor.fetchall()
 
-        # 4. Loans (Liabilities)
         cursor.execute("SELECT * FROM loans WHERE user_id = %s", (user_id,))
         loans: list[Any] = cursor.fetchall()
 
-        # 5. Borrowers
         cursor.execute("SELECT * FROM borrowers WHERE user_id = %s", (user_id,))
         borrowers: list[Any] = cursor.fetchall()
         
-        # 6. Debts/Lent Records
         cursor.execute("""
             SELECT d.*, b.name as borrower_name 
             FROM debts d JOIN borrowers b ON d.borrower_id = b.id 
@@ -222,55 +216,66 @@ def get_user_full_data(user_id: int, admin_id: int = Depends(require_admin)):
         conn.close()
         
 @router.get("/metrics")
-def get_system_metrics(admin_id: int = Depends(require_admin)):
+def get_system_metrics(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    admin_id: int = Depends(require_admin)
+):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
+        time_filter = "created_at >= NOW() - INTERVAL 24 HOUR"
+        params: list[Any] = []
+        
+        if start_date and end_date:
+            time_filter = "DATE(created_at) >= %s AND DATE(created_at) <= %s"
+            params = [start_date, end_date]
+        elif start_date:
+            time_filter = "DATE(created_at) >= %s"
+            params = [start_date]
+
+        cursor.execute(f"""
             SELECT method, endpoint, COUNT(*) as total_calls, ROUND(AVG(response_time_ms), 2) as avg_time_ms
             FROM api_metrics 
-            WHERE created_at >= NOW() - INTERVAL 24 HOUR AND status_code = 200
+            WHERE {time_filter} AND status_code = 200
             GROUP BY method, endpoint 
             ORDER BY avg_time_ms DESC LIMIT 10
-        """)
-        slowest = cursor.fetchall()
+        """, params)
+        slowest: list[Any] = cursor.fetchall()
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT method, endpoint, COUNT(*) as total_calls, ROUND(AVG(response_time_ms), 2) as avg_time_ms
             FROM api_metrics 
-            WHERE created_at >= NOW() - INTERVAL 24 HOUR
+            WHERE {time_filter}
             GROUP BY method, endpoint 
             ORDER BY total_calls DESC LIMIT 10
-        """)
-        most_used = cursor.fetchall()
+        """, params)
+        most_used: list[Any] = cursor.fetchall()
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT method, endpoint, status_code, COUNT(*) as error_count
             FROM api_metrics 
-            WHERE created_at >= NOW() - INTERVAL 24 HOUR AND status_code >= 400
+            WHERE {time_filter} AND status_code >= 400
             GROUP BY method, endpoint, status_code 
             ORDER BY error_count DESC LIMIT 10
-        """)
-        errors = cursor.fetchall()
+        """, params)
+        errors: list[Any] = cursor.fetchall()
 
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total_requests_24h,
-                ROUND(AVG(response_time_ms), 2) as global_avg_ms
+        cursor.execute(f"""
+            SELECT COUNT(*) as total_requests, ROUND(AVG(response_time_ms), 2) as global_avg_ms
             FROM api_metrics 
-            WHERE created_at >= NOW() - INTERVAL 24 HOUR
-        """)
-        pulse_raw = cursor.fetchone()
-        
-        pulse: dict[str, Any] = pulse_raw if isinstance(pulse_raw, dict) else {"total_requests_24h": 0, "global_avg_ms": 0}
+            WHERE {time_filter}
+        """, params)
+        pulse_raw: Any = cursor.fetchone()
+        pulse: dict[str, Any] = pulse_raw if isinstance(pulse_raw, dict) else {"total_requests": 0, "global_avg_ms": 0}
 
         return {
             "slowest": slowest, 
             "most_used": most_used, 
             "errors": errors,
             "pulse": {
-                "total_requests": pulse.get("total_requests_24h", 0) or 0,
-                "average_time": pulse.get("global_avg_ms", 0) or 0
+                "total_requests": pulse.get("total_requests") or 0, 
+                "average_time": pulse.get("global_avg_ms") or 0
             }
         }
     except Exception as e:
@@ -278,31 +283,91 @@ def get_system_metrics(admin_id: int = Depends(require_admin)):
         return {"slowest": [], "most_used": [], "errors": [], "pulse": {"total_requests": 0, "average_time": 0}}
     finally:
         conn.close()
-        
+
+@router.delete("/metrics")
+def truncate_metrics(start_date: str, end_date: str, admin_id: int = Depends(require_admin)):
+    """Deletes API metrics within a specific date range to free up database space."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM api_metrics WHERE DATE(created_at) >= %s AND DATE(created_at) <= %s", (start_date, end_date))
+        deleted_count = cursor.rowcount
+        conn.commit()
+        return {"message": f"Successfully deleted {deleted_count} records."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
 @router.get("/feedback")
-def get_all_feedback(admin_id: int = Depends(require_admin)):
+def get_all_feedback(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("DESC"),
+    admin_id: int = Depends(require_admin)
+):
+    valid_sort = ["created_at", "status", "type", "rating"]
+    if sort_by not in valid_sort: 
+        sort_by = "created_at"
+    sort_order = "ASC" if sort_order.upper() == "ASC" else "DESC"
+
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
+        where_clauses = ["1=1"]
+        params: list[Any] = []
+
+        if search:
+            search_term = f"%{search}%"
+            where_clauses.append("(f.subject LIKE %s OR f.message LIKE %s OR u.name LIKE %s OR u.email LIKE %s)")
+            params.extend([search_term, search_term, search_term, search_term])
+        
+        if start_date:
+            where_clauses.append("DATE(f.created_at) >= %s")
+            params.append(start_date)
+        if end_date:
+            where_clauses.append("DATE(f.created_at) <= %s")
+            params.append(end_date)
+
+        where_str = " AND ".join(where_clauses)
+        
+        # Join handles both proper user_id links and email/mobile fallback links
+        join_clause = "LEFT JOIN users u ON f.user_id = u.id OR f.user_email = u.email OR f.user_email = u.mobile"
+
+        # Count total
+        cursor.execute(f"SELECT COUNT(*) as count FROM feedback f {join_clause} WHERE {where_str}", params)
+        count_row: Any = cursor.fetchone()
+        total_items = int(count_row['count']) if isinstance(count_row, dict) and count_row.get('count') else 0
+
+        # Get paginated data
+        query = f"""
             SELECT f.*, u.name as user_name, u.profile_pic 
             FROM feedback f 
-            LEFT JOIN users u ON f.user_id = u.id
-            ORDER BY f.created_at DESC
-        """)
-        return cursor.fetchall()
+            {join_clause}
+            WHERE {where_str}
+            ORDER BY f.{sort_by} {sort_order}
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(query, params + [limit, (page - 1) * limit])
+        feedback_data: list[Any] = cursor.fetchall()
+
+        return {
+            "data": feedback_data,
+            "total": total_items,
+            "page": page,
+            "total_pages": (total_items + limit - 1) // limit if limit else 1
+        }
     except Exception as e:
-        logger.error(f"Admin Feedback Fetch Error (Attempting Fallback): {e}")
-        cursor.execute("""
-            SELECT f.*, u.name as user_name, u.profile_pic 
-            FROM feedback f 
-            LEFT JOIN users u ON f.user_email = u.email OR f.user_email = u.mobile
-            ORDER BY f.created_at DESC
-        """)
-        return cursor.fetchall()
+        logger.error(f"Admin Feedback Fetch Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-        
+
 class AdminReply(BaseModel):
     reply: str
 
@@ -312,12 +377,13 @@ def reply_to_feedback(ticket_id: int, data: AdminReply, admin_id: int = Depends(
     cursor = conn.cursor()
     try:
         ist_now = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+        formatted_reply = f"--- Admin Reply ({ist_now}) ---\n{data.reply}\n\n"
         
         cursor.execute("""
             UPDATE feedback 
-            SET admin_reply = %s, status = 'resolved', replied_at = %s 
+            SET admin_reply = CONCAT(COALESCE(admin_reply, ''), %s), status = 'resolved', replied_at = %s 
             WHERE id = %s
-        """, (data.reply, ist_now, ticket_id))
+        """, (formatted_reply, ist_now, ticket_id))
         conn.commit()
         return {"message": "Reply sent successfully."}
     except Exception as e:
@@ -325,7 +391,7 @@ def reply_to_feedback(ticket_id: int, data: AdminReply, admin_id: int = Depends(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-        
+
 @router.delete("/feedback/{ticket_id}")
 def delete_feedback(ticket_id: int, admin_id: int = Depends(require_admin)):
     conn = get_db()
