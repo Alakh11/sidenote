@@ -51,13 +51,36 @@ export default function AdminPanel() {
       return () => clearTimeout(timer);
   }, [search]);
 
-  const handleExportCSV = () => {
-      const token = localStorage.getItem('token');
-      const query = new URLSearchParams();
-      if (debouncedSearch) query.append('search', debouncedSearch);
-      if (startDate) query.append('start_date', startDate);
-      if (endDate) query.append('end_date', endDate);
-      window.open(`${API_URL}/admin/users/export?${query.toString()}&token=${token}`, '_blank');
+  const handleExportCSV = async () => {
+      try {
+          const token = localStorage.getItem('token');
+          const query = new URLSearchParams();
+          if (debouncedSearch) query.append('search', debouncedSearch);
+          if (startDate) query.append('start_date', startDate);
+          if (endDate) query.append('end_date', endDate);
+          
+          const response = await axios.get(`${API_URL}/admin/users/export?${query.toString()}`, {
+              headers: { Authorization: `Bearer ${token}` },
+              responseType: 'blob'
+          });
+          const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+          
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          
+          const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          link.setAttribute('download', `sidenote_users_${dateStr}.csv`);
+          
+          document.body.appendChild(link);
+          link.click();
+          
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+          
+      } catch (error: any) {
+          console.error("Export failed", error);
+          alert(error.response?.data?.detail || "Failed to download CSV. Check your permissions.");
+      }
   };
 
   const fetchUsers = async () => {
