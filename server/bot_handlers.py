@@ -14,9 +14,44 @@ def get_user_id(cursor: Any, phone: str) -> int | None:
         return int(tuple(user_row)[0])
     return None
 
+async def ensure_user_exists(phone: str) -> bool:
+    """Checks if user exists. If not, creates them and sends Welcome message. Returns True if NEW."""
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
+        if cursor.fetchone():
+            return False
+            
+        cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
+        conn.commit()
+        
+        await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
+        welcome_link_msg = (
+            "🌐 *Finish setting up your account!*\n\n"
+            "To view your charts and secure your data:\n"
+            "🔗 https://www.sidenote.in/login\n\n"
+            "Click *Sign Up* and use this mobile number to link your accounts.\n\n"
+            "(Or type 'menu' anytime to see your options)"
+        )
+        await send_whatsapp_text(phone, welcome_link_msg)
+        return True
+    except Exception as e:
+        print(f"Error ensuring user exists: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
 async def process_whatsapp_text(phone: str, text: str):
+    is_new = await ensure_user_exists(phone)
+    
     text = text.strip().lower()
     
+    if is_new and text in ['hi', 'hello', 'hey', 'start']:
+        return
+        
     if text == CMD_MENU: await handle_menu_request(phone)
     elif text == CMD_UNDO: await handle_undo_request(phone)
     elif text == CMD_SUMMARY: await handle_summary_request(phone)
@@ -61,7 +96,7 @@ async def process_whatsapp_text(phone: str, text: str):
                     
                 await send_whatsapp_text(phone, summary_msg)
             else:
-                await handle_fallback(phone)
+                await handle_fallback(phone, text)
                 
         else:
             match = re.search(r'\d+(?:\.\d+)?', text)
@@ -70,10 +105,11 @@ async def process_whatsapp_text(phone: str, text: str):
                 item = str(text.replace(match.group(0), "").replace("+", "").strip())
                 await handle_transaction_entry(phone, amount, item)
             else:
-                await handle_fallback(phone)
+                await handle_fallback(phone, text)
 
 async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
-    await send_whatsapp_text(phone, "⏳ Reading your receipt with AI...")
+    await ensure_user_exists(phone)
+    await send_whatsapp_text(phone, "⏳ Reading your receipt ...")
     
     media_url = await get_whatsapp_media_url(media_id)
     if not media_url: return
@@ -94,6 +130,7 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
         await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read that receipt.")
 
 async def process_whatsapp_interactive(phone: str, button_id: str):
+    await ensure_user_exists(phone)
     if button_id == "cmd_summary": await handle_summary_request(phone)
     elif button_id == "cmd_today": await handle_today_request(phone)
     elif button_id == "cmd_more": await handle_more_request(phone)
@@ -153,17 +190,6 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             conn.commit()
             user_id = cursor.lastrowid
             budget_limit = 0.0
-            
-            await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
-            
-            welcome_link_msg = (
-                "🌐 *Finish setting up your account!*\n\n"
-                "To view your charts and secure your data:\n"
-                "🔗 https://www.sidenote.in/login\n\n"
-                "Click *Sign Up* and use this mobile number to link your accounts.\n\n"
-                "(Or type 'menu' anytime to see your options)"
-            )
-            await send_whatsapp_text(phone, welcome_link_msg)
         else:
             user_id = int(str(u_data[0]))
             budget_limit = float(str(u_data[1])) if u_data[1] else 0.0
@@ -285,8 +311,12 @@ async def handle_undo_action(phone: str, tx_id: int):
     finally:
         if conn: conn.close()
 
-async def handle_fallback(phone: str):
-    fallback_message = f"Hey! Just send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options or *{CMD_UNDO}* to delete a mistake."
+async def handle_fallback(phone: str, text: str = ""):
+    if text in ['hi', 'hello', 'hey']:
+        fallback_message = f"Hey there! 👋\nJust send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options."
+    else:
+        fallback_message = f"I didn't quite catch that.\n\nJust send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options or *{CMD_UNDO}* to delete a mistake."
+        
     await send_whatsapp_text(phone, fallback_message)
 
 async def handle_summary_request(phone: str):
@@ -375,6 +405,7 @@ async def handle_monthly_request(phone: str):
 
 async def process_whatsapp_audio(phone: str, media_id: str):
     """Processes a WhatsApp voice note."""
+    await ensure_user_exists(phone)
     await send_whatsapp_text(phone, "🎧 Listening to your voice note...")
     
     media_url = await get_whatsapp_media_url(media_id)
