@@ -17,6 +17,8 @@ export default function AdminPanel() {
   const { user: currentUser } = router.options.context as any;
   const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
+  const canBroadcast = isSuperAdmin || currentUser?.can_broadcast;
+  const canExport = isSuperAdmin || currentUser?.can_export;
   
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
@@ -39,7 +41,10 @@ export default function AdminPanel() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  const [formData, setFormData] = useState({ name: '', email: '', mobile: '', password: '', role: 'user' });
+  const [formData, setFormData] = useState({ 
+      name: '', email: '', mobile: '', password: '', role: 'user',
+      can_broadcast: false, can_export: false
+  });
 
   useEffect(() => {
       const timer = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 500);
@@ -104,7 +109,9 @@ export default function AdminPanel() {
                   contact: isEmail ? formData.email : formData.mobile,
                   contact_type: isEmail ? 'email' : 'mobile',
                   password: formData.password,
-                  role: formData.role
+                  role: formData.role,
+                  can_broadcast: formData.can_broadcast,
+                  can_export: formData.can_export
               };
               await axios.post(`${API_URL}/admin/users`, creationPayload, config);
           } else if (editingUser) {
@@ -113,14 +120,16 @@ export default function AdminPanel() {
                   email: formData.email || null,
                   mobile: formData.mobile || null,
                   new_password: formData.password || undefined,
-                  role: formData.role
+                  role: formData.role,
+                  can_broadcast: formData.can_broadcast,
+                  can_export: formData.can_export
               };
               await axios.put(`${API_URL}/admin/users/${editingUser.id}`, updatePayload, config);
           }
           
           setIsCreating(false);
           setEditingUser(null);
-          setFormData({ name: '', email: '', mobile: '', password: '', role: 'user' });
+          setFormData({ name: '', email: '', mobile: '', password: '', role: 'user', can_broadcast: false, can_export: false });
           fetchUsers();
           alert("Success!");
       } catch(e: any) { alert(e.response?.data?.detail || "Operation failed"); }
@@ -147,15 +156,18 @@ export default function AdminPanel() {
                  <div className="flex items-center gap-2 mb-1"><Wallet size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Tx</p></div>
                 <p className="text-2xl font-black text-indigo-600">{serverStats.total_transactions}</p>
             </div>
+            {canBroadcast && (
+                <button 
+                    onClick={() => setIsBroadcasting(true)}
+                    className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-emerald-200 transition dark:bg-emerald-900/30 dark:text-emerald-400"
+                >
+                    <Megaphone size={24} />
+                    <span className="text-[10px] uppercase tracking-wider">Broadcast</span>
+                </button>
+            )}
+
             <button 
-                onClick={() => setIsBroadcasting(true)}
-                className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-emerald-200 transition dark:bg-emerald-900/30 dark:text-emerald-400"
-            >
-                <Megaphone size={24} />
-                <span className="text-[10px] uppercase tracking-wider">Broadcast</span>
-            </button>
-            <button 
-                onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user'}); }}
+                onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user', can_broadcast: false, can_export: false}); }}
                 className="bg-indigo-600 text-white px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
             >
                 <Plus size={24} />
@@ -183,9 +195,12 @@ export default function AdminPanel() {
                       <span className="text-stone-400 font-bold">to</span>
                       <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none" value={endDate} onChange={e => setEndDate(e.target.value)} />
                       {(search || startDate || endDate) && <button onClick={() => {setSearch(''); setStartDate(''); setEndDate('');}} className="text-rose-500 hover:underline text-xs font-bold px-2">Clear</button>}
-                      <button onClick={handleExportCSV} className="ml-2 flex items-center gap-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 px-3 py-2 rounded-xl font-bold text-xs hover:bg-stone-200 transition">
-                          <Download size={14}/> Export CSV
-                      </button>
+                      
+                      {canExport && (
+                          <button onClick={handleExportCSV} className="ml-2 flex items-center gap-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 px-3 py-2 rounded-xl font-bold text-xs hover:bg-stone-200 transition">
+                              <Download size={14}/> Export CSV
+                          </button>
+                      )}
                   </div>
               </div>
               <div className="overflow-x-auto">
@@ -266,7 +281,18 @@ export default function AdminPanel() {
                                       <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="View Full Data"><Eye size={16} /></button>
                                       {(isSuperAdmin || user.role === 'user') && (
                                           <>
-                                            <button onClick={() => { setEditingUser(user); setFormData({name: user.name, email: user.email || '', mobile: user.mobile || '', password: '', role: user.role || 'user'}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
+                                            <button onClick={() => { 
+                                                setEditingUser(user); 
+                                                setFormData({
+                                                    name: user.name, 
+                                                    email: user.email || '', 
+                                                    mobile: user.mobile || '', 
+                                                    password: '', 
+                                                    role: user.role || 'user',
+                                                    can_broadcast: !!user.can_broadcast,
+                                                    can_export: !!user.can_export
+                                                }); 
+                                            }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
                                             <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
                                           </>
                                       )}
@@ -311,6 +337,7 @@ export default function AdminPanel() {
             isSuperAdmin={isSuperAdmin}
         />
       )}
+
       {isBroadcasting && (
           <BroadcastModal 
               onClose={() => setIsBroadcasting(false)} 
