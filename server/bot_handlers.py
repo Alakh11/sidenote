@@ -28,13 +28,49 @@ async def process_whatsapp_text(phone: str, text: str):
         await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!\n- Send a Voice Note!")
     elif text.startswith(CMD_SET_BUDGET): await handle_budget_set(phone, text)
     else:
-        match = re.search(r'\d+(?:\.\d+)?', text)
-        if match and not text.replace(" ", "").replace(".", "").replace("+", "").isdigit():
-            amount = float(match.group(0))
-            item = str(text.replace(match.group(0), "").replace("+", "").strip())
-            await handle_transaction_entry(phone, amount, item)
+        if '\n' in text:
+            lines = text.split('\n')
+            added_count = 0
+            total_expense = 0.0
+            total_income = 0.0
+            
+            for line in lines:
+                line = line.strip()
+                if not line: continue
+                
+                match = re.search(r'\d+(?:\.\d+)?', line)
+                if match and not line.replace(" ", "").replace(".", "").replace("+", "").isdigit():
+                    amount = float(match.group(0))
+                    item = str(line.replace(match.group(0), "").replace("+", "").strip())
+                    
+                    await handle_transaction_entry(phone, amount, item, silent=True)
+                    
+                    if any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
+                        total_income += amount
+                    else:
+                        total_expense += amount
+                        
+                    added_count += 1
+                    
+            if added_count > 0:
+                summary_msg = f"✅ Saved {added_count} entries!"
+                if total_expense > 0:
+                    summary_msg += f"\n💸 Total Expense: ₹{total_expense:g}"
+                if total_income > 0:
+                    summary_msg += f"\n💰 Total Income: ₹{total_income:g}"
+                    
+                await send_whatsapp_text(phone, summary_msg)
+            else:
+                await handle_fallback(phone)
+                
         else:
-            await handle_fallback(phone)
+            match = re.search(r'\d+(?:\.\d+)?', text)
+            if match and not text.replace(" ", "").replace(".", "").replace("+", "").isdigit():
+                amount = float(match.group(0))
+                item = str(text.replace(match.group(0), "").replace("+", "").strip())
+                await handle_transaction_entry(phone, amount, item)
+            else:
+                await handle_fallback(phone)
 
 async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
     await send_whatsapp_text(phone, "⏳ Reading your receipt with AI...")
@@ -92,8 +128,12 @@ async def handle_budget_set(phone: str, text: str):
     finally:
         if conn: conn.close()
 
-async def handle_transaction_entry(phone: str, amount: float, item: str):
-    item_lower = item.lower()
+async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False):
+
+    clean_item = item.replace('\n', ', ').replace('\r', '')
+    clean_item = re.sub(r'\s{2,}', ' ', clean_item)
+    
+    item_lower = clean_item.lower()
     is_income = any(keyword in item_lower for keyword in INCOME_KEYWORDS)
     tx_type = 'income' if is_income else 'expense'
 
@@ -158,7 +198,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
                 category_id = int(str(tuple(cat_row)[0]))
 
         # Save Entry
-        cursor.execute("INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (user_id, amount, tx_type, item, category_id))
+        cursor.execute("INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (user_id, amount, tx_type, clean_item, category_id))
         conn.commit()
 
         # Budget Check Logic
@@ -178,17 +218,17 @@ async def handle_transaction_entry(phone: str, amount: float, item: str):
             else: 
                 budget_note = f"\n\n💰 Budget: ₹{remaining:g} remaining."
 
-        # Reply
-        if is_income:
-            await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{item}' added.")
-        else:
-            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
-            today_row = tuple(cursor.fetchone() or (0,))
-            today_total = float(str(today_row[0])) if today_row[0] else 0.0
-            
-            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), item, f"{today_total:g}"])
-            if budget_note: 
-                await send_whatsapp_text(phone, budget_note)
+        if not silent:
+            if is_income:
+                await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.")
+            else:
+                cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
+                today_row = tuple(cursor.fetchone() or (0,))
+                today_total = float(str(today_row[0])) if today_row[0] else 0.0
+                
+                await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
+                if budget_note: 
+                    await send_whatsapp_text(phone, budget_note)
             
     except Exception as e: 
         print(f"Transaction DB Error: {e}")
