@@ -9,8 +9,6 @@ class UserRegister(BaseModel):
     contact_type: str # 'email' or 'mobile'
     extra_mobile: Optional[str] = None
     role: Optional[str] = 'user'
-    can_broadcast: bool = False
-    can_export: bool = False
 
 class UserLogin(BaseModel):
     contact: str
@@ -43,8 +41,6 @@ class AdminCreateUser(BaseModel):
     mobile: Optional[str] = None
     password: str
     role: Optional[str] = 'user'
-    can_broadcast: Optional[bool] = False
-    can_export: Optional[bool] = False
 
 class AdminUpdateUser(BaseModel):
     name: str
@@ -52,8 +48,6 @@ class AdminUpdateUser(BaseModel):
     mobile: Optional[str] = None
     new_password: Optional[str] = None
     role: str
-    can_broadcast: Optional[bool] = False
-    can_export: Optional[bool] = False
 
 class ProfileCompletionRequest(BaseModel):
     mobile: str

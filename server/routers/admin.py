@@ -6,9 +6,6 @@ from schemas import UserRegister, AdminUpdateUser
 import logging
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-import io
-import csv
-from fastapi.responses import StreamingResponse
 from whatsapp_service import send_whatsapp_template
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
@@ -63,7 +60,7 @@ def get_all_users(
         total_items = int(count_row['count']) if isinstance(count_row, dict) and count_row.get('count') else 0
 
         data_query = f"""
-            SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role, can_broadcast, can_export 
+            SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
             FROM users 
             WHERE {where_str}
             ORDER BY {sort_by} {sort_order} 
@@ -115,11 +112,8 @@ def admin_create_user(user: UserRegister, admin_id: int = Depends(require_admin)
 
         hashed_pw = pwd_context.hash(user.password)
         
-        can_broadcast = getattr(user, 'can_broadcast', False)
-        can_export = getattr(user, 'can_export', False)
-        
-        query = f"INSERT INTO users (name, {field}, password_hash, is_verified, role, can_broadcast, can_export) VALUES (%s, %s, %s, TRUE, %s, %s, %s)"
-        cursor.execute(query, (user.name, user.contact, hashed_pw, target_role, can_broadcast, can_export))
+        query = f"INSERT INTO users (name, {field}, password_hash, is_verified, role) VALUES (%s, %s, %s, TRUE, %s)"
+        cursor.execute(query, (user.name, user.contact, hashed_pw, target_role))
         conn.commit()
         return {"message": "User created successfully"}
     except Exception as e:
@@ -161,16 +155,13 @@ def admin_update_user(user_id: int, data: AdminUpdateUser, admin_id: int = Depen
     conn = get_db()
     cursor = conn.cursor()
     try:
-        can_broadcast = getattr(data, 'can_broadcast', False)
-        can_export = getattr(data, 'can_export', False)
-        
         if data.new_password:
             hashed_pw = pwd_context.hash(data.new_password)
-            query = "UPDATE users SET name = %s, email = %s, mobile = %s, role = %s, can_broadcast = %s, can_export = %s, password_hash = %s WHERE id = %s"
-            cursor.execute(query, (data.name, data.email, data.mobile, data.role, can_broadcast, can_export, hashed_pw, user_id))
+            query = "UPDATE users SET name = %s, email = %s, mobile = %s, role = %s, password_hash = %s WHERE id = %s"
+            cursor.execute(query, (data.name, data.email, data.mobile, data.role, hashed_pw, user_id))
         else:
-            query = "UPDATE users SET name = %s, email = %s, mobile = %s, role = %s, can_broadcast = %s, can_export = %s WHERE id = %s"
-            cursor.execute(query, (data.name, data.email, data.mobile, data.role, can_broadcast, can_export, user_id))
+            query = "UPDATE users SET name = %s, email = %s, mobile = %s, role = %s WHERE id = %s"
+            cursor.execute(query, (data.name, data.email, data.mobile, data.role, user_id))
             
         conn.commit()
         return {"message": "User updated successfully"}
@@ -226,62 +217,6 @@ def get_user_full_data(user_id: int, admin_id: int = Depends(require_admin)):
     finally:
         conn.close()
 
-@router.get("/users/export")
-def export_users_csv(
-    search: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    admin_id: int = Depends(require_admin)
-):
-
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT role, can_export FROM users WHERE id = %s", (admin_id,))
-        admin_data: Any = cursor.fetchone()
-        if not isinstance(admin_data, dict) or (admin_data.get('role') != 'superadmin' and not admin_data.get('can_export')):
-             raise HTTPException(status_code=403, detail="You do not have permission to export data.")
-
-        where_clauses = ["1=1"]
-        params: list[Any] = []
-
-        if search:
-            search_term = f"%{search}%"
-            where_clauses.append("(name LIKE %s OR email LIKE %s OR mobile LIKE %s OR CAST(id AS CHAR) LIKE %s)")
-            params.extend([search_term, search_term, search_term, search_term])
-        if start_date:
-            where_clauses.append("DATE(created_at) >= %s")
-            params.append(start_date)
-        if end_date:
-            where_clauses.append("DATE(created_at) <= %s")
-            params.append(end_date)
-
-        where_str = " AND ".join(where_clauses)
-        cursor.execute(f"SELECT id, name, email, mobile, role, is_verified, created_at FROM users WHERE {where_str} ORDER BY created_at DESC", params)
-        users = cursor.fetchall()
-
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(["User ID", "Name", "Email", "Mobile", "Role", "Verified", "Joined Date"])
-        
-        for u in users:
-            if isinstance(u, dict):
-                writer.writerow([
-                    u.get('id'), u.get('name'), u.get('email', 'N/A'), 
-                    u.get('mobile', 'N/A'), u.get('role'), 
-                    "Yes" if u.get('is_verified') else "No", 
-                    u.get('created_at')
-                ])
-                
-        output.seek(0)
-        return StreamingResponse(
-            iter([output.getvalue()]), 
-            media_type="text/csv", 
-            headers={"Content-Disposition": f"attachment; filename=sidenote_users_{datetime.now().strftime('%Y%m%d')}.csv"}
-        )
-    finally:
-        conn.close()
-        
 @router.get("/metrics")
 def get_system_metrics(
     start_date: Optional[str] = None,
@@ -484,10 +419,10 @@ async def broadcast_whatsapp_message(payload: BroadcastPayload, admin_id: int = 
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT role, can_broadcast FROM users WHERE id = %s", (admin_id,))
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         admin_data: Any = cursor.fetchone()
-        if not isinstance(admin_data, dict) or (admin_data.get('role') != 'superadmin' and not admin_data.get('can_broadcast')):
-             raise HTTPException(status_code=403, detail="You do not have permission to send broadcasts.")
+        if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
+             raise HTTPException(status_code=403, detail="Only Superadmins can send broadcasts.")
 
         query = "SELECT mobile FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL"
         params: list[Any] = []
