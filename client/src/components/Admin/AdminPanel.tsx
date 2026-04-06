@@ -1,5 +1,5 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Download, Megaphone } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -7,6 +7,7 @@ import UserFormModal from './components/UserFormModal';
 import AdminFeedbackView from './components/AdminFeedbackView';
 import SystemMetricsView from './components/SystemMetricsView';
 import UserDetailView from './components/UserDetailView';
+import BroadcastModal from './components/BroadcastModal';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -16,6 +17,9 @@ export default function AdminPanel() {
   const { user: currentUser } = router.options.context as any;
   const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
+  
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
 
   const [serverUsers, setServerUsers] = useState<any[]>(initialUsers || []);
   const [serverStats, setServerStats] = useState<any>(initialStats || { total_users: 0, total_transactions: 0 });
@@ -42,6 +46,15 @@ export default function AdminPanel() {
       return () => clearTimeout(timer);
   }, [search]);
 
+  const handleExportCSV = () => {
+      const token = localStorage.getItem('token');
+      const query = new URLSearchParams();
+      if (debouncedSearch) query.append('search', debouncedSearch);
+      if (startDate) query.append('start_date', startDate);
+      if (endDate) query.append('end_date', endDate);
+      window.open(`${API_URL}/admin/users/export?${query.toString()}&token=${token}`, '_blank');
+  };
+
   const fetchUsers = async () => {
       try {
           const res = await axios.get(`${API_URL}/admin/users`, {
@@ -51,6 +64,7 @@ export default function AdminPanel() {
           setServerUsers(res.data.data);
           setTotalPages(res.data.total_pages);
           setServerStats(res.data.stats);
+          setSelectedUserIds([]);
       } catch (error) { console.error("Failed to fetch users"); }
   };
 
@@ -134,6 +148,13 @@ export default function AdminPanel() {
                 <p className="text-2xl font-black text-indigo-600">{serverStats.total_transactions}</p>
             </div>
             <button 
+                onClick={() => setIsBroadcasting(true)}
+                className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-emerald-200 transition dark:bg-emerald-900/30 dark:text-emerald-400"
+            >
+                <Megaphone size={24} />
+                <span className="text-[10px] uppercase tracking-wider">Broadcast</span>
+            </button>
+            <button 
                 onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user'}); }}
                 className="bg-indigo-600 text-white px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
             >
@@ -162,12 +183,29 @@ export default function AdminPanel() {
                       <span className="text-stone-400 font-bold">to</span>
                       <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none" value={endDate} onChange={e => setEndDate(e.target.value)} />
                       {(search || startDate || endDate) && <button onClick={() => {setSearch(''); setStartDate(''); setEndDate('');}} className="text-rose-500 hover:underline text-xs font-bold px-2">Clear</button>}
+                      <button onClick={handleExportCSV} className="ml-2 flex items-center gap-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 px-3 py-2 rounded-xl font-bold text-xs hover:bg-stone-200 transition">
+                          <Download size={14}/> Export CSV
+                      </button>
                   </div>
               </div>
               <div className="overflow-x-auto">
                   <table className="w-full text-left">
                       <thead className="bg-stone-50 dark:bg-slate-800 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
                           <tr>
+                                <th className="p-5 w-12 text-center">
+                                    <input 
+                                        type="checkbox" 
+                                        className="w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedUserIds(serverUsers.map(u => u.id));
+                                            } else {
+                                                setSelectedUserIds([]);
+                                            }
+                                        }}
+                                        checked={serverUsers.length > 0 && selectedUserIds.length === serverUsers.length}
+                                    />
+                                </th>
                                 <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('name')}>User <SortIcon col="name"/></th>
                                 <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('email')}>Email <SortIcon col="email"/></th>
                                 <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('mobile')}>Mobile <SortIcon col="mobile"/></th>
@@ -183,6 +221,20 @@ export default function AdminPanel() {
                               
                               return (
                               <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
+                                  <td className="p-5 text-center">
+                                      <input 
+                                          type="checkbox" 
+                                          className="w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                          checked={selectedUserIds.includes(user.id)}
+                                          onChange={(e) => {
+                                              if (e.target.checked) {
+                                                  setSelectedUserIds(prev => [...prev, user.id]);
+                                              } else {
+                                                  setSelectedUserIds(prev => prev.filter(id => id !== user.id));
+                                              }
+                                          }}
+                                      />
+                                  </td>
                                   <td className="p-5 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800 shrink-0">
                                           {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
@@ -258,6 +310,12 @@ export default function AdminPanel() {
             onSave={handleSaveUser}
             isSuperAdmin={isSuperAdmin}
         />
+      )}
+      {isBroadcasting && (
+          <BroadcastModal 
+              onClose={() => setIsBroadcasting(false)} 
+              selectedUserIds={selectedUserIds} 
+          />
       )}
     </div>
   );

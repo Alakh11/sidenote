@@ -6,6 +6,10 @@ from schemas import UserRegister, AdminUpdateUser
 import logging
 from pydantic import BaseModel
 from datetime import datetime, timedelta
+import io
+import csv
+from fastapi.responses import StreamingResponse
+from whatsapp_service import send_whatsapp_template
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 logger = logging.getLogger(__name__)
@@ -214,6 +218,57 @@ def get_user_full_data(user_id: int, admin_id: int = Depends(require_admin)):
         }
     finally:
         conn.close()
+
+@router.get("/users/export")
+def export_users_csv(
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    admin_id: int = Depends(require_admin)
+):
+
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        where_clauses = ["1=1"]
+        params: list[Any] = []
+
+        if search:
+            search_term = f"%{search}%"
+            where_clauses.append("(name LIKE %s OR email LIKE %s OR mobile LIKE %s OR CAST(id AS CHAR) LIKE %s)")
+            params.extend([search_term, search_term, search_term, search_term])
+        if start_date:
+            where_clauses.append("DATE(created_at) >= %s")
+            params.append(start_date)
+        if end_date:
+            where_clauses.append("DATE(created_at) <= %s")
+            params.append(end_date)
+
+        where_str = " AND ".join(where_clauses)
+        cursor.execute(f"SELECT id, name, email, mobile, role, is_verified, created_at FROM users WHERE {where_str} ORDER BY created_at DESC", params)
+        users = cursor.fetchall()
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["User ID", "Name", "Email", "Mobile", "Role", "Verified", "Joined Date"])
+        
+        for u in users:
+            if isinstance(u, dict):
+                writer.writerow([
+                    u.get('id'), u.get('name'), u.get('email', 'N/A'), 
+                    u.get('mobile', 'N/A'), u.get('role'), 
+                    "Yes" if u.get('is_verified') else "No", 
+                    u.get('created_at')
+                ])
+                
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]), 
+            media_type="text/csv", 
+            headers={"Content-Disposition": f"attachment; filename=sidenote_users_{datetime.now().strftime('%Y%m%d')}.csv"}
+        )
+    finally:
+        conn.close()
         
 @router.get("/metrics")
 def get_system_metrics(
@@ -404,5 +459,51 @@ def delete_feedback(ticket_id: int, admin_id: int = Depends(require_admin)):
         conn.rollback()
         logger.error(f"Admin Feedback Delete Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete ticket")
+    finally:
+        conn.close()
+        
+class BroadcastPayload(BaseModel):
+    template_name: str
+    variables: list[str] = []
+    target_user_ids: list[int] = []
+
+@router.post("/broadcast")
+async def broadcast_whatsapp_message(payload: BroadcastPayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
+        admin_data = cursor.fetchone()
+        if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
+             raise HTTPException(status_code=403, detail="Only Superadmins can send broadcasts.")
+
+        query = "SELECT mobile FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL"
+        params: list[Any] = []
+        
+        if payload.target_user_ids:
+            format_strings = ','.join(['%s'] * len(payload.target_user_ids))
+            query += f" AND id IN ({format_strings})"
+            params.extend(payload.target_user_ids)
+
+        cursor.execute(query, params)
+        users = cursor.fetchall()
+        
+        if not users:
+            raise HTTPException(status_code=400, detail="No verified users found for this selection.")
+        
+        success_count = 0
+        for u in users:
+            if isinstance(u, dict) and u.get('mobile'):
+                try:
+                    mobile_number = str(u['mobile'])
+                    await send_whatsapp_template(mobile_number, payload.template_name, payload.variables)
+                    success_count += 1
+                except Exception as e:
+                    logger.error(f"Broadcast failed for {u.get('mobile')}: {e}")
+                    
+        return {"message": f"Broadcast successfully sent to {success_count} users!"}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
