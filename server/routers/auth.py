@@ -8,16 +8,12 @@ from utils import create_default_categories
 import logging
 import random
 import os
-from posthog import Posthog
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_text
+from tracking import track_event, link_web_and_whatsapp
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
-posthog_client = Posthog(
-    os.getenv("POSTHOG_API_KEY"), # type: ignore
-    host='https://app.posthog.com'
-)
 
 class RegisterPayload(BaseModel):
     name: str
@@ -90,17 +86,11 @@ async def register(payload: RegisterPayload):
         
         conn.commit()
 
-        try:
-            posthog_client.capture(
-                distinct_id=payload.contact, 
-                event='user_signed_up',
-                properties={
-                    'contact_type': payload.contact_type,
-                    'name': payload.name
-                }
-            )
-        except Exception as e:
-            logger.error(f"PostHog Error: {e}")
+        track_event(payload.contact, 'user_signed_up', {
+            'contact_type': payload.contact_type,
+            'name': payload.name,
+            'source': 'web'
+        })
             
         return {"message": "OTP sent to your WhatsApp!"}
         
@@ -135,6 +125,9 @@ def verify_otp(data: VerifyOTP):
         
         conn.commit()
         
+        link_web_and_whatsapp(data.contact, user_db['id'])
+        track_event(user_db['id'], 'web_dashboard_logged_in', {'source': 'web', 'login_method': 'otp'})
+        
         return {
             "token": token, 
             "user": {
@@ -151,7 +144,6 @@ def verify_otp(data: VerifyOTP):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-
 
 @router.post("/login")
 def login(data: UserLogin):
@@ -171,6 +163,10 @@ def login(data: UserLogin):
             raise HTTPException(status_code=400, detail="Account not verified. Please register again.")
 
         token = create_access_token({"sub": str(user['id']), "name": user['name']})
+        
+        if user.get('mobile'):
+            link_web_and_whatsapp(user['mobile'], user['id'])
+        track_event(user['id'], 'web_dashboard_logged_in', {'source': 'web', 'login_method': 'standard'})
         
         return {
             "token": token, 
@@ -213,6 +209,10 @@ def google_login(data: GoogleAuth):
             user = cursor.fetchone()
             
         token = create_access_token({"sub": str(user['id']), "name": user['name']})
+        
+        if user.get('mobile'):
+            link_web_and_whatsapp(user['mobile'], user['id'])
+        track_event(user['id'], 'web_dashboard_logged_in', {'source': 'web', 'login_method': 'google'})
         
         return {
             "token": token, 
@@ -309,6 +309,10 @@ def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_u
         """, (data.name, data.profile_pic, data.email, new_mobile, user_id))
         
         conn.commit()
+        
+        if data.mobile and not user['mobile']:
+            link_web_and_whatsapp(data.mobile, user_id)
+            
         return {"message": "Profile updated successfully"}
     except Exception as e:
         conn.rollback()
@@ -376,6 +380,14 @@ def complete_profile(request: ProfileCompletionRequest):
             create_default_categories(int(user['id']), cursor)
         
         conn.commit()
+        
+        if user.get('id'):
+            link_web_and_whatsapp(request.mobile, user['id'])
+            track_event(user['id'], 'user_onboarded', {
+                '$set': {'platform_joined': 'web', 'is_verified': True},
+                'source': 'web'
+            })
+            
         return {"status": "success", "message": "Profile completed! You can now log in."}
 
     except Exception as e:

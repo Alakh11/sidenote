@@ -5,7 +5,8 @@ from schemas import TransactionCreate, CategoryCreate, CategoryUpdate, BudgetSch
 import logging
 from datetime import datetime, timedelta
 from utils import get_date_filter_sql
-import mysql.connector 
+import mysql.connector
+from tracking import track_event, link_web_and_whatsapp
 
 router = APIRouter(tags=["Transactions & Categories"])
 logger = logging.getLogger(__name__)
@@ -28,6 +29,15 @@ def add_transaction(tx: TransactionCreate):
         query = "INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring)) # type: ignore
         conn.commit()
+        
+        event_name = 'expense_logged' if tx.type == 'expense' else 'income_logged'
+        track_event(tx.user_id, event_name, {
+            'amount': tx.amount,
+            'category': tx.category,
+            'type': tx.type,
+            'source': 'web'
+        })
+    
         return {"message": "Transaction Saved"}
     except mysql.connector.IntegrityError as e:
         logger.error(f"Add Tx Integrity Error: {e}")
@@ -113,10 +123,28 @@ def get_all_transactions(
 def delete_transaction(id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
-    cursor.execute("DELETE FROM transactions WHERE id = %s", (id,))
-    conn.commit()
-    conn.close()
-    return {"message": "Deleted"}
+    try:
+        cursor.execute("SELECT user_id, amount, type FROM transactions WHERE id = %s", (id,))
+        tx_data: Any = cursor.fetchone()
+
+        cursor.execute("DELETE FROM transactions WHERE id = %s", (id,))
+        conn.commit()
+
+        if tx_data:
+            event_name = 'expense_deleted' if tx_data['type'] == 'expense' else 'income_deleted'
+            track_event(tx_data['user_id'], event_name, {
+                'amount': float(tx_data['amount']),
+                'source': 'web'
+            })
+
+        return {"message": "Deleted"}
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Delete Tx Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+        return {"message": "Deleted"}
 
 # ================= CATEGORY ENDPOINTS =================
 
@@ -200,6 +228,12 @@ def set_budget(budget: BudgetSchema):
         """, (budget.user_id, budget.category_id, budget.amount, budget.amount))
         conn.commit()
         conn.close()
+
+        track_event(budget.user_id, 'budget_set', {
+            'amount': budget.amount,
+            'source': 'web'
+        })
+
         return {"message": "Budget saved"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -311,6 +345,7 @@ def update_transaction(id: int, tx: TransactionCreate):
         if not result:
              cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
+             
         cat_id = result['id'] if result else None
 
         query = """
@@ -321,6 +356,13 @@ def update_transaction(id: int, tx: TransactionCreate):
         """
         cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id)) # type: ignore
         conn.commit()
+
+        track_event(tx.user_id, 'transaction_updated', {
+            'amount': tx.amount,
+            'type': tx.type,
+            'source': 'web'
+        })
+
         return {"message": "Transaction updated"}
     except mysql.connector.IntegrityError as e:
         conn.rollback()
