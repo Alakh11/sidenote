@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
 from database import get_db
-from routers import auth, transactions, features, analytics, admin
+from routers import auth, transactions, features, analytics, admin, payment_gateway
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image,  process_whatsapp_audio
 from security import get_current_user
 from whatsapp_service import send_whatsapp_template
@@ -48,6 +48,7 @@ app.include_router(transactions.router)
 app.include_router(features.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
+app.include_router(payment_gateway.router)
 
 @app.api_route("/", tags=["Health"], methods=["GET", "HEAD"])
 def health_check():

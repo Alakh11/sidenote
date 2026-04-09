@@ -29,6 +29,7 @@ import FAQ from './components/Support/FAQ';
 import TermsAndConditions from './components/Legal/Terms';
 import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 import ResetPassword from './components/Auth/ResetPassword';
+import PaymentPage from './components/PaymentPage/paymentPage';
 
 interface UserWithRole extends User {
   id: number;
@@ -327,6 +328,14 @@ const notFoundRoute = new NotFoundRoute({
   component: NotFound,
 });
 
+// --- 15. Payment Gateway Page
+const paymentRoute = createRoute({
+  getParentRoute: () => authRoute,
+  // getParentRoute: () => rootRoute,
+  path: 'payment',
+  component: PaymentPage,
+});
+
 // --- Assemble Route Tree ---
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -348,6 +357,7 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     settingsRoute,
     feedbackRoute,
+    paymentRoute,
   ])
 ]);
 
