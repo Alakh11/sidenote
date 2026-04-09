@@ -1,5 +1,5 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Download, Megaphone } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -17,8 +17,7 @@ export default function AdminPanel() {
   const { user: currentUser } = router.options.context as any;
   const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
-  const canBroadcast = isSuperAdmin || currentUser?.can_broadcast;
-  const canExport = isSuperAdmin || currentUser?.can_export;
+  const canBroadcast = isSuperAdmin || currentUser?.role === 'admin';
   
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
@@ -41,47 +40,18 @@ export default function AdminPanel() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  const [formData, setFormData] = useState({ 
-      name: '', email: '', mobile: '', password: '', role: 'user',
-      can_broadcast: false, can_export: false
-  });
+  const [formData, setFormData] = useState({ name: '', email: '', mobile: '', password: '', role: 'user' });
+
+  const formatLocalTime = (dateString: string) => {
+      if (!dateString) return null;
+      const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
+      return new Date(utcString);
+  };
 
   useEffect(() => {
       const timer = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 500);
       return () => clearTimeout(timer);
   }, [search]);
-
-  const handleExportCSV = async () => {
-      try {
-          const token = localStorage.getItem('token');
-          const query = new URLSearchParams();
-          if (debouncedSearch) query.append('search', debouncedSearch);
-          if (startDate) query.append('start_date', startDate);
-          if (endDate) query.append('end_date', endDate);
-          
-          const response = await axios.get(`${API_URL}/admin/users/export?${query.toString()}`, {
-              headers: { Authorization: `Bearer ${token}` },
-              responseType: 'blob'
-          });
-          const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
-          
-          const link = document.createElement('a');
-          link.href = blobUrl;
-          
-          const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-          link.setAttribute('download', `sidenote_users_${dateStr}.csv`);
-          
-          document.body.appendChild(link);
-          link.click();
-          
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(blobUrl);
-          
-      } catch (error: any) {
-          console.error("Export failed", error);
-          alert(error.response?.data?.detail || "Failed to download CSV. Check your permissions.");
-      }
-  };
 
   const fetchUsers = async () => {
       try {
@@ -132,9 +102,7 @@ export default function AdminPanel() {
                   contact: isEmail ? formData.email : formData.mobile,
                   contact_type: isEmail ? 'email' : 'mobile',
                   password: formData.password,
-                  role: formData.role,
-                  can_broadcast: formData.can_broadcast,
-                  can_export: formData.can_export
+                  role: formData.role
               };
               await axios.post(`${API_URL}/admin/users`, creationPayload, config);
           } else if (editingUser) {
@@ -143,16 +111,14 @@ export default function AdminPanel() {
                   email: formData.email || null,
                   mobile: formData.mobile || null,
                   new_password: formData.password || undefined,
-                  role: formData.role,
-                  can_broadcast: formData.can_broadcast,
-                  can_export: formData.can_export
+                  role: formData.role
               };
               await axios.put(`${API_URL}/admin/users/${editingUser.id}`, updatePayload, config);
           }
           
           setIsCreating(false);
           setEditingUser(null);
-          setFormData({ name: '', email: '', mobile: '', password: '', role: 'user', can_broadcast: false, can_export: false });
+          setFormData({ name: '', email: '', mobile: '', password: '', role: 'user' });
           fetchUsers();
           alert("Success!");
       } catch(e: any) { alert(e.response?.data?.detail || "Operation failed"); }
@@ -179,6 +145,7 @@ export default function AdminPanel() {
                  <div className="flex items-center gap-2 mb-1"><Wallet size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Tx</p></div>
                 <p className="text-2xl font-black text-indigo-600">{serverStats.total_transactions}</p>
             </div>
+            
             {canBroadcast && (
                 <button 
                     onClick={() => setIsBroadcasting(true)}
@@ -190,7 +157,7 @@ export default function AdminPanel() {
             )}
 
             <button 
-                onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user', can_broadcast: false, can_export: false}); }}
+                onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user'}); }}
                 className="bg-indigo-600 text-white px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
             >
                 <Plus size={24} />
@@ -218,12 +185,6 @@ export default function AdminPanel() {
                       <span className="text-stone-400 font-bold">to</span>
                       <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none" value={endDate} onChange={e => setEndDate(e.target.value)} />
                       {(search || startDate || endDate) && <button onClick={() => {setSearch(''); setStartDate(''); setEndDate('');}} className="text-rose-500 hover:underline text-xs font-bold px-2">Clear</button>}
-                      
-                      {canExport && (
-                          <button onClick={handleExportCSV} className="ml-2 flex items-center gap-2 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 px-3 py-2 rounded-xl font-bold text-xs hover:bg-stone-200 transition">
-                              <Download size={14}/> Export CSV
-                          </button>
-                      )}
                   </div>
               </div>
               <div className="overflow-x-auto">
@@ -293,7 +254,16 @@ export default function AdminPanel() {
                                         <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.mobile || <span className="text-stone-400 italic">Unlinked</span>}</p>
                                     </td>
                                     <td className="p-5 text-sm font-medium text-stone-500 dark:text-slate-400">
-                                        {user.created_at ? new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
+                                        {user.created_at ? (
+                                            <div className="flex flex-col">
+                                                <span>{formatLocalTime(user.created_at)?.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                <span className="text-[10px] font-mono text-stone-400 dark:text-slate-500 mt-0.5">
+                                                    {formatLocalTime(user.created_at)?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="italic text-stone-400">Unknown</span>
+                                        )}
                                     </td>
 
                                   <td className="p-5">
@@ -304,18 +274,7 @@ export default function AdminPanel() {
                                       <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="View Full Data"><Eye size={16} /></button>
                                       {(isSuperAdmin || user.role === 'user') && (
                                           <>
-                                            <button onClick={() => { 
-                                                setEditingUser(user); 
-                                                setFormData({
-                                                    name: user.name, 
-                                                    email: user.email || '', 
-                                                    mobile: user.mobile || '', 
-                                                    password: '', 
-                                                    role: user.role || 'user',
-                                                    can_broadcast: !!user.can_broadcast,
-                                                    can_export: !!user.can_export
-                                                }); 
-                                            }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
+                                            <button onClick={() => { setEditingUser(user); setFormData({name: user.name, email: user.email || '', mobile: user.mobile || '', password: '', role: user.role || 'user'}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
                                             <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
                                           </>
                                       )}

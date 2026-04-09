@@ -1,32 +1,26 @@
 import threading
 import time
 from datetime import datetime, timedelta
-from fastapi import FastAPI, APIRouter, Depends
+from fastapi import FastAPI, APIRouter, Depends, Query, HTTPException, Response, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
 from database import get_db
 from routers import auth, transactions, features, analytics, admin, payment_gateway
-from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image,  process_whatsapp_audio
+from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image, process_whatsapp_audio
 from security import get_current_user
 from whatsapp_service import send_whatsapp_template
-from fastapi import Query, HTTPException, Response, Request, BackgroundTasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_insights import send_weekly_proactive_insights
 from pydantic import BaseModel
 from typing import Optional
-from posthog import Posthog
+from tracking import track_event
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
-
-posthog_client = Posthog(
-    os.getenv("POSTHOG_API_KEY"), # type: ignore
-    host='https://app.posthog.com'
-)
 
 # CORS Setup
 origins = [
@@ -279,19 +273,12 @@ def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: 
         print(f"Metrics Error: {e}")
         
     if not endpoint.startswith("/admin"):
-        try:
-            posthog_client.capture(
-                distinct_id='server_backend',
-                event='api_request_made',
-                properties={
-                    'endpoint': endpoint,
-                    'method': method,
-                    'status_code': status_code,
-                    'response_time_ms': duration_ms
-                }
-            )
-        except Exception as e:
-            print(f"PostHog Error: {e}")
+        track_event('server_backend', 'api_request_made', {
+            'endpoint': endpoint,
+            'method': method,
+            'status_code': status_code,
+            'response_time_ms': duration_ms
+        })
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):

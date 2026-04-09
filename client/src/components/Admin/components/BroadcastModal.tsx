@@ -5,13 +5,12 @@ import { Megaphone, Send, X, AlertTriangle } from 'lucide-react';
 const API_URL = "https://api.sidenote.in";
 
 export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: () => void, selectedUserIds: number[] }) {
-    const [templateName, setTemplateName] = useState('sidenote_custom_alert');
+    const [templateName, setTemplateName] = useState('sidenote_welcome_v1');
     const [customMessage, setCustomMessage] = useState('');
     const [sendToAll, setSendToAll] = useState(selectedUserIds.length === 0);
     const [loading, setLoading] = useState(false);
 
     const handleSend = async () => {
-        if (!customMessage.trim()) return alert("Please enter a message to send.");
         
         const targetCount = sendToAll ? "ALL verified users" : `${selectedUserIds.length} selected users`;
         if (!confirm(`Blast this message to ${targetCount} via WhatsApp?`)) return;
@@ -21,7 +20,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
             const token = localStorage.getItem('token');
             const payload = {
                 template_name: templateName,
-                variables: [customMessage],
+                variables: customMessage.trim() ? [customMessage] : [],
                 target_user_ids: sendToAll ? [] : selectedUserIds
             };
             
@@ -74,11 +73,11 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-xs font-bold uppercase text-stone-400 ml-1 flex items-center gap-1"><AlertTriangle size={12}/> Custom Message Content</label>
+                        <label className="text-xs font-bold uppercase text-stone-400 ml-1 flex items-center gap-1"><AlertTriangle size={12}/> Custom Message Content (Optional)</label>
                         <textarea 
                             className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition resize-none" 
                             rows={5}
-                            placeholder="Type your custom announcement here... (This maps to variable {{1}} in your template)"
+                            placeholder="Type your custom announcement here if your template requires variables..."
                             value={customMessage} 
                             onChange={e => setCustomMessage(e.target.value)} 
                         />
@@ -87,7 +86,8 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                 
                 <div className="flex gap-3 mt-8">
                     <button onClick={onClose} className="flex-1 py-3.5 bg-stone-100 rounded-xl font-bold text-stone-600 hover:bg-stone-200 dark:bg-slate-800 dark:text-slate-300 disabled:opacity-50" disabled={loading}>Cancel</button>
-                    <button onClick={handleSend} disabled={loading || !customMessage} className="flex-1 py-3.5 bg-emerald-600 rounded-xl font-bold text-white hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 dark:shadow-none disabled:opacity-50">
+                    
+                    <button onClick={handleSend} disabled={loading} className="flex-1 py-3.5 bg-emerald-600 rounded-xl font-bold text-white hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 dark:shadow-none disabled:opacity-50">
                         {loading ? 'Sending...' : <><Send size={18} /> Blast Message</>}
                     </button>
                 </div>

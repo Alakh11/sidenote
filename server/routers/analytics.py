@@ -4,6 +4,8 @@ from database import get_db
 import logging
 from utils import get_date_filter_sql
 from fastapi import Query
+from tracking import track_event
+
 router = APIRouter(tags=["Analytics & Dashboard"])
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ def get_dashboard(user_id: int, view_by: str = Query("month")):
         recent: list[Any] = cursor.fetchall()
         
         conn.close()
+        track_event(user_id, 'dashboard_viewed', {'view_by': view_by, 'source': 'web'})
         return {"totals": totals, "recent": recent}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -194,6 +197,7 @@ def get_prediction(user_id: int):
         final_prediction = prediction / total_weight if total_weight > 0 else 0
         
         conn.close()
+        track_event(user_id, 'prediction_viewed', {'predicted_amount': final_prediction, 'source': 'web'})
         return {"predicted_spend": round(final_prediction, 2)}
     except Exception as e:
         logger.error(f"Prediction Error: {e}")

@@ -11,31 +11,16 @@ export default function UserFormModal({ isCreating, editingUser, formData, setFo
             
             <div className="space-y-4">
                 {isSuperAdmin && (
-                  <div className="space-y-3">
-                      <div className="space-y-1">
-                          <label className="text-xs font-bold uppercase text-stone-400 ml-1">Account Role</label>
-                          <select 
-                              className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition appearance-none cursor-pointer" 
-                              value={formData.role} 
-                              onChange={e => setFormData({...formData, role: e.target.value})}
-                          >
-                              <option value="user">Standard User</option>
-                              <option value="admin">Administrator</option>
-                          </select>
-                      </div>
-
-                      {formData.role === 'admin' && (
-                          <div className="flex gap-4 p-4 bg-stone-100 dark:bg-slate-800 rounded-xl border border-stone-200 dark:border-slate-700">
-                              <label className="flex items-center gap-2 text-sm font-bold text-stone-600 dark:text-slate-300 cursor-pointer">
-                                  <input type="checkbox" checked={formData.can_broadcast} onChange={e => setFormData({...formData, can_broadcast: e.target.checked})} className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
-                                  Can Broadcast
-                              </label>
-                              <label className="flex items-center gap-2 text-sm font-bold text-stone-600 dark:text-slate-300 cursor-pointer">
-                                  <input type="checkbox" checked={formData.can_export} onChange={e => setFormData({...formData, can_export: e.target.checked})} className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
-                                  Can Export CSV
-                              </label>
-                          </div>
-                      )}
+                  <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase text-stone-400 ml-1">Account Role</label>
+                      <select 
+                          className="w-full p-3.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition appearance-none cursor-pointer" 
+                          value={formData.role} 
+                          onChange={e => setFormData({...formData, role: e.target.value})}
+                      >
+                          <option value="user">Standard User</option>
+                          <option value="admin">Administrator</option>
+                      </select>
                   </div>
                 )}
 
