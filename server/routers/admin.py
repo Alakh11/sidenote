@@ -452,3 +452,59 @@ async def broadcast_whatsapp_message(payload: BroadcastPayload, admin_id: int = 
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+          
+     
+@router.get("/engagement/logs")
+def get_nudge_logs(limit: int = Query(50, ge=1), admin_id: int = Depends(require_admin)):
+    """Fetches the history of automated templates sent to users."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
+        query = """
+            SELECT m.id, m.template_name, m.trigger_reason, m.sent_at, 
+                   u.name as user_name, u.mobile
+            FROM automated_messages m
+            JOIN users u ON m.user_id = u.id
+            ORDER BY m.sent_at DESC
+            LIMIT %s
+        """
+        cursor.execute(query, (limit,))
+        return cursor.fetchall()
+    except Exception as e:
+        logger.error(f"Nudge Log Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.get("/engagement/activity")
+def get_user_activity_stats(admin_id: int = Depends(require_admin)):
+    """Runs the activity SQL queries to show user retention and logging habits."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
+        query = """
+            SELECT 
+                u.id as user_id,
+                u.name,
+                u.mobile,
+                COUNT(t.id) as total_transactions,
+                COUNT(DISTINCT DATE(t.date)) as active_days,
+                MAX(t.date) as last_active_date,
+                MIN(t.date) as joined_on,
+                DATEDIFF(NOW(), MIN(t.date)) as days_since_joining
+            FROM users u
+            JOIN transactions t ON u.id = t.user_id
+            GROUP BY u.id, u.name, u.mobile
+            ORDER BY last_active_date DESC
+        """
+        cursor.execute(query)
+        return cursor.fetchall()
+    except Exception as e:
+        logger.error(f"Activity Stats Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
