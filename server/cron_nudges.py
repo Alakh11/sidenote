@@ -125,11 +125,11 @@ async def run_daily_nudges():
                 template_name = "weekly_nudge_v1"
                 trigger_reason = "7_days_inactive"
             elif days_inactive == 1:
-                template_name = "daily_nudge_v1_1"
+                template_name = "daily_nudge_v1"
                 variables = [f"{month_total:g}"] # last_total
                 trigger_reason = "24h_inactive"
             elif days_inactive == 2:
-                template_name = "soft_nudge_v1_1"
+                template_name = "soft_nudge_v1"
                 trigger_reason = "48h_inactive"
             elif days_inactive == 3:
                 template_name = "streak_nudge_v1"

@@ -245,9 +245,6 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
         msg=raw_body,
         digestmod=hashlib.sha256
     ).hexdigest()
-    print(f"DEBUG Secret Length: {len(META_APP_SECRET)} characters")
-    print(f"DEBUG Expected (Mine): sha256={expected_signature}")
-    print(f"DEBUG Received (Meta): {signature_header}")
 
     if not hmac.compare_digest(f"sha256={expected_signature}", signature_header):
         print("❌ Webhook blocked: Signature mismatch. Check your META_APP_SECRET.")
