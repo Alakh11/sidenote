@@ -7,6 +7,8 @@ import logging
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_template
+from fastapi import BackgroundTasks
+from cron_nudges import run_daily_nudges
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 logger = logging.getLogger(__name__)
@@ -506,5 +508,21 @@ def get_user_activity_stats(admin_id: int = Depends(require_admin)):
     except Exception as e:
         logger.error(f"Activity Stats Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+        
+@router.post("/engagement/trigger-nudges")
+async def trigger_automated_nudges(background_tasks: BackgroundTasks, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
+        admin_data: Any = cursor.fetchone()
+        
+        if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
+             raise HTTPException(status_code=403, detail="Only admins can trigger the nudge engine.")
+
+        background_tasks.add_task(run_daily_nudges)
+        return {"message": "Nudge engine started! Refresh logs in a few moments."}
     finally:
         conn.close()

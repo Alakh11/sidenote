@@ -1,35 +1,58 @@
-import { useState, useEffect } from 'react';
-import { Send, Activity, Clock, CalendarDays, BarChart2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Send, Activity, Clock, CalendarDays, BarChart2, Zap } from 'lucide-react';
 import axios from 'axios';
 
 export default function AdminEngagementView() {
     const [nudgeLogs, setNudgeLogs] = useState<any[]>([]);
     const [activityStats, setActivityStats] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isTriggering, setIsTriggering] = useState(false);
+    
     const API_URL = "https://api.sidenote.in";
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const config = {
-                    headers: { Authorization: `Bearer ${token}` }
-                };
+    const fetchData = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const config = { headers: { Authorization: `Bearer ${token}` } };
 
-                const [logsRes, statsRes] = await Promise.all([
-                    axios.get(`${API_URL}/admin/engagement/logs?limit=100`, config),
-                    axios.get(`${API_URL}/admin/engagement/activity`, config)
-                ]);
-                setNudgeLogs(logsRes.data);
-                setActivityStats(statsRes.data);
-            } catch (error) {
-                console.error("Failed to fetch engagement data", error);
-            } finally {
-                setLoading(false);
-            }
-        };
+            const [logsRes, statsRes] = await Promise.all([
+                axios.get(`${API_URL}/admin/engagement/logs?limit=100`, config),
+                axios.get(`${API_URL}/admin/engagement/activity`, config)
+            ]);
+            setNudgeLogs(logsRes.data);
+            setActivityStats(statsRes.data);
+        } catch (error) {
+            console.error("Failed to fetch engagement data", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [API_URL]);
+
+    useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
+
+    const handleTriggerNudges = async () => {
+        if (!confirm("Run the automated nudge engine now? This will evaluate all users and fire templates according to the inactivity rules.")) return;
+        
+        setIsTriggering(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/admin/engagement/trigger-nudges`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            setTimeout(() => {
+                fetchData();
+                setIsTriggering(false);
+                alert(res.data.message);
+            }, 2000);
+            
+        } catch (error: any) {
+            alert(error.response?.data?.detail || "Failed to trigger nudges.");
+            setIsTriggering(false);
+        }
+    };
 
     const formatTime = (dateString: string) => {
         if (!dateString) return 'Never';
@@ -46,12 +69,26 @@ export default function AdminEngagementView() {
             
             {/* Section 1: Automated Nudge Logs */}
             <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-stone-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10 flex items-center gap-3">
-                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl"><Send size={20} /></div>
-                    <div>
-                        <h3 className="font-bold text-lg text-stone-800 dark:text-white">Automated Nudge History</h3>
-                        <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">Recent templates fired by the system rules.</p>
+                <div className="p-6 border-b border-stone-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl"><Send size={20} /></div>
+                        <div>
+                            <h3 className="font-bold text-lg text-stone-800 dark:text-white">Automated Nudge History</h3>
+                            <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">Recent templates fired by the system rules.</p>
+                        </div>
                     </div>
+                    
+                    <button 
+                        onClick={handleTriggerNudges}
+                        disabled={isTriggering}
+                        className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isTriggering ? (
+                            <span className="animate-pulse">Running Engine...</span>
+                        ) : (
+                            <><Zap size={16} /> Run Engine Now</>
+                        )}
+                    </button>
                 </div>
                 <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                     <table className="w-full text-left">
