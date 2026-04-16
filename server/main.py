@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 VERIFY_TOKEN = os.getenv("WA_WEBHOOK_VERIFY_TOKEN")
-META_APP_SECRET = os.getenv("META_APP_SECRET")
+META_APP_SECRET = os.getenv("META_APP_SECRET", "").strip()
 
 # CORS Setup
 origins = [
@@ -191,6 +191,18 @@ def init_db():
                 FOREIGN KEY (debt_id) REFERENCES debts(id) ON DELETE CASCADE
             )
         """)
+        
+        # 10. Automated Messages (Nudge Logs)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS automated_messages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                template_name VARCHAR(100) NOT NULL,
+                trigger_reason VARCHAR(100),
+                sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
 
         conn.close()
         logger.info("Database and Tables initialized successfully")
@@ -233,6 +245,9 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
         msg=raw_body,
         digestmod=hashlib.sha256
     ).hexdigest()
+    print(f"DEBUG Secret Length: {len(META_APP_SECRET)} characters")
+    print(f"DEBUG Expected (Mine): sha256={expected_signature}")
+    print(f"DEBUG Received (Meta): {signature_header}")
 
     if not hmac.compare_digest(f"sha256={expected_signature}", signature_header):
         print("❌ Webhook blocked: Signature mismatch. Check your META_APP_SECRET.")
