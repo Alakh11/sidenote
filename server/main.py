@@ -11,7 +11,7 @@ from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, pr
 from security import get_current_user
 from whatsapp_service import send_whatsapp_template
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from cron_insights import send_weekly_proactive_insights
+from cron_nudges import run_daily_nudges
 from pydantic import BaseModel
 from typing import Optional
 from tracking import track_event
@@ -203,7 +203,7 @@ def init_db():
 @app.on_event("startup")
 def start_scheduler():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(send_weekly_proactive_insights, 'cron', day_of_week='sun', hour=18, minute=0)
+    scheduler.add_job(run_daily_nudges, 'cron', hour=18, minute=0)
     scheduler.start()
     
 @app.get("/webhook")
