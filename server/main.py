@@ -1,10 +1,7 @@
-import threading
-import time
 from datetime import datetime, timedelta
 from fastapi import FastAPI, APIRouter, Depends, Query, HTTPException, Response, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-import logging
-import os
+import logging, json, os, hmac, hashlib, threading, time
 from database import get_db
 from routers import auth, transactions, features, analytics, admin
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image, process_whatsapp_audio
@@ -20,7 +17,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "whatsapp_webhook_sidenote")
+VERIFY_TOKEN = os.getenv("WA_WEBHOOK_VERIFY_TOKEN")
+META_APP_SECRET = os.getenv("META_APP_SECRET")
 
 # CORS Setup
 origins = [
@@ -216,10 +214,34 @@ async def verify_webhook(
         return Response(content=challenge, media_type="text/plain")
     raise HTTPException(status_code=403, detail="Forbidden")
 
-@app.post("/webhook", dependencies=[Depends(verify_meta_signature)])
+
+@app.post("/webhook")
 async def receive_whatsapp_message(request: Request, background_tasks: BackgroundTasks):
-    body = await request.json()
+    raw_body = await request.body()
+    signature_header = request.headers.get("X-Hub-Signature-256")
+
+    if not signature_header:
+        print("⚠️ Webhook blocked: Missing signature header")
+        raise HTTPException(status_code=401, detail="Missing signature")
+
+    if not META_APP_SECRET:
+        print("🚨 Webhook blocked: META_APP_SECRET is missing from the server environment!")
+        raise HTTPException(status_code=500, detail="Server configuration error")
+
+    expected_signature = hmac.new(
+        key=META_APP_SECRET.encode(),
+        msg=raw_body,
+        digestmod=hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(f"sha256={expected_signature}", signature_header):
+        print("❌ Webhook blocked: Signature mismatch. Check your META_APP_SECRET.")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
     try:
+        # We parse the raw_body we already captured to avoid re-reading the stream
+        body = json.loads(raw_body)
+        
         entry = body.get('entry', [])[0]
         changes = entry.get('changes', [])[0]
         value = changes.get('value', {})
@@ -252,7 +274,7 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
                 background_tasks.add_task(process_whatsapp_audio, sender_phone, media_id)
                 
     except Exception as e:
-        print(f"⚠️ Webhook Error: {e}")
+        print(f"⚠️ Webhook Processing Error: {e}")
 
     return {"status": "ok"}
 
