@@ -20,7 +20,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
             const token = localStorage.getItem('token');
             const payload = {
                 template_name: templateName,
-                variables: customMessage.trim() ? [customMessage] : [],
+                variables: customMessage.trim() ? customMessage.split(',').map(s => s.trim()) : [],
                 target_user_ids: sendToAll ? [] : selectedUserIds
             };
             
