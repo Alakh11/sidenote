@@ -8,7 +8,7 @@ import os
 from database import get_db
 from routers import auth, transactions, features, analytics, admin
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image, process_whatsapp_audio
-from security import get_current_user
+from security import get_current_user, verify_meta_signature
 from whatsapp_service import send_whatsapp_template
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_nudges import run_daily_nudges
@@ -216,7 +216,7 @@ async def verify_webhook(
         return Response(content=challenge, media_type="text/plain")
     raise HTTPException(status_code=403, detail="Forbidden")
 
-@app.post("/webhook")
+@app.post("/webhook", dependencies=[Depends(verify_meta_signature)])
 async def receive_whatsapp_message(request: Request, background_tasks: BackgroundTasks):
     body = await request.json()
     try:
