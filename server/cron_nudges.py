@@ -149,7 +149,7 @@ async def run_daily_nudges():
                     
                     # Log to database for Admin Panel tracking
                     cursor.execute(
-                        "INSERT INTO automated_messages (user_id, template_name, trigger_reason) VALUES (%s, %s, %s)",
+                        "INSERT INTO automated_messages (user_id, template_name, trigger_reason, sent_at) VALUES (%s, %s, %s, UTC_TIMESTAMP())",
                         (user_id, template_name, trigger_reason)
                     )
                     conn.commit()
@@ -161,5 +161,6 @@ async def run_daily_nudges():
     except Exception as e:
         logger.error(f"Daily Nudge Cron Error: {e}")
     finally:
+        cursor.execute("SET time_zone = '+00:00'") 
         conn.close()
         logger.info("Daily Nudge Evaluation Complete.")

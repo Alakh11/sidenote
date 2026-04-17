@@ -462,7 +462,7 @@ def get_nudge_logs(limit: int = Query(50, ge=1), admin_id: int = Depends(require
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
+        # cursor.execute("SET time_zone = '+05:30'")
         
         query = """
             SELECT m.id, m.template_name, m.trigger_reason, m.sent_at, 
@@ -486,7 +486,7 @@ def get_user_activity_stats(admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
+        # cursor.execute("SET time_zone = '+05:30'")
         
         query = """
             SELECT 
