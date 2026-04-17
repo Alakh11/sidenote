@@ -523,15 +523,15 @@ def get_user_activity_stats(page: int = Query(1, ge=1), limit: int = Query(20, g
 
 @router.post("/engagement/trigger-nudges")
 async def trigger_automated_nudges(background_tasks: BackgroundTasks, admin_id: int = Depends(require_admin)):
-    """Manually triggers the daily nudge evaluation engine."""
+    """SUPERADMIN ONLY: Manually triggers the daily nudge evaluation engine."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         admin_data: Any = cursor.fetchone()
         
-        if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
-             raise HTTPException(status_code=403, detail="Only admins can trigger the nudge engine.")
+        if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
+             raise HTTPException(status_code=403, detail="Only Superadmins can trigger the nudge engine.")
 
         background_tasks.add_task(run_daily_nudges)
         return {"message": "Nudge engine started! Refresh logs in a few moments."}

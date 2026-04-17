@@ -8,6 +8,7 @@ export default function AdminEngagementView() {
     const [loadingNudges, setLoadingNudges] = useState(true);
     const [loadingActivity, setLoadingActivity] = useState(true);
     const [isTriggering, setIsTriggering] = useState(false);
+    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     
     const [nudgePage, setNudgePage] = useState(1);
     const [nudgeTotal, setNudgeTotal] = useState(0);
@@ -49,8 +50,22 @@ export default function AdminEngagementView() {
         }
     }, [activityPage, API_URL]);
 
-    useEffect(() => { fetchNudges(); }, [fetchNudges]);
-    useEffect(() => { fetchActivity(); }, [fetchActivity]);
+    useEffect(() => {
+        try {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                const userObj = JSON.parse(userStr);
+                if (userObj.role === 'superadmin') {
+                    setIsSuperAdmin(true);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to parse user role");
+        }
+
+        fetchNudges();
+        fetchActivity();
+    }, [fetchNudges, fetchActivity]);
 
     const handleTriggerNudges = async () => {
         if (!confirm("Run the automated nudge engine now? This will evaluate all users and fire templates according to the inactivity rules.")) return;
@@ -63,7 +78,7 @@ export default function AdminEngagementView() {
             });
             
             setTimeout(() => {
-                setNudgePage(1);
+                setNudgePage(1); 
                 fetchNudges();
                 setIsTriggering(false);
                 alert(res.data.message);
@@ -120,22 +135,24 @@ export default function AdminEngagementView() {
                         </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={handleFlushAndTrigger}
-                            disabled={isTriggering}
-                            className="px-4 py-2.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition flex items-center gap-2 disabled:opacity-50"
-                        >
-                            <AlertTriangle size={16} /> Flush & Run Engine
-                        </button>
-                        <button 
-                            onClick={handleTriggerNudges}
-                            disabled={isTriggering}
-                            className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {isTriggering ? <span className="animate-pulse">Running Engine...</span> : <><Zap size={16} /> Run Engine Now</>}
-                        </button>
-                    </div>
+                    {isSuperAdmin && (
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={handleFlushAndTrigger}
+                                disabled={isTriggering}
+                                className="px-4 py-2.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition flex items-center gap-2 disabled:opacity-50"
+                            >
+                                <AlertTriangle size={16} /> Flush & Run Engine
+                            </button>
+                            <button 
+                                onClick={handleTriggerNudges}
+                                disabled={isTriggering}
+                                className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isTriggering ? <span className="animate-pulse">Running Engine...</span> : <><Zap size={16} /> Run Engine Now</>}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="overflow-x-auto min-h-[300px]">
@@ -170,7 +187,6 @@ export default function AdminEngagementView() {
                     )}
                 </div>
                 
-                {/* Pagination Footer */}
                 <div className="p-4 border-t border-stone-100 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-800/30 flex justify-between items-center text-sm">
                     <span className="text-stone-500 dark:text-slate-400 font-medium">
                         Showing {nudgeTotal === 0 ? 0 : ((nudgePage - 1) * LIMIT) + 1} to {Math.min(nudgePage * LIMIT, nudgeTotal)} of {nudgeTotal}
@@ -224,7 +240,6 @@ export default function AdminEngagementView() {
                     )}
                 </div>
 
-                {/* Pagination Footer */}
                 <div className="p-4 border-t border-stone-100 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-800/30 flex justify-between items-center text-sm">
                     <span className="text-stone-500 dark:text-slate-400 font-medium">
                         Showing {activityTotal === 0 ? 0 : ((activityPage - 1) * LIMIT) + 1} to {Math.min(activityPage * LIMIT, activityTotal)} of {activityTotal}
