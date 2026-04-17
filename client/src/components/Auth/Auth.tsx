@@ -25,11 +25,14 @@ const COUNTRY_CODES = [
 export default function Auth({ onLoginSuccess }: AuthProps) {
   const { theme, toggleTheme } = useTheme();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [authStep, setAuthStep] = useState<'form' | 'otp'>('form');
+  const [authStep, setAuthStep] = useState<'form' | 'otp' | 'link_mobile_form' | 'link_mobile_otp'>('form');
   
   const [countryCode, setCountryCode] = useState('91');
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ name: '', contact: '', password: '', otp: '' });
+  const [tempToken, setTempToken] = useState('');
+  const [tempUser, setTempUser] = useState<any>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -39,10 +42,12 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   const targetMobile = `${countryCode}${formData.contact}`;
 
   const isFormValid = () => {
-    if (authStep === 'otp') return formData.otp.length === 4;
+    if (authStep === 'otp' || authStep === 'link_mobile_otp') return formData.otp.length === 4;
 
     const isContactValid = formData.contact.length === currentConfig.len &&
                          (countryCode === '91' ? /^[6-9]/.test(formData.contact) : true);
+
+    if (authStep === 'link_mobile_form') return isContactValid;
 
     const isPasswordValid = mode === 'login' 
         ? formData.password.length > 0
@@ -54,12 +59,12 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   };
 
   const validateForm = () => {
-    if (authStep === 'form') {
+    if (authStep === 'form' || authStep === 'link_mobile_form') {
         if (formData.contact.length !== currentConfig.len) return `${currentConfig.len} digit mobile number required.`;
         if (countryCode === '91' && !/^[6-9]/.test(formData.contact)) return "Indian mobile numbers must start with 6, 7, 8, or 9.";
     }
 
-    if (mode === 'signup') {
+    if (mode === 'signup' && authStep === 'form') {
         const pw = formData.password;
         if (pw.length < 8) return "Password must be at least 8 characters.";
         if (!/[A-Z]/.test(pw)) return "Password must have at least 1 uppercase letter.";
@@ -79,6 +84,8 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
     if (validationError) return setError(validationError);
 
     if (authStep === 'otp') return verifyOTP();
+    if (authStep === 'link_mobile_form') return requestMobileLink();
+    if (authStep === 'link_mobile_otp') return verifyMobileLink();
 
     await processBackendRequest();
   };
@@ -97,12 +104,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             setAuthStep('otp');
         } else {
             const res = await axios.post(`${API_URL}/auth/login`, { contact: targetMobile, password: formData.password });
-            posthog.identify(String(res.data.user.id), {
-                name: res.data.user.name,
-                email: res.data.user.email,
-                role: res.data.user.role
-            });
-
+            posthog.identify(String(res.data.user.id), { name: res.data.user.name, email: res.data.user.email, role: res.data.user.role });
             onLoginSuccess(res.data.user, res.data.token);
         }
     } catch (err: any) {
@@ -116,12 +118,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
       setLoading(true);
       try {
           const res = await axios.post(`${API_URL}/auth/verify`, { contact: targetMobile, otp: formData.otp });
-          posthog.identify(String(res.data.user.id), {
-              name: res.data.user.name,
-              email: res.data.user.email,
-              role: res.data.user.role
-          });
-
+          posthog.identify(String(res.data.user.id), { name: res.data.user.name, email: res.data.user.email, role: res.data.user.role });
           onLoginSuccess(res.data.user, res.data.token);
       } catch (err: any) {
           setError(err.response?.data?.detail || "Invalid OTP");
@@ -138,15 +135,52 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             const res = await axios.post(`${API_URL}/auth/google`, {
                 email: decoded.email, name: decoded.name, picture: decoded.picture
             });
-            posthog.identify(String(res.data.user.id), {
-                name: res.data.user.name,
-                email: res.data.user.email,
-                role: res.data.user.role
-            });
-
-            onLoginSuccess(res.data.user, res.data.token);
-        } catch (err) { setError("Google Login Failed"); } finally { setLoading(false); }
+            
+            if (!res.data.user.mobile) {
+                setTempToken(res.data.token);
+                setTempUser(res.data.user);
+                setAuthStep('link_mobile_form');
+            } else {
+                posthog.identify(String(res.data.user.id), { name: res.data.user.name, email: res.data.user.email, role: res.data.user.role });
+                onLoginSuccess(res.data.user, res.data.token);
+            }
+        } catch (err) { 
+            setError("Google Login Failed"); 
+        } finally { 
+            setLoading(false); 
+        }
     }
+  };
+
+  const requestMobileLink = async () => {
+      setLoading(true);
+      try {
+          await axios.post(`${API_URL}/auth/link-mobile/request`, { mobile: targetMobile }, {
+              headers: { Authorization: `Bearer ${tempToken}` }
+          });
+          setSuccessMsg("Verification code sent to WhatsApp!");
+          setAuthStep('link_mobile_otp');
+      } catch (err: any) {
+          setError(err.response?.data?.detail || "Failed to send OTP.");
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const verifyMobileLink = async () => {
+      setLoading(true);
+      try {
+          const res = await axios.post(`${API_URL}/auth/link-mobile/verify`, { mobile: targetMobile, otp: formData.otp }, {
+              headers: { Authorization: `Bearer ${tempToken}` }
+          });
+          
+          posthog.identify(String(res.data.user.id), { name: res.data.user.name, email: res.data.user.email, role: res.data.user.role });
+          onLoginSuccess(res.data.user, tempToken);
+      } catch (err: any) {
+          setError(err.response?.data?.detail || "Invalid OTP");
+      } finally {
+          setLoading(false);
+      }
   };
 
   return (
@@ -161,10 +195,16 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 <Logo variant="app-icon" textSize="text-2xl" />
                 <span className="font-extrabold tracking-tight text-3xl md:text-4xl text-[#111111] dark:text-white leading-none">Side<span className="text-[#25D366]">Note</span></span>
             </div>
+            
             <h1 className="text-lg md:text-xl font-bold text-[#111111] dark:text-white">
-                {authStep === 'otp' ? 'Verify Identity' : (mode === 'login' ? 'Welcome Back' : 'Create Account')}
+                {authStep === 'otp' && 'Verify Identity'}
+                {authStep === 'form' && (mode === 'login' ? 'Welcome Back' : 'Create Account')}
+                {authStep === 'link_mobile_form' && `Welcome, ${tempUser?.name.split(' ')[0]}!`}
+                {authStep === 'link_mobile_otp' && 'Verify WhatsApp'}
             </h1>
+            
             {authStep === 'form' && <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm mt-1 italic">"Manage your finances intelligently."</p>}
+            {authStep === 'link_mobile_form' && <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm mt-1">One last step! Link your WhatsApp number to use the SideNote.</p>}
         </div>
 
         {authStep === 'form' && (
@@ -231,7 +271,27 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             </>
         )}
 
-        {authStep === 'otp' && (
+        {authStep === 'link_mobile_form' && (
+            <div className="space-y-4 animate-in slide-in-from-right-4">
+                <div className="relative group flex">
+                    <div className="flex w-full">
+                        <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
+                            <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
+                            <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
+                                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
+                            </select>
+                        </div>
+                        <input 
+                            type="tel" maxLength={currentConfig.len}
+                            className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
+                            placeholder="WhatsApp Number" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value.replace(/\D/g, '')})}
+                        />
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {(authStep === 'otp' || authStep === 'link_mobile_otp') && (
             <div className="text-center space-y-4 animate-in slide-in-from-right-4">
                 <p className="text-sm text-slate-500 mb-6">We've sent a 4-digit code to your WhatsApp.</p>
                 <input 
@@ -249,13 +309,17 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             onClick={handleNextStep} disabled={loading || !isFormValid()}
             className="w-full mt-5 md:mt-6 bg-[#111111] dark:bg-[#25D366] text-white py-3 md:py-3.5 rounded-xl font-bold hover:bg-black dark:hover:bg-[#1EA952] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-200 dark:shadow-[#25D366]/20 text-sm md:text-base"
         >
-            {loading ? 'Processing...' : (authStep === 'form' ? (mode === 'login' ? 'Sign In' : 'Continue') : 'Verify')}
+            {loading ? 'Processing...' : ((authStep === 'form' || authStep === 'link_mobile_form') ? (mode === 'login' && authStep !== 'link_mobile_form' ? 'Sign In' : 'Continue') : 'Verify')}
             {!loading && <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />}
         </button>
 
         <div className="mt-5 md:mt-6 text-center">
             {authStep !== 'form' ? (
-                <button onClick={() => setAuthStep('form')} className="text-xs md:text-sm font-bold text-slate-500 hover:text-[#111111] dark:hover:text-white flex items-center justify-center gap-2 mx-auto">
+                <button onClick={() => {
+                    if (authStep === 'link_mobile_form') { setAuthStep('form'); setTempToken(''); setTempUser(null); setError(''); }
+                    else if (authStep === 'link_mobile_otp') { setAuthStep('link_mobile_form'); formData.otp = ''; setError(''); }
+                    else { setAuthStep('form'); setError(''); }
+                }} className="text-xs md:text-sm font-bold text-slate-500 hover:text-[#111111] dark:hover:text-white flex items-center justify-center gap-2 mx-auto">
                     <ArrowLeft className="w-4 h-4" /> Go Back
                 </button>
             ) : (

@@ -419,3 +419,82 @@ def update_preferences(data: UserPreferencesUpdate, user_id: int = Depends(get_c
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+class LinkMobileRequest(BaseModel):
+    mobile: str
+
+@router.post("/link-mobile/request")
+async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(get_current_user)):
+    """Sends an OTP to a newly provided WhatsApp number for an existing Google user."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="This WhatsApp number is already registered. Please log in using your phone number instead.")
+        
+        cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+        user_row: Any = cursor.fetchone()
+        
+        if not isinstance(user_row, dict):
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        user_name = str(user_row.get('name', 'WhatsApp User'))
+        
+        await generate_and_send_otp(cursor, data.mobile, user_name)
+        conn.commit()
+        
+        return {"message": "OTP sent to WhatsApp!"}
+    except Exception as e:
+        conn.rollback()
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+class LinkMobileVerify(BaseModel):
+    mobile: str
+    otp: str
+
+@router.post("/link-mobile/verify")
+def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_current_user)):
+    """Verifies the OTP and permanently links the WhatsApp number to the account."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.mobile, data.otp))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP.")
+            
+        cursor.execute("UPDATE users SET mobile = %s WHERE id = %s", (data.mobile, user_id))
+        cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.mobile,))
+        conn.commit()
+        
+        link_web_and_whatsapp(data.mobile, user_id)
+        track_event(user_id, 'whatsapp_linked', {'source': 'web'})
+        
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        raw_user: Any = cursor.fetchone()
+        
+        if not isinstance(raw_user, dict):
+            raise HTTPException(status_code=404, detail="User not found after update")
+            
+        user_db: dict[str, Any] = raw_user
+        
+        return {
+            "message": "Mobile linked successfully!",
+            "user": {
+                "id": user_db.get('id', user_id),
+                "name": user_db.get('name'), 
+                "email": user_db.get('email'),
+                "mobile": user_db.get('mobile'),
+                "picture": user_db.get('profile_pic') or "",
+                "role": user_db.get('role', 'user')
+            }
+        }
+    except Exception as e:
+        conn.rollback()
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
