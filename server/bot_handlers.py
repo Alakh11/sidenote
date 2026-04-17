@@ -1,11 +1,13 @@
 import re
-import traceback
+import traceback, asyncio
 from typing import Any
 from database import get_db
 from datetime import datetime
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons, get_whatsapp_media_url, download_whatsapp_media
 from ai_service import extract_receipt_data, extract_voice_data
 from constants import *
+
+db_semaphore = asyncio.Semaphore(20)
 
 def get_user_id(cursor: Any, phone: str) -> int | None:
     """Fetches the user_id associated with the mobile number."""
@@ -197,91 +199,92 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
     budget_note = ""
     success = False
 
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SET time_zone = '+05:30'")
-        
-        # User Check
-        cursor.execute("SELECT id, monthly_budget FROM users WHERE mobile = %s", (phone,))
-        user_data = cursor.fetchone()
-        u_data = tuple(user_data) if user_data else ()
-        
-        if not u_data:
-            cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
-            conn.commit()
-            user_id = cursor.lastrowid
-            budget_limit = 0.0
-        else:
-            user_id = int(str(u_data[0]))
-            budget_limit = float(str(u_data[1])) if u_data[1] else 0.0
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SET time_zone = '+05:30'")
             
-        category_id = None
-        target_category_name = None
-        
-        for cat_name, keywords in CATEGORY_MAP.items():
-            if any(kw in item_lower for kw in keywords):
-                target_category_name = cat_name
-                break
-                
-        if target_category_name:
-            cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s AND name = %s LIMIT 1", (user_id, tx_type, target_category_name))
-            cat_row = cursor.fetchone()
-            if cat_row:
-                category_id = int(str(tuple(cat_row)[0]))
-            else:
-                cursor.execute("INSERT INTO categories (user_id, name, type, is_default) VALUES (%s, %s, %s, TRUE)", (user_id, target_category_name, tx_type))
+            # User Check
+            cursor.execute("SELECT id, monthly_budget FROM users WHERE mobile = %s", (phone,))
+            user_data = cursor.fetchone()
+            u_data = tuple(user_data) if user_data else ()
+            
+            if not u_data:
+                cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
                 conn.commit()
-                category_id = cursor.lastrowid
-
-        if not category_id:
-            cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (user_id, tx_type))
-            cat_row = cursor.fetchone()
+                user_id = cursor.lastrowid
+                budget_limit = 0.0
+            else:
+                user_id = int(str(u_data[0]))
+                budget_limit = float(str(u_data[1])) if u_data[1] else 0.0
+                
+            category_id = None
+            target_category_name = None
             
-            if not cat_row:
+            for cat_name, keywords in CATEGORY_MAP.items():
+                if any(kw in item_lower for kw in keywords):
+                    target_category_name = cat_name
+                    break
+                    
+            if target_category_name:
+                cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s AND name = %s LIMIT 1", (user_id, tx_type, target_category_name))
+                cat_row = cursor.fetchone()
+                if cat_row:
+                    category_id = int(str(tuple(cat_row)[0]))
+                else:
+                    cursor.execute("INSERT INTO categories (user_id, name, type, is_default) VALUES (%s, %s, %s, TRUE)", (user_id, target_category_name, tx_type))
+                    conn.commit()
+                    category_id = cursor.lastrowid
+
+            if not category_id:
                 cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (user_id, tx_type))
                 cat_row = cursor.fetchone()
                 
-            if cat_row:
-                category_id = int(str(tuple(cat_row)[0]))
+                if not cat_row:
+                    cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (user_id, tx_type))
+                    cat_row = cursor.fetchone()
+                    
+                if cat_row:
+                    category_id = int(str(tuple(cat_row)[0]))
 
-        # Save Entry
-        cursor.execute("INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (user_id, amount, tx_type, clean_item, category_id))
-        conn.commit()
+            # Save Entry
+            cursor.execute("INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (user_id, amount, tx_type, clean_item, category_id))
+            conn.commit()
 
-        # Budget Check Logic
-        if tx_type == 'expense' and budget_limit > 0:
-            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (user_id,))
-            month_row = tuple(cursor.fetchone() or (0,))
-            month_total = float(str(month_row[0])) if month_row[0] else 0.0
-            
-            remaining = budget_limit - month_total
-            percent_used = (month_total / budget_limit)
-            
-            if percent_used >= 1.0: 
-                budget_note = f"\n\n🚨 *OVER BUDGET!* You exceeded your ₹{budget_limit:g} limit by ₹{abs(remaining):g}."
-            elif percent_used >= BUDGET_THRESHOLD_WARNING: 
-                budget_note = f"\n\n⚠️ *Budget Warning:* You used {percent_used:.0%} of your budget. ₹{remaining:g} left."
-            else: 
-                budget_note = f"\n\n💰 Budget: ₹{remaining:g} remaining."
+            # Budget Check Logic
+            if tx_type == 'expense' and budget_limit > 0:
+                cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (user_id,))
+                month_row = tuple(cursor.fetchone() or (0,))
+                month_total = float(str(month_row[0])) if month_row[0] else 0.0
+                
+                remaining = budget_limit - month_total
+                percent_used = (month_total / budget_limit)
+                
+                if percent_used >= 1.0: 
+                    budget_note = f"\n\n🚨 *OVER BUDGET!* You exceeded your ₹{budget_limit:g} limit by ₹{abs(remaining):g}."
+                elif percent_used >= BUDGET_THRESHOLD_WARNING: 
+                    budget_note = f"\n\n⚠️ *Budget Warning:* You used {percent_used:.0%} of your budget. ₹{remaining:g} left."
+                else: 
+                    budget_note = f"\n\n💰 Budget: ₹{remaining:g} remaining."
+                
+            if not silent and not is_income:
+                cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
+                today_row = tuple(cursor.fetchone() or (0,))
+                today_total = float(str(today_row[0])) if today_row[0] else 0.0
 
-        if not silent and not is_income:
-            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
-            today_row = tuple(cursor.fetchone() or (0,))
-            today_total = float(str(today_row[0])) if today_row[0] else 0.0
-
-        success = True
-            
-    except Exception as e: 
-        print(f"Transaction DB Error: {repr(e)}")
-        traceback.print_exc()
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn:
-            try: conn.close()
-            except: pass
+            success = True
+                
+        except Exception as e: 
+            print(f"Transaction DB Error: {repr(e)}")
+            traceback.print_exc()
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn:
+                try: conn.close()
+                except: pass
 
     if success and not silent:
         if is_income:
