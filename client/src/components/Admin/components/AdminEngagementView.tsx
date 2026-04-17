@@ -52,7 +52,7 @@ export default function AdminEngagementView() {
 
     useEffect(() => {
         try {
-            const userStr = localStorage.getItem('user');
+            const userStr = localStorage.getItem('user_data'); 
             if (userStr) {
                 const userObj = JSON.parse(userStr);
                 if (userObj.role === 'superadmin') {
