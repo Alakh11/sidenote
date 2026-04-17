@@ -43,16 +43,16 @@ async def run_daily_nudges():
             
             # --- 1. CHECK LIMITS ---
             # Max 1 per day
-            # cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND DATE(sent_at) = CURDATE()", (user_id,))
-            # count_today_row: Any = cursor.fetchone()
-            # if count_today_row and count_today_row.get('count', 0) >= 1:
-            #     continue
+            cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND DATE(sent_at) = CURDATE()", (user_id,))
+            count_today_row: Any = cursor.fetchone()
+            if count_today_row and count_today_row.get('count', 0) >= 1:
+                continue
                 
-            # # Max 3 per week
-            # cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND sent_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)", (user_id,))
-            # count_week_row: Any = cursor.fetchone()
-            # if count_week_row and count_week_row.get('count', 0) >= 3:
-            #     continue
+            # Max 3 per week
+            cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND sent_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)", (user_id,))
+            count_week_row: Any = cursor.fetchone()
+            if count_week_row and count_week_row.get('count', 0) >= 3:
+                continue
 
             # --- 2. CHECK INACTIVITY ---
             cursor.execute("SELECT MAX(date) as last_active FROM transactions WHERE user_id = %s", (user_id,))
