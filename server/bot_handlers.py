@@ -1,6 +1,7 @@
 import re
 import traceback, asyncio
-from typing import Any
+import time
+from typing import Any, Optional
 from database import get_db
 from datetime import datetime
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons, get_whatsapp_media_url, download_whatsapp_media
@@ -8,6 +9,25 @@ from ai_service import extract_receipt_data, extract_voice_data
 from constants import *
 
 db_semaphore = asyncio.Semaphore(20)
+
+processed_message_ids: dict[str, float] = {}
+
+def is_duplicate(message_id: Optional[str]) -> bool:
+    if not message_id: 
+        return False
+    
+    current_time = time.time()
+    if message_id in processed_message_ids:
+        print(f"⚠️ Dropped Duplicate Message: {message_id}")
+        return True
+        
+    processed_message_ids[message_id] = current_time
+    
+    if len(processed_message_ids) > 500:
+        oldest_key = min(processed_message_ids, key=lambda k: processed_message_ids[k])
+        del processed_message_ids[oldest_key]
+        
+    return False
 
 def get_user_id(cursor: Any, phone: str) -> int | None:
     """Fetches the user_id associated with the mobile number."""
@@ -59,7 +79,9 @@ async def ensure_user_exists(phone: str) -> bool:
         return True
     return False
 
-async def process_whatsapp_text(phone: str, text: str):
+async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str] = None):
+    if is_duplicate(message_id): return
+    
     is_new = await ensure_user_exists(phone)
     
     text = text.strip().lower()
@@ -122,7 +144,9 @@ async def process_whatsapp_text(phone: str, text: str):
             else:
                 await handle_fallback(phone, text)
 
-async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
+async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, message_id: Optional[str] = None):
+    if is_duplicate(message_id): return
+    
     await ensure_user_exists(phone)
     await send_whatsapp_text(phone, "⏳ Reading your receipt ...")
     
@@ -144,7 +168,9 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str):
     else:
         await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read that receipt.")
 
-async def process_whatsapp_interactive(phone: str, button_id: str):
+async def process_whatsapp_interactive(phone: str, button_id: str, message_id: Optional[str] = None):
+    if is_duplicate(message_id): return
+    
     await ensure_user_exists(phone)
     if button_id == "cmd_summary": await handle_summary_request(phone)
     elif button_id == "cmd_today": await handle_today_request(phone)
@@ -486,8 +512,9 @@ async def handle_monthly_request(phone: str):
     variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
     await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
 
-async def process_whatsapp_audio(phone: str, media_id: str):
-    """Processes a WhatsApp voice note."""
+async def process_whatsapp_audio(phone: str, media_id: str, message_id: Optional[str] = None):
+    if is_duplicate(message_id): return
+    
     await ensure_user_exists(phone)
     await send_whatsapp_text(phone, "🎧 Listening to your voice note...")
     
