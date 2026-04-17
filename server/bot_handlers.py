@@ -18,6 +18,8 @@ def get_user_id(cursor: Any, phone: str) -> int | None:
 async def ensure_user_exists(phone: str) -> bool:
     """Checks if user exists. If not, creates them and sends Welcome message. Returns True if NEW."""
     conn = None
+    cursor = None
+    is_new = False
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -28,7 +30,19 @@ async def ensure_user_exists(phone: str) -> bool:
             
         cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
         conn.commit()
-        
+        is_new = True
+    except Exception as e:
+        print(f"Error ensuring user exists: {e}")
+        return False
+    finally:
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    if is_new:
         await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
         welcome_link_msg = (
             "🌐 *Finish setting up your account!*\n\n"
@@ -39,11 +53,7 @@ async def ensure_user_exists(phone: str) -> bool:
         )
         await send_whatsapp_text(phone, welcome_link_msg)
         return True
-    except Exception as e:
-        print(f"Error ensuring user exists: {e}")
-        return False
-    finally:
-        if conn: conn.close()
+    return False
 
 async def process_whatsapp_text(phone: str, text: str):
     is_new = await ensure_user_exists(phone)
@@ -145,7 +155,6 @@ async def process_whatsapp_interactive(phone: str, button_id: str):
         await handle_undo_action(phone, tx_id)
 
 async def handle_budget_set(phone: str, text: str):
-    """Saves the monthly budget limit for the user."""
     match = re.search(r'\d+(?:\.\d+)?', text)
     if not match:
         await send_whatsapp_text(phone, "❌ Please provide an amount. Example: *budget 20000*")
@@ -153,18 +162,25 @@ async def handle_budget_set(phone: str, text: str):
 
     new_budget = float(match.group(0))
     conn = None
+    cursor = None
     try:
         conn = get_db()
         cursor = conn.cursor()
         
         cursor.execute("UPDATE users SET monthly_budget = %s WHERE mobile = %s", (new_budget, phone))
         conn.commit()
-        
-        await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.")
     except Exception as e:
         print(f"Budget Set Error: {e}")
+        return
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.")
 
 async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False):
 
@@ -176,6 +192,11 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
     tx_type = 'income' if is_income else 'expense'
 
     conn = None
+    cursor = None
+    today_total = 0.0
+    budget_note = ""
+    success = False
+
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -229,7 +250,6 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
         conn.commit()
 
         # Budget Check Logic
-        budget_note = ""
         if tx_type == 'expense' and budget_limit > 0:
             cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (user_id,))
             month_row = tuple(cursor.fetchone() or (0,))
@@ -245,27 +265,35 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             else: 
                 budget_note = f"\n\n💰 Budget: ₹{remaining:g} remaining."
 
-        if not silent:
-            if is_income:
-                await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.")
-            else:
-                cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
-                today_row = tuple(cursor.fetchone() or (0,))
-                today_total = float(str(today_row[0])) if today_row[0] else 0.0
-                
-                await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
-                if budget_note: 
-                    await send_whatsapp_text(phone, budget_note)
+        if not silent and not is_income:
+            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
+            today_row = tuple(cursor.fetchone() or (0,))
+            today_total = float(str(today_row[0])) if today_row[0] else 0.0
+
+        success = True
             
     except Exception as e: 
         print(f"Transaction DB Error: {repr(e)}")
         traceback.print_exc()
     finally:
+        if cursor: 
+            try: cursor.close()
+            except: pass
         if conn:
-            conn.close()
+            try: conn.close()
+            except: pass
+
+    if success and not silent:
+        if is_income:
+            await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.")
+        else:
+            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
+            if budget_note: 
+                await send_whatsapp_text(phone, budget_note)
 
 async def handle_undo_request(phone: str):
     conn = None
+    cursor = None
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -287,14 +315,23 @@ async def handle_undo_request(phone: str):
             title = f"❌ {float(str(r[1])):g} {str(r[2])}"[:20]
             buttons.append({"id": f"del_{str(r[0])}", "title": title})
             
-        await send_whatsapp_interactive_buttons(phone, "Which recent entry do you want to delete?", buttons)
     except Exception as e:
         print(f"Undo Error: {e}")
+        return
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    await send_whatsapp_interactive_buttons(phone, "Which recent entry do you want to delete?", buttons)
 
 async def handle_undo_action(phone: str, tx_id: int):
     conn = None
+    cursor = None
+    rowcount = 0
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -303,15 +340,22 @@ async def handle_undo_action(phone: str, tx_id: int):
         
         cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s", (tx_id, user_id))
         conn.commit()
-        
-        if cursor.rowcount > 0:
-            await send_whatsapp_text(phone, "🗑️ Entry deleted successfully!")
-        else:
-            await send_whatsapp_text(phone, "⚠️ Could not delete. It may have already been removed.")
+        rowcount = cursor.rowcount
     except Exception as e:
         print(f"Undo Action Error: {e}")
+        return
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    if rowcount > 0:
+        await send_whatsapp_text(phone, "🗑️ Entry deleted successfully!")
+    else:
+        await send_whatsapp_text(phone, "⚠️ Could not delete. It may have already been removed.")
 
 async def handle_fallback(phone: str, text: str = ""):
     if text in ['hi', 'hello', 'hey']:
@@ -323,6 +367,7 @@ async def handle_fallback(phone: str, text: str = ""):
 
 async def handle_summary_request(phone: str):
     conn = None
+    cursor = None
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -350,12 +395,19 @@ async def handle_summary_request(phone: str):
         highest_item = str(h_row[0]) if h_row and h_row[0] else "None"
         highest_amount = float(str(h_row[1])) if h_row else 0.0
         
-        await send_whatsapp_template(phone, TEMPLATE_OVERVIEW, [f"{today_total:g}", f"{week_total:g}", f"{month_total:g}", highest_item, f"{highest_amount:g}"])
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    await send_whatsapp_template(phone, TEMPLATE_OVERVIEW, [f"{today_total:g}", f"{week_total:g}", f"{month_total:g}", highest_item, f"{highest_amount:g}"])
 
 async def handle_weekly_request(phone: str):
     conn = None
+    cursor = None
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -369,15 +421,21 @@ async def handle_weekly_request(phone: str):
             r = tuple(row)
             days[int(str(r[0]))] = float(str(r[1]))
             
-        week_total = sum(days)
-        variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
-        
-        await send_whatsapp_template(phone, TEMPLATE_WEEKLY, variables)
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    week_total = sum(days)
+    variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
+    await send_whatsapp_template(phone, TEMPLATE_WEEKLY, variables)
 
 async def handle_monthly_request(phone: str):
     conn = None
+    cursor = None
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -397,13 +455,18 @@ async def handle_monthly_request(phone: str):
             elif day <= 21: weeks[2] += amt
             else: weeks[3] += amt
             
-        current_day = datetime.now().day
-        avg_daily = month_total / current_day if current_day > 0 else 0.0
-        variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
-        
-        await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    current_day = datetime.now().day
+    avg_daily = month_total / current_day if current_day > 0 else 0.0
+    variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
+    await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
 
 async def process_whatsapp_audio(phone: str, media_id: str):
     """Processes a WhatsApp voice note."""
@@ -429,6 +492,8 @@ async def process_whatsapp_audio(phone: str, media_id: str):
 async def handle_dashboard_request(phone: str):
     """Sends the dashboard link based on verification status."""
     conn = None
+    cursor = None
+    msg = ""
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -452,16 +517,25 @@ async def handle_dashboard_request(phone: str):
                 "3️⃣ Select *Mobile* and enter your number\n\n"
                 "Set your Name and Password, and your WhatsApp data will instantly sync to the web!"
             )
-            await send_whatsapp_text(phone, msg)
-            
     except Exception as e:
         print(f"Dashboard Link Error: {e}")
+        return
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    if msg:
+        await send_whatsapp_text(phone, msg)
         
 async def handle_today_request(phone: str):
     """Fetches and sends a list of all transactions made today."""
     conn = None
+    cursor = None
+    transactions = []
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -480,40 +554,45 @@ async def handle_today_request(phone: str):
         """, (user_id,))
         
         transactions = cursor.fetchall()
-        
-        if not transactions:
-            await send_whatsapp_text(phone, "✨ *No transactions today!* Your wallet is happy.")
-            return
-            
-        total_spent = 0.0
-        total_income = 0.0
-        details = ["*Today's Activity:*\n"]
-        
-        for t in transactions:
-            amt = float(str(t[0])) # type: ignore
-            note = str(t[1]).capitalize() # type: ignore
-            t_type = str(t[2]) # type: ignore
-            
-            if t_type == 'expense':
-                total_spent += amt
-                details.append(f"₹{amt:g} - {note}")
-            else:
-                total_income += amt
-                details.append(f"₹{amt:g} - {note}")
-                
-        details.append("\n" + "━" * 15)
-        if total_spent > 0:
-            details.append(f"💸 *Total Spent: ₹{total_spent:g}*")
-        if total_income > 0:
-            details.append(f"💰 *Total Income: ₹{total_income:g}*")
-        
-        await send_whatsapp_text(phone, "\n".join(details))
-        
     except Exception as e:
         print(f"Today Request Error: {e}")
         await send_whatsapp_text(phone, "⚠️ Sorry, I couldn't fetch today's data.")
+        return
     finally:
-        if conn: conn.close()
+        if cursor: 
+            try: cursor.close()
+            except: pass
+        if conn: 
+            try: conn.close()
+            except: pass
+            
+    if not transactions:
+        await send_whatsapp_text(phone, "✨ *No transactions today!* Your wallet is happy.")
+        return
+        
+    total_spent = 0.0
+    total_income = 0.0
+    details = ["*Today's Activity:*\n"]
+    
+    for t in transactions:
+        amt = float(str(t[0])) # type: ignore
+        note = str(t[1]).capitalize() # type: ignore
+        t_type = str(t[2]) # type: ignore
+        
+        if t_type == 'expense':
+            total_spent += amt
+            details.append(f"₹{amt:g} - {note}")
+        else:
+            total_income += amt
+            details.append(f"₹{amt:g} - {note}")
+            
+    details.append("\n" + "━" * 15)
+    if total_spent > 0:
+        details.append(f"💸 *Total Spent: ₹{total_spent:g}*")
+    if total_income > 0:
+        details.append(f"💰 *Total Income: ₹{total_income:g}*")
+    
+    await send_whatsapp_text(phone, "\n".join(details))
         
 async def handle_menu_request(phone: str):
     buttons = [
