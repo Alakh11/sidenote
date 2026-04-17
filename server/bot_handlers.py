@@ -22,27 +22,29 @@ async def ensure_user_exists(phone: str) -> bool:
     conn = None
     cursor = None
     is_new = False
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
-        if cursor.fetchone():
-            return False
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
             
-        cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
-        conn.commit()
-        is_new = True
-    except Exception as e:
-        print(f"Error ensuring user exists: {e}")
-        return False
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+            cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
+            if cursor.fetchone():
+                return False
+                
+            cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
+            conn.commit()
+            is_new = True
+        except Exception as e:
+            print(f"Error ensuring user exists: {e}")
+            return False
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     if is_new:
         await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
@@ -165,22 +167,24 @@ async def handle_budget_set(phone: str, text: str):
     new_budget = float(match.group(0))
     conn = None
     cursor = None
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("UPDATE users SET monthly_budget = %s WHERE mobile = %s", (new_budget, phone))
-        conn.commit()
-    except Exception as e:
-        print(f"Budget Set Error: {e}")
-        return
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            
+            cursor.execute("UPDATE users SET monthly_budget = %s WHERE mobile = %s", (new_budget, phone))
+            conn.commit()
+        except Exception as e:
+            print(f"Budget Set Error: {e}")
+            return
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.")
 
@@ -297,63 +301,68 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
 async def handle_undo_request(phone: str):
     conn = None
     cursor = None
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        user_id = get_user_id(cursor, phone)
-        if not user_id:
-            await send_whatsapp_text(phone, "You don't have any recent entries to undo.")
-            return
+    buttons = []
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            user_id = get_user_id(cursor, phone)
+            if not user_id:
+                await send_whatsapp_text(phone, "You don't have any recent entries to undo.")
+                return
+                
+            cursor.execute("SELECT id, amount, note FROM transactions WHERE user_id = %s ORDER BY date DESC LIMIT 2", (user_id,))
+            rows = cursor.fetchall()
             
-        cursor.execute("SELECT id, amount, note FROM transactions WHERE user_id = %s ORDER BY date DESC LIMIT 2", (user_id,))
-        rows = cursor.fetchall()
-        
-        if not rows:
-            await send_whatsapp_text(phone, "You don't have any recent entries to undo.")
-            return
+            if not rows:
+                await send_whatsapp_text(phone, "You don't have any recent entries to undo.")
+                return
 
-        buttons = []
-        for row in rows:
-            r = tuple(row)
-            title = f"❌ {float(str(r[1])):g} {str(r[2])}"[:20]
-            buttons.append({"id": f"del_{str(r[0])}", "title": title})
+            for row in rows:
+                r = tuple(row)
+                title = f"❌ {float(str(r[1])):g} {str(r[2])}"[:20]
+                buttons.append({"id": f"del_{str(r[0])}", "title": title})
+                
+        except Exception as e:
+            print(f"Undo Error: {e}")
+            return
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
-    except Exception as e:
-        print(f"Undo Error: {e}")
-        return
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
-            
-    await send_whatsapp_interactive_buttons(phone, "Which recent entry do you want to delete?", buttons)
+    if buttons:
+        await send_whatsapp_interactive_buttons(phone, "Which recent entry do you want to delete?", buttons)
 
 async def handle_undo_action(phone: str, tx_id: int):
     conn = None
     cursor = None
     rowcount = 0
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        user_id = get_user_id(cursor, phone)
-        if not user_id: return
-        
-        cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s", (tx_id, user_id))
-        conn.commit()
-        rowcount = cursor.rowcount
-    except Exception as e:
-        print(f"Undo Action Error: {e}")
-        return
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            user_id = get_user_id(cursor, phone)
+            if not user_id: return
+            
+            cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s", (tx_id, user_id))
+            conn.commit()
+            rowcount = cursor.rowcount
+        except Exception as e:
+            print(f"Undo Action Error: {e}")
+            return
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     if rowcount > 0:
         await send_whatsapp_text(phone, "🗑️ Entry deleted successfully!")
@@ -371,66 +380,70 @@ async def handle_fallback(phone: str, text: str = ""):
 async def handle_summary_request(phone: str):
     conn = None
     cursor = None
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SET time_zone = '+05:30'")
-        user_id = get_user_id(cursor, phone)
-        
-        if not user_id:
-            await send_whatsapp_text(phone, "You haven't made any entries yet. Try sending `100 lunch` to start!")
-            return
-        
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND DATE(date)=CURDATE()", (user_id,))
-        t_row = tuple(cursor.fetchone() or ())
-        today_total = float(str(t_row[0])) if t_row and t_row[0] else 0.0
-        
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND YEARWEEK(date, 1)=YEARWEEK(CURDATE(), 1)", (user_id,))
-        w_row = tuple(cursor.fetchone() or ())
-        week_total = float(str(w_row[0])) if w_row and w_row[0] else 0.0
-        
-        cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (user_id,))
-        m_row = tuple(cursor.fetchone() or ())
-        month_total = float(str(m_row[0])) if m_row and m_row[0] else 0.0
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SET time_zone = '+05:30'")
+            user_id = get_user_id(cursor, phone)
+            
+            if not user_id:
+                await send_whatsapp_text(phone, "You haven't made any entries yet. Try sending `100 lunch` to start!")
+                return
+            
+            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND DATE(date)=CURDATE()", (user_id,))
+            t_row = tuple(cursor.fetchone() or ())
+            today_total = float(str(t_row[0])) if t_row and t_row[0] else 0.0
+            
+            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND YEARWEEK(date, 1)=YEARWEEK(CURDATE(), 1)", (user_id,))
+            w_row = tuple(cursor.fetchone() or ())
+            week_total = float(str(w_row[0])) if w_row and w_row[0] else 0.0
+            
+            cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE())", (user_id,))
+            m_row = tuple(cursor.fetchone() or ())
+            month_total = float(str(m_row[0])) if m_row and m_row[0] else 0.0
 
-        cursor.execute("SELECT note, amount FROM transactions WHERE user_id=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE()) ORDER BY amount DESC LIMIT 1", (user_id,))
-        h_row = tuple(cursor.fetchone() or ())
-        highest_item = str(h_row[0]) if h_row and h_row[0] else "None"
-        highest_amount = float(str(h_row[1])) if h_row else 0.0
-        
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+            cursor.execute("SELECT note, amount FROM transactions WHERE user_id=%s AND type='expense' AND MONTH(date)=MONTH(CURDATE()) ORDER BY amount DESC LIMIT 1", (user_id,))
+            h_row = tuple(cursor.fetchone() or ())
+            highest_item = str(h_row[0]) if h_row and h_row[0] else "None"
+            highest_amount = float(str(h_row[1])) if h_row else 0.0
+            
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     await send_whatsapp_template(phone, TEMPLATE_OVERVIEW, [f"{today_total:g}", f"{week_total:g}", f"{month_total:g}", highest_item, f"{highest_amount:g}"])
 
 async def handle_weekly_request(phone: str):
     conn = None
     cursor = None
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SET time_zone = '+05:30'")
-        user_id = get_user_id(cursor, phone)
-        if not user_id: return
-        
-        cursor.execute("SELECT WEEKDAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1) GROUP BY WEEKDAY(date)", (user_id,))
-        days = [0.0] * 7 
-        for row in cursor.fetchall():
-            r = tuple(row)
-            days[int(str(r[0]))] = float(str(r[1]))
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SET time_zone = '+05:30'")
+            user_id = get_user_id(cursor, phone)
+            if not user_id: return
             
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+            cursor.execute("SELECT WEEKDAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1) GROUP BY WEEKDAY(date)", (user_id,))
+            days = [0.0] * 7 
+            for row in cursor.fetchall():
+                r = tuple(row)
+                days[int(str(r[0]))] = float(str(r[1]))
+                
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     week_total = sum(days)
     variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
@@ -439,32 +452,34 @@ async def handle_weekly_request(phone: str):
 async def handle_monthly_request(phone: str):
     conn = None
     cursor = None
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SET time_zone = '+05:30'")
-        user_id = get_user_id(cursor, phone)
-        if not user_id: return
-        
-        cursor.execute("SELECT DAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE()) GROUP BY DAY(date)", (user_id,))
-        weeks, month_total = [0.0, 0.0, 0.0, 0.0], 0.0
-        
-        for row in cursor.fetchall():
-            r = tuple(row)
-            day, amt = int(str(r[0])), float(str(r[1]))
-            month_total += amt
-            if day <= 7: weeks[0] += amt
-            elif day <= 14: weeks[1] += amt
-            elif day <= 21: weeks[2] += amt
-            else: weeks[3] += amt
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SET time_zone = '+05:30'")
+            user_id = get_user_id(cursor, phone)
+            if not user_id: return
             
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+            cursor.execute("SELECT DAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE()) GROUP BY DAY(date)", (user_id,))
+            weeks, month_total = [0.0, 0.0, 0.0, 0.0], 0.0
+            
+            for row in cursor.fetchall():
+                r = tuple(row)
+                day, amt = int(str(r[0])), float(str(r[1]))
+                month_total += amt
+                if day <= 7: weeks[0] += amt
+                elif day <= 14: weeks[1] += amt
+                elif day <= 21: weeks[2] += amt
+                else: weeks[3] += amt
+                
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     current_day = datetime.now().day
     avg_daily = month_total / current_day if current_day > 0 else 0.0
@@ -497,39 +512,41 @@ async def handle_dashboard_request(phone: str):
     conn = None
     cursor = None
     msg = ""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-        row = cursor.fetchone()
-        
-        if row and row[0]: # type: ignore
-            msg = (
-                "*SideNote Web Dashboard*\n\n"
-                "Access your full financial reports and charts here:\n"
-                "🔗 https://www.sidenote.in/login\n\n"
-                "Use your registered email to log in."
-            )
-        else:
-            msg = (
-                "👋 *You're almost there!*\n\n"
-                "To see your charts and secure your account, please complete your profile:\n\n"
-                "1️⃣ Go to: https://www.sidenote.in/login\n"
-                "2️⃣ Click *Sign Up*\n"
-                "3️⃣ Select *Mobile* and enter your number\n\n"
-                "Set your Name and Password, and your WhatsApp data will instantly sync to the web!"
-            )
-    except Exception as e:
-        print(f"Dashboard Link Error: {e}")
-        return
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+            row = cursor.fetchone()
+            
+            if row and row[0]: # type: ignore
+                msg = (
+                    "*SideNote Web Dashboard*\n\n"
+                    "Access your full financial reports and charts here:\n"
+                    "🔗 https://www.sidenote.in/login\n\n"
+                    "Use your registered email to log in."
+                )
+            else:
+                msg = (
+                    "👋 *You're almost there!*\n\n"
+                    "To see your charts and secure your account, please complete your profile:\n\n"
+                    "1️⃣ Go to: https://www.sidenote.in/login\n"
+                    "2️⃣ Click *Sign Up*\n"
+                    "3️⃣ Select *Mobile* and enter your number\n\n"
+                    "Set your Name and Password, and your WhatsApp data will instantly sync to the web!"
+                )
+        except Exception as e:
+            print(f"Dashboard Link Error: {e}")
+            return
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     if msg:
         await send_whatsapp_text(phone, msg)
@@ -539,35 +556,37 @@ async def handle_today_request(phone: str):
     conn = None
     cursor = None
     transactions = []
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SET time_zone = '+05:30'")
-        
-        user_id = get_user_id(cursor, phone)
-        if not user_id:
-            await send_whatsapp_text(phone, "✨ *No transactions today!* Your wallet is happy.")
+    
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SET time_zone = '+05:30'")
+            
+            user_id = get_user_id(cursor, phone)
+            if not user_id:
+                await send_whatsapp_text(phone, "✨ *No transactions today!* Your wallet is happy.")
+                return
+            
+            cursor.execute("""
+                SELECT amount, note, type 
+                FROM transactions 
+                WHERE user_id = %s AND DATE(date) = CURDATE()
+                ORDER BY id DESC
+            """, (user_id,))
+            
+            transactions = cursor.fetchall()
+        except Exception as e:
+            print(f"Today Request Error: {e}")
+            await send_whatsapp_text(phone, "⚠️ Sorry, I couldn't fetch today's data.")
             return
-        
-        cursor.execute("""
-            SELECT amount, note, type 
-            FROM transactions 
-            WHERE user_id = %s AND DATE(date) = CURDATE()
-            ORDER BY id DESC
-        """, (user_id,))
-        
-        transactions = cursor.fetchall()
-    except Exception as e:
-        print(f"Today Request Error: {e}")
-        await send_whatsapp_text(phone, "⚠️ Sorry, I couldn't fetch today's data.")
-        return
-    finally:
-        if cursor: 
-            try: cursor.close()
-            except: pass
-        if conn: 
-            try: conn.close()
-            except: pass
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
             
     if not transactions:
         await send_whatsapp_text(phone, "✨ *No transactions today!* Your wallet is happy.")
