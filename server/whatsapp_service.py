@@ -1,6 +1,7 @@
 import httpx
 import os
 import logging
+import asyncio
 from typing import Any
 from dotenv import load_dotenv
 
@@ -16,10 +17,11 @@ timeout = httpx.Timeout(10.0, read=30.0)
 transport = httpx.AsyncHTTPTransport(retries=3)
 
 http_client = httpx.AsyncClient(
-    transport=transport, 
+    transport=transport,
     limits=limits, 
     timeout=timeout
 )
+outbound_semaphore = asyncio.Semaphore(10)
 
 async def send_whatsapp_template(to_number: str, template_name: str, variables: list[str]):
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
@@ -36,17 +38,18 @@ async def send_whatsapp_template(to_number: str, template_name: str, variables: 
         "template": template_data
     }
 
-    try:
-        response = await http_client.post(WA_URL, json=payload, headers=headers)
-        response.raise_for_status()
-        logger.info(f"Template '{template_name}' sent to {to_number}")
-        return {"status": "success"}
-    except httpx.HTTPStatusError as e:
-        logger.error(f"WhatsApp Template Error: {e.response.text}")
-        return {"status": "error", "detail": e.response.text}
-    except Exception as e:
-        logger.error(f"WhatsApp Template Network Error: {repr(e)}")
-        return {"status": "error", "detail": str(e)}
+    async with outbound_semaphore:
+        try:
+            response = await http_client.post(WA_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(f"Template '{template_name}' sent to {to_number}")
+            return {"status": "success"}
+        except httpx.HTTPStatusError as e:
+            logger.error(f"WhatsApp Template Error: {e.response.text}")
+            return {"status": "error", "detail": e.response.text}
+        except Exception as e:
+            logger.error(f"WhatsApp Template Network Error: {repr(e)}")
+            return {"status": "error", "detail": str(e)}
 
 
 async def send_whatsapp_text(to_number: str, text_message: str):
@@ -59,16 +62,17 @@ async def send_whatsapp_text(to_number: str, text_message: str):
         "text": {"body": text_message}
     }
 
-    try:
-        response = await http_client.post(WA_URL, json=payload, headers=headers)
-        response.raise_for_status()
-        return {"status": "success"}
-    except httpx.HTTPStatusError as e:
-        logger.error(f"WhatsApp Text Error: {e.response.text}")
-        return {"status": "error"}
-    except Exception as e:
-        logger.error(f"WhatsApp Text Network Error: {repr(e)}")
-        return {"status": "error"}
+    async with outbound_semaphore:
+        try:
+            response = await http_client.post(WA_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            return {"status": "success"}
+        except httpx.HTTPStatusError as e:
+            logger.error(f"WhatsApp Text Error: {e.response.text}")
+            return {"status": "error"}
+        except Exception as e:
+            logger.error(f"WhatsApp Text Network Error: {repr(e)}")
+            return {"status": "error"}
 
 
 async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, buttons: list[dict[str, str]]):
@@ -94,38 +98,43 @@ async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, butt
         }
     }
 
-    try:
-        response = await http_client.post(WA_URL, json=payload, headers=headers)
-        response.raise_for_status()
-        logger.info(f"Standard text sent to {to_number}")
-        return {"status": "success"}
-    except httpx.HTTPStatusError as e:
-        logger.error(f"WhatsApp Button Error: {e.response.text}")
-        return {"status": "error"}
-    except Exception as e:
-        logger.error(f"WhatsApp Button Network Error: {repr(e)}")
-        return {"status": "error"}
+    async with outbound_semaphore:
+        try:
+            response = await http_client.post(WA_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(f"Standard text sent to {to_number}")
+            return {"status": "success"}
+        except httpx.HTTPStatusError as e:
+            logger.error(f"WhatsApp Button Error: {e.response.text}")
+            return {"status": "error"}
+        except Exception as e:
+            logger.error(f"WhatsApp Button Network Error: {repr(e)}")
+            return {"status": "error"}
 
 
 async def get_whatsapp_media_url(media_id: str) -> str | None:
     """Asks Meta for the secure download URL of a media file."""
     url = f"https://graph.facebook.com/v23.0/{media_id}"
     headers = {"Authorization": f"Bearer {WA_TOKEN}"}
-    try:
-        response = await http_client.get(url, headers=headers)
-        response.raise_for_status()
-        return str(response.json().get("url"))
-    except Exception as e:
-        logger.error(f"Failed to get Media URL: {e}")
-        return None
+    
+    async with outbound_semaphore:
+        try:
+            response = await http_client.get(url, headers=headers)
+            response.raise_for_status()
+            return str(response.json().get("url"))
+        except Exception as e:
+            logger.error(f"Failed to get Media URL: {e}")
+            return None
 
 
 async def download_whatsapp_media(media_url: str) -> bytes | None:
     headers = {"Authorization": f"Bearer {WA_TOKEN}"}
-    try:
-        response = await http_client.get(media_url, headers=headers)
-        response.raise_for_status()
-        return response.content
-    except Exception as e:
-        logger.error(f"Failed to download Media: {e}")
-        return None
+    
+    async with outbound_semaphore:
+        try:
+            response = await http_client.get(media_url, headers=headers)
+            response.raise_for_status()
+            return response.content
+        except Exception as e:
+            logger.error(f"Failed to download Media: {e}")
+            return None
