@@ -495,7 +495,7 @@ def get_user_activity_stats(admin_id: int = Depends(require_admin)):
                 u.mobile,
                 COUNT(t.id) as total_transactions,
                 COUNT(DISTINCT DATE(t.date)) as active_days,
-                MAX(t.date) as last_active_date,
+                CONVERT_TZ(MAX(t.date), '+05:30', '+00:00') as last_active_date,
                 MIN(t.date) as joined_on,
                 DATEDIFF(NOW(), MIN(t.date)) as days_since_joining
             FROM users u
