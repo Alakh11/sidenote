@@ -17,16 +17,16 @@ def is_duplicate(message_id: Optional[str]) -> bool:
         return False
     
     current_time = time.time()
+    
+    keys_to_delete = [k for k, timestamp in processed_message_ids.items() if current_time - timestamp > 60.0]
+    for k in keys_to_delete:
+        del processed_message_ids[k]
+        
     if message_id in processed_message_ids:
         print(f"⚠️ Dropped Duplicate Message: {message_id}")
         return True
         
     processed_message_ids[message_id] = current_time
-    
-    if len(processed_message_ids) > 500:
-        oldest_key = min(processed_message_ids, key=lambda k: processed_message_ids[k])
-        del processed_message_ids[oldest_key]
-        
     return False
 
 def get_user_id(cursor: Any, phone: str) -> int | None:
