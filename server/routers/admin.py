@@ -457,12 +457,13 @@ async def broadcast_whatsapp_message(payload: BroadcastPayload, admin_id: int = 
           
      
 @router.get("/engagement/logs")
-def get_nudge_logs(limit: int = Query(50, ge=1), admin_id: int = Depends(require_admin)):
-    """Fetches the history of automated templates sent to users."""
+def get_nudge_logs(page: int = Query(1, ge=1), limit: int = Query(20, ge=1), admin_id: int = Depends(require_admin)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # cursor.execute("SET time_zone = '+05:30'")
+        offset = (page - 1) * limit
+        cursor.execute("SELECT COUNT(*) as count FROM automated_messages")
+        total_records = cursor.fetchone()['count']
         
         query = """
             SELECT m.id, m.template_name, m.trigger_reason, m.sent_at, 
@@ -470,10 +471,10 @@ def get_nudge_logs(limit: int = Query(50, ge=1), admin_id: int = Depends(require
             FROM automated_messages m
             JOIN users u ON m.user_id = u.id
             ORDER BY m.sent_at DESC
-            LIMIT %s
+            LIMIT %s OFFSET %s
         """
-        cursor.execute(query, (limit,))
-        return cursor.fetchall()
+        cursor.execute(query, (limit, offset))
+        return {"data": cursor.fetchall(), "total": total_records, "page": page, "limit": limit}
     except Exception as e:
         logger.error(f"Nudge Log Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -481,12 +482,20 @@ def get_nudge_logs(limit: int = Query(50, ge=1), admin_id: int = Depends(require
         conn.close()
 
 @router.get("/engagement/activity")
-def get_user_activity_stats(admin_id: int = Depends(require_admin)):
-    """Runs the activity SQL queries to show user retention and logging habits."""
+def get_user_activity_stats(page: int = Query(1, ge=1), limit: int = Query(20, ge=1), admin_id: int = Depends(require_admin)):
+    """Runs the activity SQL queries to show user retention and logging habits with pagination."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # cursor.execute("SET time_zone = '+05:30'")
+        offset = (page - 1) * limit
+        
+        count_query = """
+            SELECT COUNT(DISTINCT u.id) as count 
+            FROM users u
+            JOIN transactions t ON u.id = t.user_id
+        """
+        cursor.execute(count_query)
+        total_records = cursor.fetchone()['count']
         
         query = """
             SELECT 
@@ -502,17 +511,19 @@ def get_user_activity_stats(admin_id: int = Depends(require_admin)):
             JOIN transactions t ON u.id = t.user_id
             GROUP BY u.id, u.name, u.mobile
             ORDER BY last_active_date DESC
+            LIMIT %s OFFSET %s
         """
-        cursor.execute(query)
-        return cursor.fetchall()
+        cursor.execute(query, (limit, offset))
+        return {"data": cursor.fetchall(), "total": total_records, "page": page, "limit": limit}
     except Exception as e:
         logger.error(f"Activity Stats Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-        
+
 @router.post("/engagement/trigger-nudges")
 async def trigger_automated_nudges(background_tasks: BackgroundTasks, admin_id: int = Depends(require_admin)):
+    """Manually triggers the daily nudge evaluation engine."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -524,5 +535,25 @@ async def trigger_automated_nudges(background_tasks: BackgroundTasks, admin_id: 
 
         background_tasks.add_task(run_daily_nudges)
         return {"message": "Nudge engine started! Refresh logs in a few moments."}
+    finally:
+        conn.close()
+
+@router.post("/engagement/flush-and-trigger")
+async def flush_and_trigger_nudges(background_tasks: BackgroundTasks, admin_id: int = Depends(require_admin)):
+    """SUPERADMIN ONLY: Deletes all previous nudge logs and triggers a fresh engine run."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
+        admin_data: Any = cursor.fetchone()
+        
+        if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
+             raise HTTPException(status_code=403, detail="Only Superadmins can flush logs.")
+
+        cursor.execute("TRUNCATE TABLE automated_messages")
+        conn.commit()
+
+        background_tasks.add_task(run_daily_nudges)
+        return {"message": "Logs flushed and Nudge engine started fresh! Refresh in a few moments."}
     finally:
         conn.close()

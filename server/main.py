@@ -284,6 +284,16 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
                 media_id = str(message['audio']['id'])
                 print(f"🎙️ Voice note received from {sender_phone}.")
                 background_tasks.add_task(process_whatsapp_audio, sender_phone, media_id, message_id)
+
+        elif 'statuses' in value:
+            status = value['statuses'][0]
+            if status.get('status') == 'failed':
+                errors = status.get('errors', [{}])[0]
+                err_code = errors.get('code', 'Unknown')
+                err_title = errors.get('title', 'Delivery Failed')
+                err_details = errors.get('error_data', {}).get('details', 'No details provided by Meta.')
+                
+                print(f"❌ META DELIVERY FAILED [Code {err_code}]: {err_title} -> {err_details}")
                 
     except Exception as e:
         print(f"⚠️ Webhook Processing Error: {e}")
