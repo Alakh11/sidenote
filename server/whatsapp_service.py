@@ -13,8 +13,13 @@ WA_URL = f"https://graph.facebook.com/v23.0/{WA_PHONE_ID}/messages"
 logger = logging.getLogger("uvicorn")
 limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
 timeout = httpx.Timeout(10.0, read=30.0)
-http_client = httpx.AsyncClient(limits=limits, timeout=timeout)
+transport = httpx.AsyncHTTPTransport(retries=3)
 
+http_client = httpx.AsyncClient(
+    transport=transport, 
+    limits=limits, 
+    timeout=timeout
+)
 
 async def send_whatsapp_template(to_number: str, template_name: str, variables: list[str]):
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
