@@ -124,23 +124,26 @@ async def run_daily_nudges():
             elif days_inactive == 7:
                 template_name = "weekly_nudge_v1"
                 trigger_reason = "7_days_inactive"
-            elif days_inactive == 1:
-                template_name = "daily_nudge_v1"
-                variables = [f"{month_total:g}"] # last_total
-                trigger_reason = "24h_inactive"
-            elif days_inactive == 2:
-                template_name = "soft_nudge_v1"
-                trigger_reason = "48h_inactive"
-            elif days_inactive == 3:
-                template_name = "streak_nudge_v1"
-                trigger_reason = "72h_inactive"
-            elif days_inactive == 4:
-                template_name = "reactivation_v1"
-                trigger_reason = "3_to_5_days_inactive"
             elif days_inactive == 6:
                 template_name = "insight_reactivation_v1"
                 variables = [f"{month_total:g}"] # last_total
-                trigger_reason = "5_to_7_days_inactive"
+                trigger_reason = "6_days_inactive"
+            elif days_inactive == 5:
+                template_name = "soft_nudge_v1"
+                trigger_reason = "5_days_inactive"
+            elif days_inactive == 4:
+                template_name = "reactivation_v1"
+                trigger_reason = "4_days_inactive"
+            elif days_inactive == 3:
+                template_name = "streak_nudge_v1"
+                trigger_reason = "72h_inactive"
+            elif days_inactive == 2:
+                template_name = "habit_nudge_v1"
+                trigger_reason = "48h_inactive"
+            elif days_inactive == 1:
+                template_name = "daily_nudge_v1"
+                variables = [f"{month_total:g}"]
+                trigger_reason = "24h_inactive"
 
             # --- 5. SEND AND LOG ---
             if template_name:
