@@ -1,4 +1,5 @@
 import re
+import traceback
 from typing import Any
 from database import get_db
 from datetime import datetime
@@ -257,7 +258,8 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                     await send_whatsapp_text(phone, budget_note)
             
     except Exception as e: 
-        print(f"Transaction DB Error: {e}")
+        print(f"Transaction DB Error: {repr(e)}")
+        traceback.print_exc()
     finally:
         if conn:
             conn.close()
