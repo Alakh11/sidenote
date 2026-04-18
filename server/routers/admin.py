@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Any, Optional
+from typing import Any, Optional, List
 from database import get_db
 from security import require_admin, pwd_context
 from schemas import UserRegister, AdminUpdateUser
 import logging
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from whatsapp_service import send_whatsapp_template
+from whatsapp_service import send_whatsapp_template, send_whatsapp_text
 from fastapi import BackgroundTasks
 from cron_nudges import run_daily_nudges
 
@@ -408,12 +408,23 @@ def delete_feedback(ticket_id: int, admin_id: int = Depends(require_admin)):
         conn.close()
         
 class BroadcastPayload(BaseModel):
-    template_name: str
+    message_type: str = "template"
+    template_name: Optional[str] = None
     variables: list[str] = []
+    message_text: Optional[str] = None
     target_user_ids: list[int] = []
 
 @router.post("/broadcast")
-async def broadcast_whatsapp_message(payload: BroadcastPayload, admin_id: int = Depends(require_admin)):
+async def broadcast_whatsapp_message(
+    payload: BroadcastPayload, 
+    background_tasks: BackgroundTasks,
+    admin_id: int = Depends(require_admin)
+):
+    if payload.message_type == "template" and not payload.template_name:
+        raise HTTPException(status_code=400, detail="Template name is required for template broadcasts.")
+    if payload.message_type == "text" and not payload.message_text:
+        raise HTTPException(status_code=400, detail="Message text is required for text broadcasts.")
+
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -437,19 +448,21 @@ async def broadcast_whatsapp_message(payload: BroadcastPayload, admin_id: int = 
         if not users:
             raise HTTPException(status_code=400, detail="No verified users found for this selection.")
         
-        success_count = 0
+        queued_count = 0
         for u in users:
             if isinstance(u, dict) and u.get('mobile'):
-                try:
-                    mobile_number = str(u['mobile'])
-                    await send_whatsapp_template(mobile_number, payload.template_name, payload.variables)
-                    success_count += 1
-                except Exception as e:
-                    mobile_number = str(u.get('mobile'))
-                    logger.error(f"Broadcast failed for {mobile_number}: {e}")
+                mobile_number = str(u['mobile'])
+                
+                if payload.message_type == "text":
+                    background_tasks.add_task(send_whatsapp_text, mobile_number, payload.message_text or "")
+                else:
+                    background_tasks.add_task(send_whatsapp_template, mobile_number, payload.template_name or "", payload.variables)
                     
-        return {"message": f"Broadcast successfully sent to {success_count} users!"}
+                queued_count += 1
+                    
+        return {"message": f"Broadcast successfully queued for {queued_count} users!"}
     except Exception as e:
+        logger.error(f"Broadcast Error: {e}")
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
     finally:
