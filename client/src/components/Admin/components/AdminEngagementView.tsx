@@ -1,28 +1,47 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Send, Activity, Clock, CalendarDays, BarChart2, Zap, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Activity, Clock, CalendarDays, BarChart2, Zap, AlertTriangle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import axios from 'axios';
 
 export default function AdminEngagementView() {
-    const [nudgeLogs, setNudgeLogs] = useState<any[]>([]);
-    const [activityStats, setActivityStats] = useState<any[]>([]);
-    const [loadingNudges, setLoadingNudges] = useState(true);
-    const [loadingActivity, setLoadingActivity] = useState(true);
-    const [isTriggering, setIsTriggering] = useState(false);
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-    
-    const [nudgePage, setNudgePage] = useState(1);
-    const [nudgeTotal, setNudgeTotal] = useState(0);
-    const [activityPage, setActivityPage] = useState(1);
-    const [activityTotal, setActivityTotal] = useState(0);
+    const [isTriggering, setIsTriggering] = useState(false);
     const LIMIT = 10;
-
     const API_URL = "https://api.sidenote.in";
 
+    // --- Nudge Table State ---
+    const [nudgeLogs, setNudgeLogs] = useState<any[]>([]);
+    const [loadingNudges, setLoadingNudges] = useState(true);
+    const [nudgePage, setNudgePage] = useState(1);
+    const [nudgeTotal, setNudgeTotal] = useState(0);
+    const [nudgeSortBy, setNudgeSortBy] = useState('sent_at');
+    const [nudgeSortOrder, setNudgeSortOrder] = useState('DESC');
+
+    // --- Activity Table State ---
+    const [activityStats, setActivityStats] = useState<any[]>([]);
+    const [loadingActivity, setLoadingActivity] = useState(true);
+    const [activityPage, setActivityPage] = useState(1);
+    const [activityTotal, setActivityTotal] = useState(0);
+    const [activitySortBy, setActivitySortBy] = useState('last_active_date');
+    const [activitySortOrder, setActivitySortOrder] = useState('DESC');
+
+    useEffect(() => {
+        try {
+            const userStr = localStorage.getItem('user_data');
+            if (userStr) {
+                const userObj = JSON.parse(userStr);
+                if (userObj.role === 'superadmin') setIsSuperAdmin(true);
+            }
+        } catch (e) {
+            console.error("Failed to parse user role");
+        }
+    }, []);
+
+    // --- Independent Data Fetchers ---
     const fetchNudges = useCallback(async () => {
         setLoadingNudges(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/admin/engagement/logs?page=${nudgePage}&limit=${LIMIT}`, {
+            const res = await axios.get(`${API_URL}/admin/engagement/logs?page=${nudgePage}&limit=${LIMIT}&sort_by=${nudgeSortBy}&sort_order=${nudgeSortOrder}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setNudgeLogs(res.data.data);
@@ -32,13 +51,13 @@ export default function AdminEngagementView() {
         } finally {
             setLoadingNudges(false);
         }
-    }, [nudgePage, API_URL]);
+    }, [nudgePage, nudgeSortBy, nudgeSortOrder]);
 
     const fetchActivity = useCallback(async () => {
         setLoadingActivity(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/admin/engagement/activity?page=${activityPage}&limit=${LIMIT}`, {
+            const res = await axios.get(`${API_URL}/admin/engagement/activity?page=${activityPage}&limit=${LIMIT}&sort_by=${activitySortBy}&sort_order=${activitySortOrder}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setActivityStats(res.data.data);
@@ -48,77 +67,62 @@ export default function AdminEngagementView() {
         } finally {
             setLoadingActivity(false);
         }
-    }, [activityPage, API_URL]);
+    }, [activityPage, activitySortBy, activitySortOrder]);
 
-    useEffect(() => {
-        try {
-            const userStr = localStorage.getItem('user_data'); 
-            if (userStr) {
-                const userObj = JSON.parse(userStr);
-                if (userObj.role === 'superadmin') {
-                    setIsSuperAdmin(true);
-                }
-            }
-        } catch (e) {
-            console.error("Failed to parse user role");
-        }
+    useEffect(() => { fetchNudges(); }, [fetchNudges]);
+    useEffect(() => { fetchActivity(); }, [fetchActivity]);
 
-        fetchNudges();
-        fetchActivity();
-    }, [fetchNudges, fetchActivity]);
-
-    const handleTriggerNudges = async () => {
-        if (!confirm("Run the automated nudge engine now? This will evaluate all users and fire templates according to the inactivity rules.")) return;
-        
-        setIsTriggering(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/admin/engagement/trigger-nudges`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
-            setTimeout(() => {
-                setNudgePage(1); 
-                fetchNudges();
-                setIsTriggering(false);
-                alert(res.data.message);
-            }, 2500);
-            
-        } catch (error: any) {
-            alert(error.response?.data?.detail || "Failed to trigger nudges.");
-            setIsTriggering(false);
+    // --- Sorting Handlers ---
+    const handleNudgeSort = (field: string) => {
+        if (nudgeSortBy === field) {
+            setNudgeSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+        } else {
+            setNudgeSortBy(field);
+            setNudgeSortOrder('ASC');
         }
     };
 
-    const handleFlushAndTrigger = async () => {
-        if (!confirm("SUPERADMIN ACTION: Are you sure you want to delete all previous automated message logs and run the engine fresh? This cannot be undone.")) return;
-        
+    const handleActivitySort = (field: string) => {
+        if (activitySortBy === field) {
+            setActivitySortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+        } else {
+            setActivitySortBy(field);
+            setActivitySortOrder('DESC'); // Default to DESC for numbers/dates
+        }
+    };
+
+    // --- Engine Triggers ---
+    const handleTriggerNudges = async () => {
+        if (!confirm("Run the automated nudge engine now?")) return;
         setIsTriggering(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/admin/engagement/flush-and-trigger`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
-            setTimeout(() => {
-                setNudgePage(1);
-                fetchNudges();
-                setIsTriggering(false);
-                alert(res.data.message);
-            }, 2500);
-            
-        } catch (error: any) {
-            alert(error.response?.data?.detail || "Action denied. Only Superadmins can flush logs.");
-            setIsTriggering(false);
-        }
+            const res = await axios.post(`${API_URL}/admin/engagement/trigger-nudges`, {}, { headers: { Authorization: `Bearer ${token}` } });
+            setTimeout(() => { setNudgePage(1); fetchNudges(); setIsTriggering(false); alert(res.data.message); }, 2500);
+        } catch (error: any) { alert(error.response?.data?.detail || "Failed."); setIsTriggering(false); }
+    };
+
+    const handleFlushAndTrigger = async () => {
+        if (!confirm("SUPERADMIN ACTION: Delete all previous logs and run fresh?")) return;
+        setIsTriggering(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/admin/engagement/flush-and-trigger`, {}, { headers: { Authorization: `Bearer ${token}` } });
+            setTimeout(() => { setNudgePage(1); fetchNudges(); setIsTriggering(false); alert(res.data.message); }, 2500);
+        } catch (error: any) { alert(error.response?.data?.detail || "Denied."); setIsTriggering(false); }
     };
 
     const formatTime = (dateString: string) => {
         if (!dateString) return 'Never';
         const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
-        return new Date(utcString).toLocaleString('en-IN', { 
-            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-        });
+        return new Date(utcString).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    };
+
+    const renderSortIcon = (currentSortBy: string, currentSortOrder: string, field: string) => {
+        if (currentSortBy !== field) return <ArrowUp size={14} className="opacity-20 inline-block ml-1" />;
+        return currentSortOrder === 'ASC' 
+            ? <ArrowUp size={14} className="text-emerald-500 inline-block ml-1" />
+            : <ArrowDown size={14} className="text-emerald-500 inline-block ml-1" />;
     };
 
     return (
@@ -134,21 +138,12 @@ export default function AdminEngagementView() {
                             <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">Recent templates fired by the system rules.</p>
                         </div>
                     </div>
-                    
                     {isSuperAdmin && (
                         <div className="flex items-center gap-3">
-                            <button 
-                                onClick={handleFlushAndTrigger}
-                                disabled={isTriggering}
-                                className="px-4 py-2.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition flex items-center gap-2 disabled:opacity-50"
-                            >
-                                <AlertTriangle size={16} /> Flush & Run Engine
+                            <button onClick={handleFlushAndTrigger} disabled={isTriggering} className="px-4 py-2.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-100 transition flex items-center gap-2 disabled:opacity-50">
+                                <AlertTriangle size={16} /> Flush & Run
                             </button>
-                            <button 
-                                onClick={handleTriggerNudges}
-                                disabled={isTriggering}
-                                className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50"
-                            >
+                            <button onClick={handleTriggerNudges} disabled={isTriggering} className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50">
                                 {isTriggering ? <span className="animate-pulse">Running Engine...</span> : <><Zap size={16} /> Run Engine Now</>}
                             </button>
                         </div>
@@ -162,10 +157,18 @@ export default function AdminEngagementView() {
                         <table className="w-full text-left">
                             <thead className="bg-stone-50 dark:bg-slate-800/50 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
                                 <tr>
-                                    <th className="p-4">Time Sent</th>
-                                    <th className="p-4">User</th>
-                                    <th className="p-4">Template Name</th>
-                                    <th className="p-4">Trigger Reason</th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition" onClick={() => handleNudgeSort('sent_at')}>
+                                        Time Sent {renderSortIcon(nudgeSortBy, nudgeSortOrder, 'sent_at')}
+                                    </th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition" onClick={() => handleNudgeSort('user_name')}>
+                                        User {renderSortIcon(nudgeSortBy, nudgeSortOrder, 'user_name')}
+                                    </th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition" onClick={() => handleNudgeSort('template_name')}>
+                                        Template Name {renderSortIcon(nudgeSortBy, nudgeSortOrder, 'template_name')}
+                                    </th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition" onClick={() => handleNudgeSort('trigger_reason')}>
+                                        Trigger Reason {renderSortIcon(nudgeSortBy, nudgeSortOrder, 'trigger_reason')}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-stone-100 dark:divide-slate-800 text-sm">
@@ -215,15 +218,27 @@ export default function AdminEngagementView() {
                         <table className="w-full text-left">
                             <thead className="bg-stone-50 dark:bg-slate-800/50 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
                                 <tr>
-                                    <th className="p-4">User</th>
-                                    <th className="p-4 text-center"><div className="flex items-center justify-center gap-1"><BarChart2 size={14}/> Total Logs</div></th>
-                                    <th className="p-4 text-center"><div className="flex items-center justify-center gap-1"><CalendarDays size={14}/> Active Days</div></th>
-                                    <th className="p-4 text-center"><div className="flex items-center justify-center gap-1"><Clock size={14}/> Account Age</div></th>
-                                    <th className="p-4">Last Active</th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition" onClick={() => handleActivitySort('name')}>
+                                        User {renderSortIcon(activitySortBy, activitySortOrder, 'name')}
+                                    </th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition text-center" onClick={() => handleActivitySort('total_transactions')}>
+                                        <div className="flex items-center justify-center gap-1"><BarChart2 size={14}/> Total Logs {renderSortIcon(activitySortBy, activitySortOrder, 'total_transactions')}</div>
+                                    </th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition text-center" onClick={() => handleActivitySort('active_days')}>
+                                        <div className="flex items-center justify-center gap-1"><CalendarDays size={14}/> Active Days {renderSortIcon(activitySortBy, activitySortOrder, 'active_days')}</div>
+                                    </th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition text-center" onClick={() => handleActivitySort('days_since_joining')}>
+                                        <div className="flex items-center justify-center gap-1"><Clock size={14}/> Account Age {renderSortIcon(activitySortBy, activitySortOrder, 'days_since_joining')}</div>
+                                    </th>
+                                    <th className="p-4 cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-700 transition" onClick={() => handleActivitySort('last_active_date')}>
+                                        Last Active {renderSortIcon(activitySortBy, activitySortOrder, 'last_active_date')}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-stone-100 dark:divide-slate-800 text-sm">
-                                {activityStats.map((stat) => (
+                                {activityStats.length === 0 ? (
+                                    <tr><td colSpan={5} className="p-8 text-center text-stone-400 italic">No user activity recorded yet.</td></tr>
+                                ) : activityStats.map((stat) => (
                                     <tr key={stat.user_id} className="hover:bg-stone-50 dark:hover:bg-slate-800/30">
                                         <td className="p-4">
                                             <p className="font-bold text-stone-800 dark:text-white">{stat.name}</p>

@@ -470,7 +470,22 @@ async def broadcast_whatsapp_message(
           
      
 @router.get("/engagement/logs")
-def get_nudge_logs(page: int = Query(1, ge=1), limit: int = Query(20, ge=1), admin_id: int = Depends(require_admin)):
+def get_nudge_logs(
+    page: int = Query(1, ge=1), 
+    limit: int = Query(20, ge=1), 
+    sort_by: str = Query("sent_at"), 
+    sort_order: str = Query("DESC"), 
+    admin_id: int = Depends(require_admin)
+):
+    valid_sort = {
+        "sent_at": "m.sent_at", 
+        "user_name": "u.name", 
+        "template_name": "m.template_name", 
+        "trigger_reason": "m.trigger_reason"
+    }
+    db_sort = valid_sort.get(sort_by, "m.sent_at")
+    order = "ASC" if sort_order.upper() == "ASC" else "DESC"
+
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -478,12 +493,12 @@ def get_nudge_logs(page: int = Query(1, ge=1), limit: int = Query(20, ge=1), adm
         cursor.execute("SELECT COUNT(*) as count FROM automated_messages")
         total_records = cursor.fetchone()['count']
         
-        query = """
+        query = f"""
             SELECT m.id, m.template_name, m.trigger_reason, m.sent_at, 
                    u.name as user_name, u.mobile
             FROM automated_messages m
             JOIN users u ON m.user_id = u.id
-            ORDER BY m.sent_at DESC
+            ORDER BY {db_sort} {order}
             LIMIT %s OFFSET %s
         """
         cursor.execute(query, (limit, offset))
@@ -495,8 +510,23 @@ def get_nudge_logs(page: int = Query(1, ge=1), limit: int = Query(20, ge=1), adm
         conn.close()
 
 @router.get("/engagement/activity")
-def get_user_activity_stats(page: int = Query(1, ge=1), limit: int = Query(20, ge=1), admin_id: int = Depends(require_admin)):
-    """Runs the activity SQL queries to show user retention and logging habits with pagination."""
+def get_user_activity_stats(
+    page: int = Query(1, ge=1), 
+    limit: int = Query(20, ge=1), 
+    sort_by: str = Query("last_active_date"), 
+    sort_order: str = Query("DESC"),
+    admin_id: int = Depends(require_admin)
+):
+    valid_sort = {
+        "name": "u.name", 
+        "total_transactions": "total_transactions", 
+        "active_days": "active_days", 
+        "days_since_joining": "days_since_joining", 
+        "last_active_date": "last_active_date"
+    }
+    db_sort = valid_sort.get(sort_by, "last_active_date")
+    order = "ASC" if sort_order.upper() == "ASC" else "DESC"
+
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -510,7 +540,7 @@ def get_user_activity_stats(page: int = Query(1, ge=1), limit: int = Query(20, g
         cursor.execute(count_query)
         total_records = cursor.fetchone()['count']
         
-        query = """
+        query = f"""
             SELECT 
                 u.id as user_id,
                 u.name,
@@ -523,7 +553,7 @@ def get_user_activity_stats(page: int = Query(1, ge=1), limit: int = Query(20, g
             FROM users u
             JOIN transactions t ON u.id = t.user_id
             GROUP BY u.id, u.name, u.mobile
-            ORDER BY last_active_date DESC
+            ORDER BY {db_sort} {order}
             LIMIT %s OFFSET %s
         """
         cursor.execute(query, (limit, offset))
