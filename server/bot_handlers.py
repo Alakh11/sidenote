@@ -37,8 +37,8 @@ def get_user_id(cursor: Any, phone: str) -> int | None:
         return int(tuple(user_row)[0])
     return None
 
-async def ensure_user_exists(phone: str) -> bool:
-    """Checks if user exists. If not, creates them and sends Welcome message. Returns True if NEW."""
+async def ensure_user_exists(phone: str, sender_name: str = "WhatsApp User") -> bool:
+    """Checks if user exists. If not, creates them. If they exist with the default name, updates it."""
     conn = None
     cursor = None
     is_new = False
@@ -48,13 +48,24 @@ async def ensure_user_exists(phone: str) -> bool:
             conn = get_db()
             cursor = conn.cursor()
             
-            cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
-            if cursor.fetchone():
+            cursor.execute("SELECT id, name FROM users WHERE mobile = %s", (phone,))
+            existing_user = cursor.fetchone()
+            
+            if existing_user:
+                user_id = existing_user[0]
+                current_name = existing_user[1]
+                
+                if current_name == 'WhatsApp User' and sender_name != 'WhatsApp User':
+                    cursor.execute("UPDATE users SET name = %s WHERE id = %s", (sender_name, user_id))
+                    conn.commit()
+                    print(f"🔄 Upgraded legacy user {phone} to real name: {sender_name}")
+                    
                 return False
                 
-            cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
+            cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, %s, TRUE)", (phone, sender_name))
             conn.commit()
             is_new = True
+            
         except Exception as e:
             print(f"Error ensuring user exists: {e}")
             return False
@@ -79,10 +90,10 @@ async def ensure_user_exists(phone: str) -> bool:
         return True
     return False
 
-async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str] = None):
+async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
     
-    is_new = await ensure_user_exists(phone)
+    is_new = await ensure_user_exists(phone, sender_name)
     
     text = text.strip().lower()
     
@@ -115,7 +126,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                     amount = float(match.group(0))
                     item = str(line.replace(match.group(0), "").replace("+", "").strip())
                     
-                    await handle_transaction_entry(phone, amount, item, silent=True)
+                    await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name)
                     
                     if any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
                         total_income += amount
@@ -140,14 +151,14 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
             if match and not text.replace(" ", "").replace(".", "").replace("+", "").isdigit():
                 amount = float(match.group(0))
                 item = str(text.replace(match.group(0), "").replace("+", "").strip())
-                await handle_transaction_entry(phone, amount, item)
+                await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
             else:
                 await handle_fallback(phone, text)
 
-async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, message_id: Optional[str] = None):
+async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
     
-    await ensure_user_exists(phone)
+    await ensure_user_exists(phone, sender_name)
     await send_whatsapp_text(phone, "⏳ Reading your receipt ...")
     
     media_url = await get_whatsapp_media_url(media_id)
@@ -164,14 +175,14 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, mess
         
         print(f"🤖 AI Successfully Extracted: ₹{amount} for {item}")
         
-        await handle_transaction_entry(phone, amount, item)
+        await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
     else:
         await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read that receipt.")
 
-async def process_whatsapp_interactive(phone: str, button_id: str, message_id: Optional[str] = None):
+async def process_whatsapp_interactive(phone: str, button_id: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
     
-    await ensure_user_exists(phone)
+    await ensure_user_exists(phone, sender_name)
     if button_id == "cmd_summary": await handle_summary_request(phone)
     elif button_id == "cmd_today": await handle_today_request(phone)
     elif button_id == "cmd_more": await handle_more_request(phone)
@@ -214,7 +225,7 @@ async def handle_budget_set(phone: str, text: str):
             
     await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.")
 
-async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False):
+async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User"):
 
     clean_item = item.replace('\n', ', ').replace('\r', '')
     clean_item = re.sub(r'\s{2,}', ' ', clean_item)
@@ -241,7 +252,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             u_data = tuple(user_data) if user_data else ()
             
             if not u_data:
-                cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, 'WhatsApp User', TRUE)", (phone,))
+                cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, %s, TRUE)", (phone, sender_name))
                 conn.commit()
                 user_id = cursor.lastrowid
                 budget_limit = 0.0
@@ -512,10 +523,10 @@ async def handle_monthly_request(phone: str):
     variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
     await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
 
-async def process_whatsapp_audio(phone: str, media_id: str, message_id: Optional[str] = None):
+async def process_whatsapp_audio(phone: str, media_id: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
     
-    await ensure_user_exists(phone)
+    await ensure_user_exists(phone, sender_name)
     await send_whatsapp_text(phone, "🎧 Listening to your voice note...")
     
     media_url = await get_whatsapp_media_url(media_id)
@@ -530,7 +541,7 @@ async def process_whatsapp_audio(phone: str, media_id: str, message_id: Optional
         amount = float(voice_data['amount'])
         item = str(voice_data['item'])
         print(f"🎙️ Voice Extracted: ₹{amount} for {item}")
-        await handle_transaction_entry(phone, amount, item)
+        await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
     else:
         await send_whatsapp_text(phone, "❓ I couldn't hear a specific amount or item. Could you try speaking a bit clearer?")   
         

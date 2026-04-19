@@ -257,6 +257,9 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
         changes = entry.get('changes', [])[0]
         value = changes.get('value', {})
         
+        contacts = value.get('contacts', [])
+        sender_name = contacts[0].get('profile', {}).get('name', 'WhatsApp User') if contacts else 'WhatsApp User'
+        
         if 'messages' in value:
             message = value['messages'][0]
             sender_phone = message['from']
@@ -264,26 +267,26 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
             
             if message['type'] == 'text':
                 text_body = message['text']['body']
-                print(f"📩 Text from {sender_phone}: {text_body}")
-                background_tasks.add_task(process_whatsapp_text, sender_phone, text_body, message_id)
+                print(f"📩 Text from {sender_name} ({sender_phone}): {text_body}")
+                background_tasks.add_task(process_whatsapp_text, sender_phone, text_body, message_id, sender_name)
                 
             elif message['type'] == 'interactive':
                 button_id = message['interactive']['button_reply']['id']
-                print(f"👆 Button clicked by {sender_phone}: {button_id}")
-                background_tasks.add_task(process_whatsapp_interactive, sender_phone, button_id, message_id)
+                print(f"👆 Button clicked by {sender_name} ({sender_phone}): {button_id}")
+                background_tasks.add_task(process_whatsapp_interactive, sender_phone, button_id, message_id, sender_name)
                 
             elif message['type'] in ['image', 'document']:
                 media_type = message['type'] 
                 media_id = str(message[media_type]['id'])
                 mime_type = str(message[media_type]['mime_type'])
                 
-                print(f"📄 {media_type.capitalize()} received from {sender_phone}. Processing ...")
-                background_tasks.add_task(process_whatsapp_image, sender_phone, media_id, mime_type, message_id)
+                print(f"📄 {media_type.capitalize()} received from {sender_name} ({sender_phone}). Processing ...")
+                background_tasks.add_task(process_whatsapp_image, sender_phone, media_id, mime_type, message_id, sender_name)
             
             elif message['type'] == 'audio':
                 media_id = str(message['audio']['id'])
-                print(f"🎙️ Voice note received from {sender_phone}.")
-                background_tasks.add_task(process_whatsapp_audio, sender_phone, media_id, message_id)
+                print(f"🎙️ Voice note received from {sender_name} ({sender_phone}).")
+                background_tasks.add_task(process_whatsapp_audio, sender_phone, media_id, message_id, sender_name)
 
         elif 'statuses' in value:
             status = value['statuses'][0]
