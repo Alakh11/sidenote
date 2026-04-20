@@ -12,6 +12,8 @@ from cron_nudges import run_daily_nudges
 from pydantic import BaseModel
 from typing import Optional
 from tracking import track_event
+from starlette.background import BackgroundTask
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -306,6 +308,8 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
 def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: int):
     if endpoint == "/admin/metrics" or endpoint == "/": 
         return
+        
+    conn = None
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -314,9 +318,12 @@ def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: 
             (method, endpoint, duration_ms, status_code)
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         print(f"Metrics Error: {e}")
+    finally:
+        if conn:
+            try: conn.close() 
+            except: pass
         
     if not endpoint.startswith("/admin"):
         track_event('server_backend', 'api_request_made', {
@@ -335,10 +342,13 @@ async def add_process_time_header(request: Request, call_next):
     route = request.scope.get("route")
     endpoint_pattern = route.path if route else request.url.path
     
-    threading.Thread(
-        target=log_api_metric, 
-        args=(request.method, endpoint_pattern, process_time_ms, response.status_code)
-    ).start()
+    response.background = BackgroundTask(
+        log_api_metric,
+        request.method,
+        endpoint_pattern,
+        process_time_ms,
+        response.status_code
+    )
     
     return response
 
