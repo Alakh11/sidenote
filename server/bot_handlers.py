@@ -79,14 +79,14 @@ async def ensure_user_exists(phone: str, sender_name: str = "WhatsApp User") -> 
             
     if is_new:
         await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
-        welcome_link_msg = (
-            "🌐 *Finish setting up your account!*\n\n"
-            "To view your charts and secure your data:\n"
-            "🔗 https://www.sidenote.in/login\n\n"
-            "Click *Sign Up* and use this mobile number to link your accounts.\n\n"
-            "(Or type 'menu' anytime to see your options)"
-        )
-        await send_whatsapp_text(phone, welcome_link_msg)
+        # welcome_link_msg = (
+        #     "🌐 *Finish setting up your account!*\n\n"
+        #     "To view your charts and secure your data:\n"
+        #     "🔗 https://www.sidenote.in/login\n\n"
+        #     "Click *Sign Up* and use this mobile number to link your accounts.\n\n"
+        #     "(Or type 'menu' anytime to see your options)"
+        # )
+        # await send_whatsapp_text(phone, welcome_link_msg)
         return True
     return False
 
@@ -188,12 +188,15 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
     elif button_id == "cmd_more": await handle_more_request(phone)
     
     elif button_id == "cmd_dashboard": await handle_dashboard_request(phone)
+    elif button_id == "cmd_month": await handle_monthly_request(phone)
     elif button_id == "cmd_week": await handle_weekly_request(phone)
     elif button_id == "cmd_help": 
         await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!")
     elif button_id.startswith("del_"):
         tx_id = int(button_id.split("_")[1])
         await handle_undo_action(phone, tx_id)
+    elif button_id == "cmd_dashboard": 
+        await handle_dashboard_request(phone)
 
 async def handle_budget_set(phone: str, text: str):
     match = re.search(r'\d+(?:\.\d+)?', text)
@@ -344,16 +347,18 @@ async def handle_undo_request(phone: str):
         try:
             conn = get_db()
             cursor = conn.cursor()
+            cursor.execute("SET time_zone = '+05:30'")
+            
             user_id = get_user_id(cursor, phone)
             if not user_id:
-                await send_whatsapp_text(phone, "You don't have any recent entries to undo.")
+                await send_whatsapp_text(phone, "You haven't made any entries today that can be undone.")
                 return
                 
-            cursor.execute("SELECT id, amount, note FROM transactions WHERE user_id = %s ORDER BY date DESC LIMIT 2", (user_id,))
+            cursor.execute("SELECT id, amount, note FROM transactions WHERE user_id = %s AND DATE(date) = CURDATE() ORDER BY date DESC LIMIT 2", (user_id,))
             rows = cursor.fetchall()
             
             if not rows:
-                await send_whatsapp_text(phone, "You don't have any recent entries to undo.")
+                await send_whatsapp_text(phone, "You haven't made any entries today that can be undone.")
                 return
 
             for row in rows:
@@ -384,10 +389,12 @@ async def handle_undo_action(phone: str, tx_id: int):
         try:
             conn = get_db()
             cursor = conn.cursor()
+            cursor.execute("SET time_zone = '+05:30'")
+            
             user_id = get_user_id(cursor, phone)
             if not user_id: return
             
-            cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s", (tx_id, user_id))
+            cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s AND DATE(date) = CURDATE()", (tx_id, user_id))
             conn.commit()
             rowcount = cursor.rowcount
         except Exception as e:
@@ -404,7 +411,7 @@ async def handle_undo_action(phone: str, tx_id: int):
     if rowcount > 0:
         await send_whatsapp_text(phone, "🗑️ Entry deleted successfully!")
     else:
-        await send_whatsapp_text(phone, "⚠️ Could not delete. It may have already been removed.")
+        await send_whatsapp_text(phone, "⚠️ Could not delete. You can only undo transactions made today, or it may have already been removed.")
 
 async def handle_fallback(phone: str, text: str = ""):
     if text in ['hi', 'hello', 'hey']:
@@ -544,50 +551,59 @@ async def process_whatsapp_audio(phone: str, media_id: str, message_id: Optional
         await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
     else:
         await send_whatsapp_text(phone, "❓ I couldn't hear a specific amount or item. Could you try speaking a bit clearer?")   
-        
-async def handle_dashboard_request(phone: str):
-    """Sends the dashboard link based on verification status."""
-    conn = None
-    cursor = None
-    msg = ""
     
-    async with db_semaphore:
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
+async def handle_dashboard_request(phone: str):
+    """Safety fallback for old dashboard buttons still in user's chat history."""
+    msg = (
+        "🚀 *Coming Soon!*\n\n"
+        "Advanced charts and features are currently under construction. "
+        "For now, you can get all your insights and summaries right here in WhatsApp by typing *menu*!"
+    )
+    await send_whatsapp_text(phone, msg)
+        
+# async def handle_dashboard_request(phone: str):
+#     """Sends the dashboard link based on verification status."""
+#     conn = None
+#     cursor = None
+#     msg = ""
+    
+#     async with db_semaphore:
+#         try:
+#             conn = get_db()
+#             cursor = conn.cursor()
             
-            cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
-            row = cursor.fetchone()
+#             cursor.execute("SELECT email FROM users WHERE mobile = %s", (phone,))
+#             row = cursor.fetchone()
             
-            if row and row[0]: # type: ignore
-                msg = (
-                    "*SideNote Web Dashboard*\n\n"
-                    "Access your full financial reports and charts here:\n"
-                    "🔗 https://www.sidenote.in/login\n\n"
-                    "Use your registered email to log in."
-                )
-            else:
-                msg = (
-                    "👋 *You're almost there!*\n\n"
-                    "To see your charts and secure your account, please complete your profile:\n\n"
-                    "1️⃣ Go to: https://www.sidenote.in/login\n"
-                    "2️⃣ Click *Sign Up*\n"
-                    "3️⃣ Select *Mobile* and enter your number\n\n"
-                    "Set your Name and Password, and your WhatsApp data will instantly sync to the web!"
-                )
-        except Exception as e:
-            print(f"Dashboard Link Error: {e}")
-            return
-        finally:
-            if cursor: 
-                try: cursor.close()
-                except: pass
-            if conn: 
-                try: conn.close()
-                except: pass
+#             if row and row[0]: # type: ignore
+#                 msg = (
+#                     "*SideNote Web Dashboard*\n\n"
+#                     "Access your full financial reports and charts here:\n"
+#                     "🔗 https://www.sidenote.in/login\n\n"
+#                     "Use your registered email to log in."
+#                 )
+#             else:
+#                 msg = (
+#                     "👋 *You're almost there!*\n\n"
+#                     "To see your charts and secure your account, please complete your profile:\n\n"
+#                     "1️⃣ Go to: https://www.sidenote.in/login\n"
+#                     "2️⃣ Click *Sign Up*\n"
+#                     "3️⃣ Select *Mobile* and enter your number\n\n"
+#                     "Set your Name and Password, and your WhatsApp data will instantly sync to the web!"
+#                 )
+#         except Exception as e:
+#             print(f"Dashboard Link Error: {e}")
+#             return
+#         finally:
+#             if cursor: 
+#                 try: cursor.close()
+#                 except: pass
+#             if conn: 
+#                 try: conn.close()
+#                 except: pass
             
-    if msg:
-        await send_whatsapp_text(phone, msg)
+#     if msg:
+#         await send_whatsapp_text(phone, msg)
         
 async def handle_today_request(phone: str):
     """Fetches and sends a list of all transactions made today."""
@@ -665,8 +681,9 @@ async def handle_menu_request(phone: str):
 async def handle_more_request(phone: str):
     """Second Menu (Triggered by typing 'more' or clicking 'More Options')"""
     buttons = [
-        {"id": "cmd_dashboard", "title": "Web Dashboard"},
+        # {"id": "cmd_dashboard", "title": "Web Dashboard"},
         {"id": "cmd_week", "title": "This Week"},
+        {"id": "cmd_month", "title": "This Month"},
         {"id": "cmd_help", "title": "Help"}
     ]
     await send_whatsapp_interactive_buttons(phone, "*More Options*\nChoose an option below:", buttons)
