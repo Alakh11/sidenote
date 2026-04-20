@@ -12,7 +12,7 @@ from constants import (
 
 logger = logging.getLogger(__name__)
 
-async def run_daily_nudges():
+async def run_daily_nudges(target_rule: str = "all"):
     """Evaluates all users and sends the appropriate automated nudge based on strict hour rules."""
     logger.info("Starting Nudge Engine Evaluation...")
     conn = get_db()

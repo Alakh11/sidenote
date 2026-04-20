@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Send, Activity, Clock, CalendarDays, BarChart2, Zap, AlertTriangle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { Send, Activity, Clock, CalendarDays, BarChart2, Zap, AlertTriangle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Play, Pause, Server } from 'lucide-react';
 import axios from 'axios';
 
 export default function AdminEngagementView() {
@@ -23,6 +23,11 @@ export default function AdminEngagementView() {
     const [activityTotal, setActivityTotal] = useState(0);
     const [activitySortBy, setActivitySortBy] = useState('last_active_date');
     const [activitySortOrder, setActivitySortOrder] = useState('DESC');
+
+    // --- Cron Engine State ---
+    const [cronStatus, setCronStatus] = useState<'running' | 'paused' | 'offline'>('offline');
+    const [togglingCron, setTogglingCron] = useState(false);
+    const [selectedNudge, setSelectedNudge] = useState('all');
 
     useEffect(() => {
         try {
@@ -91,19 +96,48 @@ export default function AdminEngagementView() {
         }
     };
 
-    // --- Engine Triggers ---
+    // --- Cron Engine Methods ---
+    const fetchCronStatus = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${API_URL}/admin/engagement/cron-status`, { headers: { Authorization: `Bearer ${token}` } });
+            setCronStatus(res.data.status);
+        } catch (error) { console.error("Cron status error", error); }
+    }, []);
+
+    useEffect(() => { fetchCronStatus(); }, [fetchCronStatus]);
+
+    const handleToggleCron = async () => {
+        setTogglingCron(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/admin/engagement/cron-toggle`, {}, { headers: { Authorization: `Bearer ${token}` } });
+            setCronStatus(res.data.status);
+        } catch (error: any) { alert("Failed to toggle engine."); }
+        setTogglingCron(false);
+    };
+
+    // --- Action Triggers ---
     const handleTriggerNudges = async () => {
-        if (!confirm("Run the automated nudge engine now?")) return;
+        if (selectedNudge === 'flush_and_run') {
+            handleFlushAndTrigger();
+            return;
+        }
+
+        if (!confirm(`Run the ${selectedNudge.replace('_', ' ')} rule now?`)) return;
         setIsTriggering(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/admin/engagement/trigger-nudges`, {}, { headers: { Authorization: `Bearer ${token}` } });
-            setTimeout(() => { setNudgePage(1); fetchNudges(); setIsTriggering(false); alert(res.data.message); }, 2500);
+            const res = await axios.post(`${API_URL}/admin/engagement/trigger-nudges`, 
+                { nudge_type: selectedNudge },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setTimeout(() => { setNudgePage(1); fetchNudges(); setIsTriggering(false); alert(res.data.message); }, 1500);
         } catch (error: any) { alert(error.response?.data?.detail || "Failed."); setIsTriggering(false); }
     };
 
     const handleFlushAndTrigger = async () => {
-        if (!confirm("SUPERADMIN ACTION: Delete all previous logs and run fresh?")) return;
+        if (!confirm("SUPERADMIN ACTION: Delete all previous logs and run fresh? This cannot be undone.")) return;
         setIsTriggering(true);
         try {
             const token = localStorage.getItem('token');
@@ -112,6 +146,7 @@ export default function AdminEngagementView() {
         } catch (error: any) { alert(error.response?.data?.detail || "Denied."); setIsTriggering(false); }
     };
 
+    // --- Helpers ---
     const formatTime = (dateString: string) => {
         if (!dateString) return 'Never';
         const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
@@ -125,29 +160,72 @@ export default function AdminEngagementView() {
             : <ArrowDown size={14} className="text-emerald-500 inline-block ml-1" />;
     };
 
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             
-            {/* Section 1: Automated Nudge Logs */}
-            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-stone-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl"><Send size={20} /></div>
+            {/* Command Center: Engine Control */}
+            {isSuperAdmin && (
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className={`p-4 rounded-2xl transition-colors ${cronStatus === 'running' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'}`}>
+                            <Server size={24} className={cronStatus === 'running' ? 'animate-pulse' : ''} />
+                        </div>
                         <div>
-                            <h3 className="font-bold text-lg text-stone-800 dark:text-white">Automated Nudge History</h3>
-                            <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">Recent templates fired by the system rules.</p>
+                            <h3 className="font-bold text-lg text-stone-800 dark:text-white">Nudge Engine Control</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="relative flex h-3 w-3">
+                                  {cronStatus === 'running' && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                                  <span className={`relative inline-flex rounded-full h-3 w-3 ${cronStatus === 'running' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                                </span>
+                                <span className="text-sm font-bold text-stone-500 dark:text-slate-400 uppercase tracking-wider">
+                                    {cronStatus === 'running' ? 'System Active' : 'System Paused'}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    {isSuperAdmin && (
-                        <div className="flex items-center gap-3">
-                            <button onClick={handleFlushAndTrigger} disabled={isTriggering} className="px-4 py-2.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-xl text-sm font-bold hover:bg-rose-100 transition flex items-center gap-2 disabled:opacity-50">
-                                <AlertTriangle size={16} /> Flush & Run
-                            </button>
-                            <button onClick={handleTriggerNudges} disabled={isTriggering} className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50">
-                                {isTriggering ? <span className="animate-pulse">Running Engine...</span> : <><Zap size={16} /> Run Engine Now</>}
-                            </button>
-                        </div>
-                    )}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button 
+                            onClick={handleToggleCron} 
+                            disabled={togglingCron}
+                            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center gap-2 ${cronStatus === 'running' ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                        >
+                            {cronStatus === 'running' ? <><Pause size={16}/> Pause Engine</> : <><Play size={16}/> Resume Engine</>}
+                        </button>
+                        
+                        <div className="h-8 w-px bg-stone-200 dark:bg-slate-700 hidden md:block mx-2"></div>
+                        
+                        <select 
+                            value={selectedNudge} 
+                            onChange={(e) => setSelectedNudge(e.target.value)}
+                            className="bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-300 text-sm font-bold rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                        >
+                            <option value="all">Run All Scheduled Nudges</option>
+                            <option value="48h_alert">48h Inactivity Alert (Utility)</option>
+                            <option value="weekly_statement">7-Day Statement (Utility)</option>
+                            <option value="monthly_insight">Monthly Insight (Utility)</option>
+                            <option value="flush_and_run" className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-900/30">⚠️ Flush Logs & Run Fresh</option>
+                        </select>
+                        
+                        <button 
+                            onClick={handleTriggerNudges} 
+                            disabled={isTriggering} 
+                            className={`px-4 py-2.5 text-white rounded-xl text-sm font-bold shadow-lg transition flex items-center gap-2 disabled:opacity-50 ${selectedNudge === 'flush_and_run' ? 'bg-rose-600 shadow-rose-200 dark:shadow-none hover:bg-rose-700' : 'bg-indigo-600 shadow-indigo-200 dark:shadow-none hover:bg-indigo-700'}`}
+                        >
+                            {isTriggering ? <span className="animate-pulse">Firing...</span> : selectedNudge === 'flush_and_run' ? <><AlertTriangle size={16} /> Execute Flush</> : <><Zap size={16} /> Force Fire</>}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-stone-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10 flex items-center gap-3">
+                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl"><Send size={20} /></div>
+                    <div>
+                        <h3 className="font-bold text-lg text-stone-800 dark:text-white">Automated Nudge History</h3>
+                        <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">Recent templates fired by the system rules.</p>
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto min-h-[300px]">

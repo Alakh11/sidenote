@@ -215,8 +215,9 @@ def init_db():
 @app.on_event("startup")
 def start_scheduler():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(run_daily_nudges, 'interval', minutes=15)
+    scheduler.add_job(run_daily_nudges, 'interval', minutes=15, id='nudge_engine')
     scheduler.start()
+    app.state.scheduler = scheduler
     
 @app.get("/webhook")
 async def verify_webhook(

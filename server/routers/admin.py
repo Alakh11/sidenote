@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
 from typing import Any, Optional, List
 from database import get_db
 from security import require_admin, pwd_context
@@ -7,12 +7,14 @@ import logging
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text
-from fastapi import BackgroundTasks
 from cron_nudges import run_daily_nudges
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 logger = logging.getLogger(__name__)
 
+class SpecificNudgeRequest(BaseModel):
+    nudge_type: str
+    
 @router.get("/users")
 def get_all_users(
     page: int = Query(1, ge=1),
@@ -565,7 +567,11 @@ def get_user_activity_stats(
         conn.close()
 
 @router.post("/engagement/trigger-nudges")
-async def trigger_automated_nudges(background_tasks: BackgroundTasks, admin_id: int = Depends(require_admin)):
+async def trigger_automated_nudges(
+    data: SpecificNudgeRequest, 
+    background_tasks: BackgroundTasks, 
+    admin_id: int = Depends(require_admin)
+):
     """SUPERADMIN ONLY: Manually triggers the daily nudge evaluation engine."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
@@ -576,8 +582,9 @@ async def trigger_automated_nudges(background_tasks: BackgroundTasks, admin_id: 
         if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
              raise HTTPException(status_code=403, detail="Only Superadmins can trigger the nudge engine.")
 
-        background_tasks.add_task(run_daily_nudges)
-        return {"message": "Nudge engine started! Refresh logs in a few moments."}
+        # Pass the specific nudge type over to your cron job
+        background_tasks.add_task(run_daily_nudges, data.nudge_type)
+        return {"message": f"Nudge engine triggered for '{data.nudge_type.replace('_', ' ').title()}'! Refresh logs in a few moments."}
     finally:
         conn.close()
 
@@ -596,7 +603,40 @@ async def flush_and_trigger_nudges(background_tasks: BackgroundTasks, admin_id: 
         cursor.execute("TRUNCATE TABLE automated_messages")
         conn.commit()
 
-        background_tasks.add_task(run_daily_nudges)
+        background_tasks.add_task(run_daily_nudges, "all")
         return {"message": "Logs flushed and Nudge engine started fresh! Refresh in a few moments."}
     finally:
         conn.close()
+        
+@router.get("/engagement/cron-status")
+def get_cron_status(request: Request, admin_id: int = Depends(require_admin)):
+    scheduler = getattr(request.app.state, "scheduler", None)
+    if not scheduler:
+        return {"status": "offline", "next_run": None}
+        
+    job = scheduler.get_job('nudge_engine')
+    if not job:
+        return {"status": "not_found", "next_run": None}
+        
+    is_running = job.next_run_time is not None
+    return {
+        "status": "running" if is_running else "paused",
+        "next_run": str(job.next_run_time) if job.next_run_time else "Paused"
+    }
+    
+@router.post("/engagement/cron-toggle")
+def toggle_cron_engine(request: Request, admin_id: int = Depends(require_admin)):
+    scheduler = getattr(request.app.state, "scheduler", None)
+    if not scheduler:
+        raise HTTPException(status_code=500, detail="Scheduler not initialized")
+        
+    job = scheduler.get_job('nudge_engine')
+    if not job:
+        raise HTTPException(status_code=404, detail="Cron job not found")
+        
+    if job.next_run_time:
+        scheduler.pause_job('nudge_engine')
+        return {"message": "Engine paused successfully.", "status": "paused"}
+    else:
+        scheduler.resume_job('nudge_engine')
+        return {"message": "Engine resumed successfully.", "status": "running"}
