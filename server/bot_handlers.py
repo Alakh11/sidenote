@@ -29,6 +29,31 @@ def is_duplicate(message_id: Optional[str]) -> bool:
     processed_message_ids[message_id] = current_time
     return False
 
+def extract_transaction_details(text: str):
+    """Smartly extracts the amount and item from a conversational string."""
+    text = text.lower().strip()
+    
+    currency_match = re.search(r'(?:rs\.?|₹|rupees|inr)\s*(\d+(?:\.\d+)?)', text) or \
+                     re.search(r'(\d+(?:\.\d+)?)\s*(?:rs\.?|₹|rupees|inr)', text)
+                     
+    if currency_match:
+        amount_str = currency_match.group(1)
+    else:
+        numbers = re.findall(r'\d+(?:\.\d+)?', text)
+        if not numbers:
+            return None, text
+        amount_str = max(numbers, key=float)
+        
+    amount = float(amount_str)
+    
+    item = text.replace(amount_str, "", 1)
+    
+    item = re.sub(r'\b(rs\.?|rupees|inr|₹)\b', '', item).strip()
+    
+    item = re.sub(r'\s{2,}', ' ', item).strip("- =:,")
+    
+    return amount, item
+
 def get_user_id(cursor: Any, phone: str) -> int | None:
     """Fetches the user_id associated with the mobile number."""
     cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
@@ -118,14 +143,11 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
             total_income = 0.0
             
             for line in lines:
-                line = line.strip()
-                if not line: continue
+                if not line.strip(): continue
                 
-                match = re.search(r'\d+(?:\.\d+)?', line)
-                if match and not line.replace(" ", "").replace(".", "").replace("+", "").isdigit():
-                    amount = float(match.group(0))
-                    item = str(line.replace(match.group(0), "").replace("+", "").strip())
-                    
+                amount, item = extract_transaction_details(line)
+                
+                if amount is not None:
                     await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name)
                     
                     if any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
@@ -147,10 +169,9 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                 await handle_fallback(phone, text)
                 
         else:
-            match = re.search(r'\d+(?:\.\d+)?', text)
-            if match and not text.replace(" ", "").replace(".", "").replace("+", "").isdigit():
-                amount = float(match.group(0))
-                item = str(text.replace(match.group(0), "").replace("+", "").strip())
+            amount, item = extract_transaction_details(text)
+            
+            if amount is not None:
                 await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
             else:
                 await handle_fallback(phone, text)
