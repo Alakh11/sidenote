@@ -9,7 +9,7 @@ import logging
 import random
 import os
 from datetime import datetime, timedelta
-from whatsapp_service import send_whatsapp_text
+from whatsapp_service import send_whatsapp_text, send_whatsapp_template
 from tracking import track_event, link_web_and_whatsapp
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -27,17 +27,30 @@ class VerifyOTP(BaseModel):
     otp: str
 
 async def generate_and_send_otp(cursor, phone: str, name: str):
-    """Generates a 4-digit OTP, saves it, and sends via WhatsApp."""
+    """Generates a 4-digit OTP, saves it, and routes via Free Text or Meta Template."""
     if not phone:
-        return # Safety check to satisfy Pylance
+        return 
         
     otp_code = str(random.randint(1000, 9999))
     expiry = datetime.utcnow() + timedelta(minutes=10)
     
     cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, %s)", (phone, otp_code, expiry))
     
-    msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
-    await send_whatsapp_text(phone, msg)
+    cursor.execute("""
+        SELECT u.id 
+        FROM users u
+        JOIN transactions t ON u.id = t.user_id
+        WHERE u.mobile = %s AND t.date >= NOW() - INTERVAL 24 HOUR
+        LIMIT 1
+    """, (phone,))
+    
+    recent_activity = cursor.fetchone()
+    
+    if recent_activity:
+        msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
+        await send_whatsapp_text(phone, msg)
+    else:
+        await send_whatsapp_template(phone, "sidenote_otp_v1", [otp_code])
 
 @router.post("/register")
 async def register(payload: RegisterPayload):
