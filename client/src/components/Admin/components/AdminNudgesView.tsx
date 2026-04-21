@@ -3,6 +3,7 @@ import axios from 'axios';
 import MasterNudgeControl from './MasterNudgeControl';
 import RuleEngineGrid from './RuleEngineGrid';
 import AutomatedNudgeHistory from './AutomatedNudgeHistory';
+import RuleFormModal from './RuleFormModal';
 import { LayoutGrid, List } from 'lucide-react';
 
 export default function AdminNudgesView() {
@@ -10,13 +11,17 @@ export default function AdminNudgesView() {
     const [isTriggering, setIsTriggering] = useState(false);
     const LIMIT = 10;
     const API_URL = "https://api.sidenote.in";
+
     const [activeSubTab, setActiveSubTab] = useState<'rules' | 'history'>('rules');
 
-    // --- State ---
     const [cronStatus, setCronStatus] = useState<'running' | 'paused' | 'offline'>('offline');
     const [togglingCron, setTogglingCron] = useState(false);
     const [rules, setRules] = useState<any[]>([]);
     const [loadingRules, setLoadingRules] = useState(true);
+
+    const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+    const [editingRule, setEditingRule] = useState<any>(null);
+
     const [nudgeLogs, setNudgeLogs] = useState<any[]>([]);
     const [loadingNudges, setLoadingNudges] = useState(true);
     const [nudgePage, setNudgePage] = useState(1);
@@ -33,14 +38,12 @@ export default function AdminNudgesView() {
             }
         } catch (e) { console.error("Failed to parse user role"); }
     }, []);
-
-    // --- Fetchers ---
     const fetchCronStatus = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
             const res = await axios.get(`${API_URL}/admin/engagement/cron-status`, { headers: { Authorization: `Bearer ${token}` } });
             setCronStatus(res.data.status);
-        } catch (error) {}
+        } catch (error) { }
     }, []);
 
     const fetchRules = useCallback(async () => {
@@ -49,7 +52,7 @@ export default function AdminNudgesView() {
             const token = localStorage.getItem('token');
             const res = await axios.get(`${API_URL}/admin/engagement/rules`, { headers: { Authorization: `Bearer ${token}` } });
             setRules(res.data);
-        } catch (error) {} finally { setLoadingRules(false); }
+        } catch (error) { } finally { setLoadingRules(false); }
     }, []);
 
     const fetchNudges = useCallback(async () => {
@@ -61,13 +64,13 @@ export default function AdminNudgesView() {
             });
             setNudgeLogs(res.data.data);
             setNudgeTotal(res.data.total);
-        } catch (error) {} finally { setLoadingNudges(false); }
+        } catch (error) { } finally { setLoadingNudges(false); }
     }, [nudgePage, nudgeSortBy, nudgeSortOrder]);
 
-    useEffect(() => { 
-        fetchCronStatus(); 
-        fetchRules(); 
-        fetchNudges(); 
+    useEffect(() => {
+        fetchCronStatus();
+        fetchRules();
+        fetchNudges();
     }, [fetchCronStatus, fetchRules, fetchNudges]);
 
     const handleNudgeSort = (field: string) => {
@@ -120,17 +123,41 @@ export default function AdminNudgesView() {
         } catch (error: any) { alert(error.response?.data?.detail || "Denied."); setIsTriggering(false); }
     };
 
+    const handleSaveRule = async (data: any) => {
+        try {
+            const token = localStorage.getItem('token');
+            if (editingRule) {
+                await axios.put(`${API_URL}/admin/engagement/rules/edit/${editingRule.id}`, data, { headers: { Authorization: `Bearer ${token}` } });
+            } else {
+                await axios.post(`${API_URL}/admin/engagement/rules`, data, { headers: { Authorization: `Bearer ${token}` } });
+            }
+            setIsRuleModalOpen(false);
+            setEditingRule(null);
+            fetchRules();
+        } catch (e: any) { alert("Failed to save rule."); }
+    };
+
+    const handleDeleteRule = async (id: number) => {
+        if (!confirm("Permanently delete this rule? This cannot be undone.")) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/admin/engagement/rules/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+            fetchRules();
+        } catch (e) { alert("Failed to delete rule."); }
+    };
+
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            
+
             {isSuperAdmin && (
-                <MasterNudgeControl 
-                    cronStatus={cronStatus} 
-                    togglingCron={togglingCron} 
-                    isTriggering={isTriggering} 
-                    onToggleCron={handleToggleCron} 
-                    onForceFireAll={() => handleForceFireRule('all')} 
-                    onFlushAndTrigger={handleFlushAndTrigger} 
+                <MasterNudgeControl
+                    cronStatus={cronStatus}
+                    togglingCron={togglingCron}
+                    isTriggering={isTriggering}
+                    onToggleCron={handleToggleCron}
+                    onForceFireAll={() => handleForceFireRule('all')}
+                    onFlushAndTrigger={handleFlushAndTrigger}
                 />
             )}
 
@@ -151,30 +178,38 @@ export default function AdminNudgesView() {
 
             {activeSubTab === 'rules' && isSuperAdmin && (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
-                    <RuleEngineGrid 
-                        rules={rules} 
-                        loadingRules={loadingRules} 
-                        isTriggering={isTriggering} 
-                        onToggleRule={handleToggleRule} 
-                        onForceFireRule={handleForceFireRule} 
+                    <RuleEngineGrid
+                        rules={rules} loadingRules={loadingRules} isTriggering={isTriggering}
+                        onToggleRule={handleToggleRule} onForceFireRule={handleForceFireRule}
+                        onAddRule={() => { setEditingRule(null); setIsRuleModalOpen(true); }}
+                        onEditRule={(rule: any) => { setEditingRule(rule); setIsRuleModalOpen(true); }}
+                        onDeleteRule={handleDeleteRule}
                     />
                 </div>
             )}
 
             {activeSubTab === 'history' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
-                    <AutomatedNudgeHistory 
-                        logs={nudgeLogs} 
-                        loading={loadingNudges} 
-                        page={nudgePage} 
-                        total={nudgeTotal} 
-                        limit={LIMIT} 
-                        sortBy={nudgeSortBy} 
-                        sortOrder={nudgeSortOrder} 
-                        onSort={handleNudgeSort} 
-                        onPageChange={setNudgePage} 
+                    <AutomatedNudgeHistory
+                        logs={nudgeLogs}
+                        loading={loadingNudges}
+                        page={nudgePage}
+                        total={nudgeTotal}
+                        limit={LIMIT}
+                        sortBy={nudgeSortBy}
+                        sortOrder={nudgeSortOrder}
+                        onSort={handleNudgeSort}
+                        onPageChange={setNudgePage}
                     />
                 </div>
+            )}
+
+            {isRuleModalOpen && (
+                <RuleFormModal
+                    editingRule={editingRule}
+                    onClose={() => { setIsRuleModalOpen(false); setEditingRule(null); }}
+                    onSave={handleSaveRule}
+                />
             )}
         </div>
     );

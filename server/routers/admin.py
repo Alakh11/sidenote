@@ -732,3 +732,56 @@ def toggle_nudge_rule(rule_name: str, payload: ToggleRulePayload, admin_id: int 
         return {"message": f"Rule {rule_name} turned {'ON' if payload.is_active else 'OFF'}"}
     finally:
         conn.close()
+        
+class RulePayload(BaseModel):
+    rule_name: str
+    template_name: str
+    description: str
+    rule_type: str = "inactivity"
+    hours_min: float = 0
+    hours_max: float = 0
+    bypass_limits: bool = False
+    is_active: bool = True
+
+@router.post("/engagement/rules")
+def create_nudge_rule(payload: RulePayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO nudge_settings (rule_name, template_name, description, rule_type, hours_min, hours_max, bypass_limits, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (payload.rule_name, payload.template_name, payload.description, payload.rule_type, payload.hours_min, payload.hours_max, payload.bypass_limits, payload.is_active))
+        conn.commit()
+        return {"message": "Rule created successfully!"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail="Rule name must be unique or valid data provided.")
+    finally:
+        conn.close()
+
+@router.put("/engagement/rules/edit/{rule_id}")
+def edit_nudge_rule(rule_id: int, payload: RulePayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE nudge_settings 
+            SET rule_name=%s, template_name=%s, description=%s, rule_type=%s, hours_min=%s, hours_max=%s, bypass_limits=%s, is_active=%s
+            WHERE id=%s
+        """, (payload.rule_name, payload.template_name, payload.description, payload.rule_type, payload.hours_min, payload.hours_max, payload.bypass_limits, payload.is_active, rule_id))
+        conn.commit()
+        return {"message": "Rule updated successfully!"}
+    finally:
+        conn.close()
+
+@router.delete("/engagement/rules/{rule_id}")
+def delete_nudge_rule(rule_id: int, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM nudge_settings WHERE id = %s", (rule_id,))
+        conn.commit()
+        return {"message": "Rule permanently deleted."}
+    finally:
+        conn.close()
