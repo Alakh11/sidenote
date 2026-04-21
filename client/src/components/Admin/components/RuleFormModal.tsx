@@ -14,10 +14,14 @@ export default function RuleFormModal({ onClose, onSave, editingRule }: any) {
     });
 
     useEffect(() => {
-        if (editingRule) setFormData(editingRule);
+        if (editingRule) setFormData({
+            ...editingRule,
+            rule_type: editingRule.rule_type || 'inactivity'
+        });
     }, [editingRule]);
 
     const handleSubmit = () => onSave(formData);
+    const isTimeBased = formData.rule_type === 'inactivity' || formData.rule_type === 'onboarding';
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -50,7 +54,8 @@ export default function RuleFormModal({ onClose, onSave, editingRule }: any) {
                         <div>
                             <label className="text-xs font-bold uppercase text-stone-400 ml-1">Rule Type</label>
                             <select className="w-full p-3 mt-1 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={formData.rule_type} onChange={e => setFormData({...formData, rule_type: e.target.value})}>
-                                <option value="inactivity">Inactivity Trigger</option>
+                                <option value="inactivity">Standard Inactivity</option>
+                                <option value="onboarding">Onboarding</option>
                                 <option value="weekly">Scheduled (Weekly)</option>
                                 <option value="monthly">Scheduled (Monthly)</option>
                             </select>
@@ -63,7 +68,7 @@ export default function RuleFormModal({ onClose, onSave, editingRule }: any) {
                         </div>
                     </div>
 
-                    {formData.rule_type === 'inactivity' && (
+                    {isTimeBased && (
                         <div className="grid grid-cols-2 gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
                             <div>
                                 <label className="text-xs font-bold uppercase text-indigo-400 ml-1">Min Inactive Hours</label>

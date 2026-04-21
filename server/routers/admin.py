@@ -711,11 +711,15 @@ def get_nudge_rules(admin_id: int = Depends(require_admin)):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT ns.id, ns.rule_name, ns.is_active, ns.description,
-                   COUNT(am.id) as 30d_sends
+            SELECT ns.id, ns.rule_name, ns.template_name, ns.rule_type, 
+                   ns.hours_min, ns.hours_max, ns.bypass_limits, 
+                   ns.is_active, ns.description,
+                   COUNT(am.id) as `30d_sends`
             FROM nudge_settings ns
             LEFT JOIN automated_messages am ON ns.rule_name = am.trigger_reason AND am.sent_at >= NOW() - INTERVAL 30 DAY
-            GROUP BY ns.id, ns.rule_name, ns.is_active, ns.description
+            GROUP BY ns.id, ns.rule_name, ns.template_name, ns.rule_type, 
+                     ns.hours_min, ns.hours_max, ns.bypass_limits, 
+                     ns.is_active, ns.description
             ORDER BY ns.id ASC
         """)
         return cursor.fetchall()
