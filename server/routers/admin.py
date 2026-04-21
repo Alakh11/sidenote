@@ -652,3 +652,35 @@ def toggle_cron_engine(request: Request, admin_id: int = Depends(require_admin))
     else:
         scheduler.resume_job('nudge_engine')
         return {"message": "Engine resumed successfully.", "status": "running"}
+    
+    
+class ToggleRulePayload(BaseModel):
+    is_active: bool
+
+@router.get("/engagement/rules")
+def get_nudge_rules(admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT ns.id, ns.rule_name, ns.is_active, ns.description,
+                   COUNT(am.id) as 30d_sends
+            FROM nudge_settings ns
+            LEFT JOIN automated_messages am ON ns.rule_name = am.trigger_reason AND am.sent_at >= NOW() - INTERVAL 30 DAY
+            GROUP BY ns.id, ns.rule_name, ns.is_active, ns.description
+            ORDER BY ns.id ASC
+        """)
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.put("/engagement/rules/{rule_name}")
+def toggle_nudge_rule(rule_name: str, payload: ToggleRulePayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE nudge_settings SET is_active = %s WHERE rule_name = %s", (payload.is_active, rule_name))
+        conn.commit()
+        return {"message": f"Rule {rule_name} turned {'ON' if payload.is_active else 'OFF'}"}
+    finally:
+        conn.close()
