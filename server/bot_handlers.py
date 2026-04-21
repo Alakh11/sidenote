@@ -319,6 +319,12 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 conn.commit()
                 category_id = cursor.lastrowid
             
+            cursor.execute("""
+                INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) 
+                VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')
+            """, (user_id, amount, tx_type, clean_item, category_id))
+            conn.commit()
+            
 
             # Budget Check Logic
             if tx_type == 'expense' and budget_limit > 0:
@@ -530,7 +536,7 @@ async def handle_monthly_request(phone: str):
             if not user_id: return
             
             cursor.execute("SELECT DAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE()) GROUP BY DAY(date)", (user_id,))
-            weeks, month_total = [0.0, 0.0, 0.0, 0.0], 0.0
+            weeks, month_total = [0.0, 0.0, 0.0, 0.0, 0.0], 0.0
             
             for row in cursor.fetchall():
                 r = tuple(row)
@@ -539,7 +545,8 @@ async def handle_monthly_request(phone: str):
                 if day <= 7: weeks[0] += amt
                 elif day <= 14: weeks[1] += amt
                 elif day <= 21: weeks[2] += amt
-                else: weeks[3] += amt
+                elif day <= 28: weeks[3] += amt
+                else: weeks[4] += amt
                 
         finally:
             if cursor: 
