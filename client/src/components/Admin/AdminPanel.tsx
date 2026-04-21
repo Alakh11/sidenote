@@ -1,13 +1,14 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import AdminEngagementView from './components/AdminEngagementView';
 import UserFormModal from './components/UserFormModal';
 import AdminFeedbackView from './components/AdminFeedbackView';
 import SystemMetricsView from './components/SystemMetricsView';
 import UserDetailView from './components/UserDetailView';
 import BroadcastModal from './components/BroadcastModal';
+import UserActivityRetention from './components/UserActivityRetention';
+import AdminNudgesView from './components/AdminNudgesView';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -34,7 +35,7 @@ export default function AdminPanel() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [search, setSearch] = useState('');
-  const [adminTab, setAdminTab] = useState<'users' | 'metrics' | 'feedback' | 'engagement'>('users');
+  const [adminTab, setAdminTab] = useState<'users' | 'metrics' | 'activity' | 'nudges' | 'feedback'>('users');
   
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [editingUser, setEditingUser] = useState<any | null>(null);
@@ -169,7 +170,8 @@ export default function AdminPanel() {
       <div className="flex gap-2 border-b border-stone-200 dark:border-slate-800 pb-px overflow-x-auto scrollbar-hide">
           <button onClick={() => setAdminTab('users')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'users' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Users size={16} /> User Management</button>
           <button onClick={() => setAdminTab('metrics')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'metrics' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Activity size={16} /> System Performance</button>
-          <button onClick={() => setAdminTab('engagement')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'engagement' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Activity size={16} /> Engagement & Nudges</button>
+          <button onClick={() => setAdminTab('activity')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'activity' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Activity size={16} /> User Activity</button>
+          <button onClick={() => setAdminTab('nudges')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'nudges' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Zap size={16} /> Nudges & Rules</button>
           <button onClick={() => setAdminTab('feedback')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'feedback' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><HelpCircle size={16} /> Support Tickets</button>
       </div>
 
@@ -307,8 +309,9 @@ export default function AdminPanel() {
       )}
 
       {adminTab === 'metrics' && <SystemMetricsView />}
+      {adminTab === 'activity' && <UserActivityRetention />}
+      {adminTab === 'nudges' && <AdminNudgesView />}
       {adminTab === 'feedback' && <AdminFeedbackView />}
-      {adminTab === 'engagement' && <AdminEngagementView />}
 
       {(isCreating || editingUser) && (
         <UserFormModal 

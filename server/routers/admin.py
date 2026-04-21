@@ -529,12 +529,15 @@ def get_user_activity_stats(
     limit: int = Query(20, ge=1), 
     sort_by: str = Query("last_active_date"), 
     sort_order: str = Query("DESC"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     admin_id: int = Depends(require_admin)
 ):
     valid_sort = {
-        "name": "u.name", 
+        "name": "name", 
         "total_transactions": "total_transactions", 
         "active_days": "active_days", 
+        "streak": "streak",
         "days_since_joining": "days_since_joining", 
         "last_active_date": "last_active_date"
     }
@@ -546,31 +549,76 @@ def get_user_activity_stats(
     try:
         offset = (page - 1) * limit
         
-        count_query = """
+        time_filter = ""
+        params: list[Any] = []
+        
+        if start_date:
+            time_filter += " AND DATE(CONVERT_TZ(t.date, '+00:00', '+05:30')) >= %s"
+            params.append(start_date)
+        if end_date:
+            time_filter += " AND DATE(CONVERT_TZ(t.date, '+00:00', '+05:30')) <= %s"
+            params.append(end_date)
+        
+        count_query = f"""
             SELECT COUNT(DISTINCT u.id) as count 
             FROM users u
             JOIN transactions t ON u.id = t.user_id
+            WHERE 1=1 {time_filter}
         """
-        cursor.execute(count_query)
+        cursor.execute(count_query, params)
         total_records = cursor.fetchone()['count']
         
         query = f"""
+            WITH FilteredTx AS (
+                SELECT u.id as user_id, u.name, u.mobile, t.date
+                FROM users u
+                JOIN transactions t ON u.id = t.user_id
+                WHERE 1=1 {time_filter}
+            ),
+            UserDates AS (
+                SELECT user_id, DATE(CONVERT_TZ(date, '+00:00', '+05:30')) as tx_date
+                FROM FilteredTx
+                GROUP BY user_id, DATE(CONVERT_TZ(date, '+00:00', '+05:30'))
+            ),
+            RankedDates AS (
+                SELECT user_id, tx_date,
+                       DENSE_RANK() OVER(PARTITION BY user_id ORDER BY tx_date) as rnk
+                FROM UserDates
+            ),
+            GroupedStreaks AS (
+                SELECT user_id,
+                       DATE_SUB(tx_date, INTERVAL rnk DAY) as grp,
+                       COUNT(*) as streak_len,
+                       MAX(tx_date) as max_date
+                FROM RankedDates
+                GROUP BY user_id, DATE_SUB(tx_date, INTERVAL rnk DAY)
+            ),
+            MaxStreaks AS (
+                SELECT g.user_id, g.streak_len
+                FROM GroupedStreaks g
+                INNER JOIN (
+                    SELECT user_id, MAX(tx_date) as last_date
+                    FROM UserDates
+                    GROUP BY user_id
+                ) m ON g.user_id = m.user_id AND g.max_date = m.last_date
+            )
             SELECT 
-                u.id as user_id,
-                u.name,
-                u.mobile,
-                COUNT(t.id) as total_transactions,
-                COUNT(DISTINCT DATE(t.date)) as active_days,
-                CONVERT_TZ(MAX(t.date), '+05:30', '+00:00') as last_active_date,
-                MIN(t.date) as joined_on,
-                DATEDIFF(NOW(), MIN(t.date)) as days_since_joining
-            FROM users u
-            JOIN transactions t ON u.id = t.user_id
-            GROUP BY u.id, u.name, u.mobile
+                f.user_id,
+                MAX(f.name) as name,
+                MAX(f.mobile) as mobile,
+                COUNT(f.date) as total_transactions,
+                COUNT(DISTINCT DATE(CONVERT_TZ(f.date, '+00:00', '+05:30'))) as active_days,
+                CONVERT_TZ(MAX(f.date), '+00:00', '+05:30') as last_active_date,
+                DATEDIFF(NOW(), MIN(f.date)) as days_since_joining,
+                COALESCE(MAX(s.streak_len), 0) as streak
+            FROM FilteredTx f
+            LEFT JOIN MaxStreaks s ON f.user_id = s.user_id
+            GROUP BY f.user_id
             ORDER BY {db_sort} {order}
             LIMIT %s OFFSET %s
         """
-        cursor.execute(query, (limit, offset))
+        
+        cursor.execute(query, params + params + [limit, offset])
         return {"data": cursor.fetchall(), "total": total_records, "page": page, "limit": limit}
     except Exception as e:
         logger.error(f"Activity Stats Error: {e}")
