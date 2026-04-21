@@ -415,6 +415,7 @@ class BroadcastPayload(BaseModel):
     variables: list[str] = []
     message_text: Optional[str] = None
     target_user_ids: list[int] = []
+    audience: str = "all"
 
 @router.post("/broadcast")
 async def broadcast_whatsapp_message(
@@ -436,19 +437,30 @@ async def broadcast_whatsapp_message(
         if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
              raise HTTPException(status_code=403, detail="You do not have permission to send broadcasts.")
 
-        query = "SELECT mobile FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL"
         params: list[Any] = []
         
-        if payload.target_user_ids:
-            format_strings = ','.join(['%s'] * len(payload.target_user_ids))
-            query += f" AND id IN ({format_strings})"
-            params.extend(payload.target_user_ids)
+        if payload.audience == "active_24h":
+            query = """
+                SELECT DISTINCT u.mobile 
+                FROM users u
+                JOIN transactions t ON u.id = t.user_id
+                WHERE u.is_verified = TRUE 
+                AND u.mobile IS NOT NULL 
+                AND t.date >= NOW() - INTERVAL 24 HOUR
+            """
+        else:
+            query = "SELECT mobile FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL"
+            
+            if payload.target_user_ids:
+                format_strings = ','.join(['%s'] * len(payload.target_user_ids))
+                query += f" AND id IN ({format_strings})"
+                params.extend(payload.target_user_ids)
 
         cursor.execute(query, params)
         users = cursor.fetchall()
         
         if not users:
-            raise HTTPException(status_code=400, detail="No verified users found for this selection.")
+            raise HTTPException(status_code=400, detail="No users found matching this criteria.")
         
         queued_count = 0
         for u in users:

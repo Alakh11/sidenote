@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate } from 'lucide-react';
+import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, Clock } from 'lucide-react';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -11,7 +11,14 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
     const [messageText, setMessageText] = useState('');
     
     const [sendToAll, setSendToAll] = useState(selectedUserIds.length === 0);
+    const [audienceFilter, setAudienceFilter] = useState<'all' | 'active_24h'>('all');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (messageType === 'text') {
+            setAudienceFilter('active_24h');
+        }
+    }, [messageType]);
 
     const handleSend = async () => {
         const targetCount = sendToAll ? "ALL verified users" : `${selectedUserIds.length} selected users`;
@@ -25,7 +32,8 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                 template_name: messageType === 'template' ? templateName : null,
                 variables: messageType === 'template' && variables.trim() ? variables.split(',').map(s => s.trim()) : [],
                 message_text: messageType === 'text' ? messageText : null,
-                target_user_ids: sendToAll ? [] : selectedUserIds
+                target_user_ids: sendToAll ? [] : selectedUserIds,
+                audience: audienceFilter
             };
             
             const res = await axios.post(`${API_URL}/admin/broadcast`, payload, { 
@@ -51,7 +59,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                 </div>
                 
                 <div className="space-y-5">
-                    {/* Audience Target Toggle */}
+                    {/* User Target Toggle */}
                     <div className="flex gap-2 p-1 bg-stone-100 dark:bg-slate-800 rounded-xl">
                         <button 
                             onClick={() => setSendToAll(false)} 
@@ -84,10 +92,30 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                         </button>
                     </div>
 
+                    {/* 24-Hour Filter Toggle */}
+                    <div className={`p-3.5 rounded-xl border flex items-center justify-between transition ${audienceFilter === 'active_24h' ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-stone-50 border-stone-200 dark:bg-slate-800/50 dark:border-slate-700'}`}>
+                        <div className="flex items-start gap-2.5">
+                            <Clock size={16} className={`mt-0.5 ${audienceFilter === 'active_24h' ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400'}`} />
+                            <div>
+                                <p className={`text-sm font-bold leading-none ${audienceFilter === 'active_24h' ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-700 dark:text-slate-300'}`}>Smart 24h Filter</p>
+                                <p className={`text-xs mt-1 leading-tight ${audienceFilter === 'active_24h' ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-stone-500'}`}>Only target users active in the last 24 hours.</p>
+                            </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer" 
+                                checked={audienceFilter === 'active_24h'} 
+                                onChange={(e) => setAudienceFilter(e.target.checked ? 'active_24h' : 'all')} 
+                            />
+                            <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                    </div>
+
                     {messageType === 'template' ? (
                         <>
                             <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl text-xs text-indigo-700 dark:text-indigo-300 font-medium">
-                                Templates apply standard Meta billing rates. Use this if the 24-hour service window is closed.
+                                Templates apply standard Meta billing rates. Ideal for reactivating users outside the 24h window.
                             </div>
                             <div className="space-y-1">
                                 <label className="text-xs font-bold uppercase text-stone-400 ml-1">Template Name (Meta API)</label>
@@ -112,7 +140,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                         <>
                             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300 font-medium flex items-start gap-2">
                                 <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                                <span>Free-form texts bypass Meta's template billing, but will <strong>FAIL</strong> if the user has not messaged the bot within the last 24 hours.</span>
+                                <span>Free-form texts bypass Meta's template billing, but will <strong>FAIL</strong> if sent to users outside the 24-hour service window.</span>
                             </div>
                             <div className="space-y-1">
                                 <label className="text-xs font-bold uppercase text-stone-400 ml-1">Message Body</label>
