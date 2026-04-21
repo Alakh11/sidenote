@@ -33,6 +33,9 @@ def extract_transaction_details(text: str):
     """Smartly extracts the amount and item from a conversational string."""
     text = text.lower().strip()
     
+    text = re.sub(r'(?<=\d)\s+(?=\d)', '', text)
+    text = re.sub(r'(?<=\d),(?=\d)', '', text)
+    
     currency_match = re.search(r'(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)\s*(\d+(?:\.\d+)?)', text) or \
                      re.search(r'(\d+(?:\.\d+)?)\s*(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)', text)
                      
@@ -47,11 +50,8 @@ def extract_transaction_details(text: str):
     amount = float(amount_str)
     
     item = text.replace(amount_str, "", 1)
-    
     item = re.sub(r'\b(rs\.?|rupees|inr|rupee|paise|paisa|taka)\b', '', item)
-    
     item = item.replace('₹', '')
-    
     item = re.sub(r'\s{2,}', ' ', item).strip("- =:, ")
     item = re.sub(r'^(for|on|a|an|the|spent on)\s+', '', item).strip()
     item = re.sub(r'\s+(for|on)$', '', item).strip()
@@ -145,6 +145,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
             added_count = 0
             total_expense = 0.0
             total_income = 0.0
+            failed_lines = []
             
             for line in lines:
                 if not line.strip(): continue
@@ -152,29 +153,37 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                 amount, item = extract_transaction_details(line)
                 
                 if amount is not None:
-                    await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name)
+                    is_saved = await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name)
                     
-                    if any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
-                        total_income += amount
+                    if is_saved:
+                        if any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
+                            total_income += amount
+                        else:
+                            total_expense += amount
+                        added_count += 1
                     else:
-                        total_expense += amount
-                        
-                    added_count += 1
+                        failed_lines.append(line)
+                else:
+                    failed_lines.append(line)
                     
-            if added_count > 0:
-                summary_msg = f"✅ Saved {added_count} entries!"
-                if total_expense > 0:
-                    summary_msg += f"\n💸 Total Expense: ₹{total_expense:g}"
-                if total_income > 0:
-                    summary_msg += f"\n💰 Total Income: ₹{total_income:g}"
+            if added_count > 0 or failed_lines:
+                summary_msg = ""
+                if added_count > 0:
+                    summary_msg += f"✅ Saved {added_count} entries!"
+                    if total_expense > 0:
+                        summary_msg += f"\n💸 Total Expense: ₹{total_expense:g}"
+                    if total_income > 0:
+                        summary_msg += f"\n💰 Total Income: ₹{total_income:g}"
+                
+                if failed_lines:
+                    summary_msg += "\n\n❌ *Failed to log these lines:* \n" + "\n".join([f"- {fl}" for fl in failed_lines]) + "\n\n_(Make sure they contain a valid number!)_"
                     
-                await send_whatsapp_text(phone, summary_msg)
+                await send_whatsapp_text(phone, summary_msg.strip())
             else:
                 await handle_fallback(phone, text)
                 
         else:
             amount, item = extract_transaction_details(text)
-            
             if amount is not None:
                 await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
             else:
@@ -253,10 +262,12 @@ async def handle_budget_set(phone: str, text: str):
             
     await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.")
 
-async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User"):
+async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User") -> bool:
 
     clean_item = item.replace('\n', ', ').replace('\r', '')
     clean_item = re.sub(r'\s{2,}', ' ', clean_item)
+    clean_item = clean_item.strip("- =:, ")
+    clean_item = clean_item[:240] 
     
     item_lower = clean_item.lower()
     is_income = any(keyword in item_lower for keyword in INCOME_KEYWORDS)
@@ -367,6 +378,11 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
             if budget_note: 
                 await send_whatsapp_text(phone, budget_note)
+                
+    elif not success and not silent:
+        await send_whatsapp_text(phone, "❌ *Oops! Something went wrong.* I couldn't save that transaction. Please try again.")
+
+    return success
 
 async def handle_undo_request(phone: str):
     conn = None
