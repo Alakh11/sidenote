@@ -618,7 +618,7 @@ def get_user_activity_stats(
             LIMIT %s OFFSET %s
         """
         
-        cursor.execute(query, params + params + [limit, offset])
+        cursor.execute(query, params + [limit, offset])
         return {"data": cursor.fetchall(), "total": total_records, "page": page, "limit": limit}
     except Exception as e:
         logger.error(f"Activity Stats Error: {e}")
