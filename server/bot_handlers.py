@@ -33,8 +33,8 @@ def extract_transaction_details(text: str):
     """Smartly extracts the amount and item from a conversational string."""
     text = text.lower().strip()
     
-    currency_match = re.search(r'(?:rs\.?|₹|rupees|inr)\s*(\d+(?:\.\d+)?)', text) or \
-                     re.search(r'(\d+(?:\.\d+)?)\s*(?:rs\.?|₹|rupees|inr)', text)
+    currency_match = re.search(r'(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)\s*(\d+(?:\.\d+)?)', text) or \
+                     re.search(r'(\d+(?:\.\d+)?)\s*(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)', text)
                      
     if currency_match:
         amount_str = currency_match.group(1)
@@ -48,9 +48,13 @@ def extract_transaction_details(text: str):
     
     item = text.replace(amount_str, "", 1)
     
-    item = re.sub(r'\b(rs\.?|rupees|inr|₹)\b', '', item).strip()
+    item = re.sub(r'\b(rs\.?|rupees|inr|rupee|paise|paisa|taka)\b', '', item)
     
-    item = re.sub(r'\s{2,}', ' ', item).strip("- =:,")
+    item = item.replace('₹', '')
+    
+    item = re.sub(r'\s{2,}', ' ', item).strip("- =:, ")
+    item = re.sub(r'^(for|on|a|an|the|spent on)\s+', '', item).strip()
+    item = re.sub(r'\s+(for|on)$', '', item).strip()
     
     return amount, item
 
@@ -292,30 +296,29 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                     target_category_name = cat_name
                     break
                     
-            if target_category_name:
-                cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s AND name = %s LIMIT 1", (user_id, tx_type, target_category_name))
-                cat_row = cursor.fetchone()
-                if cat_row:
-                    category_id = int(str(tuple(cat_row)[0]))
-                else:
-                    cursor.execute("INSERT INTO categories (user_id, name, type, is_default) VALUES (%s, %s, %s, TRUE)", (user_id, target_category_name, tx_type))
-                    conn.commit()
-                    category_id = cursor.lastrowid
-
-            if not category_id:
-                cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (user_id, tx_type))
-                cat_row = cursor.fetchone()
+            if not target_category_name:
+                target_category_name = "Others"
                 
-                if not cat_row:
-                    cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (user_id, tx_type))
-                    cat_row = cursor.fetchone()
-                    
-                if cat_row:
-                    category_id = int(str(tuple(cat_row)[0]))
-
-            # Save Entry
-            cursor.execute("INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')", (user_id, amount, tx_type, clean_item, category_id))
-            conn.commit()
+            cursor.execute("""
+                SELECT id FROM categories 
+                WHERE (user_id = %s OR user_id IS NULL) 
+                  AND type = %s 
+                  AND name = %s 
+                LIMIT 1
+            """, (user_id, tx_type, target_category_name))
+            
+            cat_row = cursor.fetchone()
+            
+            if cat_row:
+                category_id = int(cat_row[0] if isinstance(cat_row, (tuple, list)) else cat_row['id'])
+            else:
+                cursor.execute("""
+                    INSERT INTO categories (user_id, name, type, is_default) 
+                    VALUES (%s, %s, %s, TRUE)
+                """, (user_id, target_category_name, tx_type))
+                conn.commit()
+                category_id = cursor.lastrowid
+            
 
             # Budget Check Logic
             if tx_type == 'expense' and budget_limit > 0:
