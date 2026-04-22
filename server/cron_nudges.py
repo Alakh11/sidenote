@@ -23,7 +23,7 @@ async def run_daily_nudges(target_rule: str = "all"):
         is_sunday = today.weekday() == 6
         is_month_end = today.day == calendar.monthrange(today.year, today.month)[1]
 
-        cursor.execute("SELECT id, name, mobile, created_at FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL")
+        cursor.execute("SELECT id, name, mobile, CONVERT_TZ(created_at, '+00:00', '+05:30') as created_at FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL")
         users = cursor.fetchall()
 
         for user in users:
@@ -52,10 +52,10 @@ async def run_daily_nudges(target_rule: str = "all"):
             hours_inactive = (now - last_active).total_seconds() / 3600.0
             if hours_inactive > 200 or hours_inactive <= 0: continue
 
-            cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND DATE(sent_at) = CURDATE()", (user_id,))
+            cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND DATE(CONVERT_TZ(sent_at, '+00:00', '+05:30')) = CURDATE()", (user_id,))
             daily_limit_reached = cursor.fetchone().get('count', 0) >= 1
                 
-            cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND sent_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)", (user_id,))
+            cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND CONVERT_TZ(sent_at, '+00:00', '+05:30') >= DATE_SUB(NOW(), INTERVAL 7 DAY)", (user_id,))
             weekly_limit_reached = cursor.fetchone().get('count', 0) >= 3
 
             cursor.execute("SELECT SUM(amount) as total FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (user_id,))
@@ -66,25 +66,26 @@ async def run_daily_nudges(target_rule: str = "all"):
 
             for rule in active_rules:
                 if target_rule != "all" and target_rule != rule['rule_name']: continue
+                var_req = rule.get('variables_required') or ""
 
                 if rule['rule_type'] == 'monthly' and is_month_end and now.hour == 22:
-                    template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], rule.get('variables_required', '')
+                    template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
                     break
                     
                 elif rule['rule_type'] == 'weekly' and is_sunday and now.hour == 19:
-                    template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], rule.get('variables_required', '')
+                    template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
                     break
                 
                 elif rule['rule_type'] == 'onboarding' and not has_transactions:
                     if rule['hours_min'] <= hours_inactive < rule['hours_max']:
                         if not rule['bypass_limits'] and (daily_limit_reached or weekly_limit_reached): continue
-                        template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], rule.get('variables_required', '')
+                        template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
                         break
 
                 elif rule['rule_type'] == 'inactivity':
                     if rule['hours_min'] <= hours_inactive < rule['hours_max']:
                         if not rule['bypass_limits'] and (daily_limit_reached or weekly_limit_reached): continue
-                        template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], rule.get('variables_required', '')
+                        template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
                         break
 
             if template_to_send:
@@ -123,7 +124,7 @@ async def run_daily_nudges(target_rule: str = "all"):
                         else:
                             variables_payload.append("")
                             
-                cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND template_name = %s AND DATE(sent_at) = CURDATE()", (user_id, template_to_send))
+                cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND template_name = %s AND DATE(CONVERT_TZ(sent_at, '+00:00', '+05:30')) = CURDATE()", (user_id, template_to_send))
                 if cursor.fetchone().get('count', 0) == 0:
                     try:
                         await send_whatsapp_template(mobile, template_to_send, variables_payload)
