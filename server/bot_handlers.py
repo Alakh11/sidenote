@@ -119,30 +119,41 @@ async def ensure_user_exists(phone: str, sender_name: str = "WhatsApp User") -> 
         return True
     return False
 
-async def handle_greeting_replies(phone: str, text: str):
-    """Provides friendly replies to common greetings and politeness."""
-    text = text.lower().strip()
+async def handle_dynamic_replies(phone: str, incoming_text: str):
+    incoming_text = incoming_text.lower().strip()
+    conn = None
+    cursor = None
     
-    if any(word in text for word in ['good morning', 'gm', 'morning']):
-        reply = "Good morning! ☀️ Ready to keep your ledger up to date? Just send me your first note of the day (e.g., '50 coffee')."
-        
-    elif any(word in text for word in ['good night', 'gn', 'goodnight']):
-        reply = "Good night! 🌙 Your notes for today are safe. Sleep well, and I'll see you tomorrow!"
-
-    elif any(word in text for word in ['thanks', 'thank you', 'ty', 'thx', 'vow', 'wow']):
-        reply = "You're very welcome! 😊 Happy to help you manage your finances. Type *menu* if you need anything else."
-
-    elif any(word in text for word in ['how are you', 'how r u', 'wazzup']):
-        reply = "I'm doing great, thank you for asking! 🤖 Just here and ready to log your expenses. What's on your mind?"
-
-    elif any(word in text for word in ['hi', 'hello', 'hey']):
-        reply = "Hey there! 👋 Need to note something down? Just type it out (e.g., '200 Pizza')."
-
-    else:
-        return False
-
-    await send_whatsapp_text(phone, reply)
-    return True
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT reply_text, trigger_keywords, buttons_json FROM auto_replies WHERE is_active = TRUE")
+            mappings = cursor.fetchall()
+            
+            for row in mappings:
+                keywords = [k.strip() for k in row['trigger_keywords'].split(',')]
+                
+                if any(k == incoming_text or f" {k} " in f" {incoming_text} " for k in keywords):
+                    reply_body = row['reply_text']
+                    buttons = None
+                    
+                    if row['buttons_json']:
+                        import json
+                        try: buttons = json.loads(row['buttons_json'])
+                        except: pass
+                    
+                    if buttons:
+                        await send_whatsapp_interactive_buttons(phone, reply_body, buttons)
+                    else:
+                        await send_whatsapp_text(phone, reply_body)
+                    return True
+        except Exception as e:
+            print(f"Dynamic Reply Error: {e}")
+        finally:
+            if conn: conn.close()
+            
+    return False
 
 async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
@@ -163,7 +174,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
     elif text == CMD_MORE: await handle_more_request(phone)
     elif text == CMD_HELP: 
         await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!\n- Send a Voice Note!")
-    elif await handle_greeting_replies(phone, text):
+    elif await handle_dynamic_replies(phone, text):
         return
     elif text.startswith(CMD_SET_BUDGET): await handle_budget_set(phone, text)
     else:

@@ -1,5 +1,5 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Activity, HelpCircle, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import UserFormModal from './components/UserFormModal';
@@ -9,6 +9,7 @@ import UserDetailView from './components/UserDetailView';
 import BroadcastModal from './components/BroadcastModal';
 import UserActivityRetention from './components/UserActivityRetention';
 import AdminNudgesView from './components/AdminNudgesView';
+import AdminAutoRepliesView from './components/AdminAutoRepliesView';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -35,7 +36,7 @@ export default function AdminPanel() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [search, setSearch] = useState('');
-  const [adminTab, setAdminTab] = useState<'users' | 'metrics' | 'activity' | 'nudges' | 'feedback'>('users');
+  const [adminTab, setAdminTab] = useState<'users' | 'metrics' | 'activity' | 'nudges' | 'feedback' | 'replies'>('users');
   
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [editingUser, setEditingUser] = useState<any | null>(null);
@@ -172,6 +173,7 @@ export default function AdminPanel() {
           <button onClick={() => setAdminTab('metrics')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'metrics' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Activity size={16} /> System Performance</button>
           <button onClick={() => setAdminTab('activity')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'activity' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Activity size={16} /> User Activity</button>
           <button onClick={() => setAdminTab('nudges')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'nudges' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Zap size={16} /> Nudges & Rules</button>
+          <button onClick={() => setAdminTab('replies')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'replies' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><Globe size={16} /> Bot Replies</button>
           <button onClick={() => setAdminTab('feedback')} className={`pb-3 px-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${adminTab === 'feedback' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white'}`}><HelpCircle size={16} /> Support Tickets</button>
       </div>
 
@@ -311,6 +313,7 @@ export default function AdminPanel() {
       {adminTab === 'metrics' && <SystemMetricsView />}
       {adminTab === 'activity' && <UserActivityRetention />}
       {adminTab === 'nudges' && <AdminNudgesView />}
+      {adminTab === 'replies' && <AdminAutoRepliesView />}
       {adminTab === 'feedback' && <AdminFeedbackView />}
 
       {(isCreating || editingUser) && (

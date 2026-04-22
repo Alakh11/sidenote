@@ -789,3 +789,60 @@ def delete_nudge_rule(rule_id: int, admin_id: int = Depends(require_admin)):
         return {"message": "Rule permanently deleted."}
     finally:
         conn.close()
+        
+class AutoReplyPayload(BaseModel):
+    trigger_keywords: str
+    reply_text: str
+    buttons_json: Optional[str] = None
+    is_active: bool = True
+
+@router.get("/auto-replies")
+def get_auto_replies(admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM auto_replies ORDER BY id DESC")
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.post("/auto-replies")
+def create_auto_reply(payload: AutoReplyPayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO auto_replies (trigger_keywords, reply_text, buttons_json, is_active)
+            VALUES (%s, %s, %s, %s)
+        """, (payload.trigger_keywords.lower(), payload.reply_text, payload.buttons_json, payload.is_active))
+        conn.commit()
+        return {"message": "Auto-reply created"}
+    finally:
+        conn.close()
+
+@router.delete("/auto-replies/{reply_id}")
+def delete_auto_reply(reply_id: int, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM auto_replies WHERE id = %s", (reply_id,))
+        conn.commit()
+        return {"message": "Deleted"}
+    finally:
+        conn.close()
+
+
+@router.put("/auto-replies/{reply_id}")
+def update_auto_reply(reply_id: int, payload: AutoReplyPayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE auto_replies 
+            SET trigger_keywords=%s, reply_text=%s, buttons_json=%s, is_active=%s 
+            WHERE id=%s
+        """, (payload.trigger_keywords.lower(), payload.reply_text, payload.buttons_json, payload.is_active, reply_id))
+        conn.commit()
+        return {"message": "Auto-reply updated"}
+    finally:
+        conn.close()
