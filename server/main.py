@@ -13,10 +13,11 @@ from pydantic import BaseModel
 from typing import Optional
 from tracking import track_event
 from starlette.background import BackgroundTask
-
+from zoneinfo import ZoneInfo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+ist_timezone = ZoneInfo('Asia/Kolkata')
 
 app = FastAPI()
 VERIFY_TOKEN = os.getenv("WA_WEBHOOK_VERIFY_TOKEN")
@@ -214,7 +215,7 @@ def init_db():
 
 @app.on_event("startup")
 def start_scheduler():
-    scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler(timezone=ist_timezone)
     scheduler.add_job(run_daily_nudges, 'interval', minutes=15, id='nudge_engine')
     scheduler.start()
     app.state.scheduler = scheduler

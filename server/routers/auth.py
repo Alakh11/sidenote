@@ -32,9 +32,7 @@ async def generate_and_send_otp(cursor, phone: str, name: str):
         return 
         
     otp_code = str(random.randint(1000, 9999))
-    expiry = datetime.utcnow() + timedelta(minutes=10)
-    
-    cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, %s)", (phone, otp_code, expiry))
+    cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL 10 MINUTE))", (phone, otp_code))
     
     cursor.execute("""
         SELECT u.id 
@@ -57,6 +55,8 @@ async def register(payload: RegisterPayload):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         field = "email" if payload.contact_type == 'email' else "mobile"
         target_mobile = payload.contact if payload.contact_type == 'mobile' else payload.extra_mobile
         
@@ -93,7 +93,6 @@ async def register(payload: RegisterPayload):
             if user_id:
                 create_default_categories(int(user_id), cursor)
 
-        # Generate and Send OTP
         if target_mobile:
             await generate_and_send_otp(cursor, target_mobile, payload.name)
         
@@ -121,6 +120,11 @@ def verify_otp(data: VerifyOTP):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.contact, data.otp))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP/Case ID.")
+            
         cursor.execute("SELECT * FROM users WHERE mobile = %s", (data.contact,))
         raw_user = cursor.fetchone()
         
@@ -132,8 +136,6 @@ def verify_otp(data: VerifyOTP):
         token = create_access_token({"sub": str(user_db['id']), "name": user_db.get('name')})
         
         cursor.execute("UPDATE users SET is_verified = TRUE WHERE mobile = %s", (data.contact,))
-        
-        # Cleanup OTP
         cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.contact,))
         
         conn.commit()
@@ -154,6 +156,7 @@ def verify_otp(data: VerifyOTP):
         }
     except Exception as e:
         conn.rollback()
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
@@ -163,6 +166,8 @@ def login(data: UserLogin):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         is_email = "@" in data.contact
         field = "email" if is_email else "mobile"
         
@@ -200,12 +205,12 @@ def google_login(data: GoogleAuth):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Check if user exists by email
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
         user: Any = cursor.fetchone()
         
         if not user:
-            # Create User
             cursor.execute(
                 "INSERT INTO users (name, email, profile_pic, is_verified) VALUES (%s, %s, %s, TRUE)", 
                 (data.name, data.email, data.picture)
@@ -217,7 +222,6 @@ def google_login(data: GoogleAuth):
             
             conn.commit()
             
-            # Fetch the new user to get details
             cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
             user = cursor.fetchone()
             
@@ -249,6 +253,8 @@ async def reset_password(data: ResetPassword):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         is_email = "@" in data.contact
         field = "email" if is_email else "mobile"
         
@@ -267,7 +273,6 @@ async def reset_password(data: ResetPassword):
         if not target_mobile:
              raise HTTPException(status_code=400, detail="No WhatsApp number linked to this account.")
             
-        # Update Password
         new_hash = pwd_context.hash(data.new_password)
         cursor.execute(f"UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
         
@@ -285,28 +290,26 @@ async def reset_password(data: ResetPassword):
     finally:
         conn.close()
 
-# --- 1. Update Profile (Name, Icon, Email, Mobile) ---
 @router.put("/profile")
 def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         user: Any = cursor.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # RULE: Mobile number cannot be changed once linked
         if user['mobile'] and data.mobile and user['mobile'] != data.mobile:
             raise HTTPException(status_code=400, detail="Mobile number cannot be changed once linked.")
 
-        # Check Uniqueness if changing Email
         if data.email and data.email != user['email']:
             cursor.execute("SELECT id FROM users WHERE email = %s", (data.email,))
             if cursor.fetchone():
                 raise HTTPException(status_code=400, detail="Email is already in use by another account.")
 
-        # Check Uniqueness if linking Mobile for the first time
         if data.mobile and not user['mobile']:
             cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
             if cursor.fetchone():
@@ -314,7 +317,6 @@ def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_u
 
         new_mobile = user['mobile'] if user['mobile'] else data.mobile
 
-        # Execute Update
         cursor.execute("""
             UPDATE users 
             SET name = %s, profile_pic = %s, email = %s, mobile = %s 
@@ -334,23 +336,22 @@ def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_u
     finally:
         conn.close()
 
-# --- 2. Change Password ---
 @router.put("/password")
 def change_password(data: UserChangePassword, user_id: int = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("SELECT id, password_hash FROM users WHERE id = %s", (user_id,))
         user: Any = cursor.fetchone()
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
             
-        # 2. Verify Old Password
         if not pwd_context.verify(data.old_password, user['password_hash']):
             raise HTTPException(status_code=400, detail="Incorrect old password")
             
-        # 3. Hash New Password & Update
         new_hash = pwd_context.hash(data.new_password)
         cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user_id))
         
@@ -366,10 +367,11 @@ def change_password(data: UserChangePassword, user_id: int = Depends(get_current
         
 @router.put("/complete-profile")
 def complete_profile(request: ProfileCompletionRequest):
-    """Upgrades a WhatsApp-only user to a full Web Dashboard user."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("SELECT id, email FROM users WHERE mobile = %s", (request.mobile,))
         raw_user = cursor.fetchone()
 
@@ -420,6 +422,8 @@ def update_preferences(data: UserPreferencesUpdate, user_id: int = Depends(get_c
     conn = get_db()
     cursor = conn.cursor()
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("""
             UPDATE users 
             SET currency = %s, month_start_date = %s 
@@ -438,10 +442,11 @@ class LinkMobileRequest(BaseModel):
 
 @router.post("/link-mobile/request")
 async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(get_current_user)):
-    """Sends an OTP to a newly provided WhatsApp number for an existing Google user."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="This WhatsApp number is already registered. Please log in using your phone number instead.")
@@ -471,13 +476,14 @@ class LinkMobileVerify(BaseModel):
 
 @router.post("/link-mobile/verify")
 def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_current_user)):
-    """Verifies the OTP and permanently links the WhatsApp number to the account."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SET time_zone = '+05:30'")
+        
         cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.mobile, data.otp))
         if not cursor.fetchone():
-            raise HTTPException(status_code=400, detail="Invalid or expired OTP.")
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP/Case ID.")
             
         cursor.execute("UPDATE users SET mobile = %s WHERE id = %s", (data.mobile, user_id))
         cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.mobile,))
