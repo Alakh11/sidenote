@@ -13,18 +13,21 @@ export default function Transactions() {
   const user = router.options.context?.user!;
   const API_URL = "https://api.sidenote.in";
 
+  // --- Data State ---
   const [transactions, setTransactions] = useState<Transaction[]>(
     Array.isArray(initialTransactions) ? initialTransactions : initialTransactions?.data || []
   );
   const [loading, setLoading] = useState(false);
   const [editingTx, setEditingTx] = useState<any | null>(null);
 
+  // --- Pagination & Sorting State ---
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [totalPages, setTotalPages] = useState(initialTransactions?.total_pages || 1);
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState<'ASC'|'DESC'>('DESC');
 
+  // --- Filter & Search State ---
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -40,17 +43,19 @@ export default function Transactions() {
   
   const [appliedFilters, setAppliedFilters] = useState({ ...filters });
 
+  // --- Search Debounce Effect ---
   useEffect(() => {
       const timer = setTimeout(() => { 
           setDebouncedSearch(search); 
-          setPage(1);
+          setPage(1); 
       }, 500);
       return () => clearTimeout(timer);
   }, [search]);
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = useCallback(async (silent = false) => {
     if (!user?.id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
+    
     try {
         const params: any = {
             page,
@@ -74,12 +79,12 @@ export default function Transactions() {
     } catch (error) {
         console.error("Fetch failed", error);
     } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
     }
   }, [page, limit, sortBy, sortOrder, debouncedSearch, appliedFilters, user?.id]);
 
   useEffect(() => {
-      fetchTransactions();
+      fetchTransactions(false);
   }, [fetchTransactions]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -104,7 +109,7 @@ export default function Transactions() {
           setSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
       } else {
           setSortBy(column);
-          setSortOrder('DESC');
+          setSortOrder('DESC'); 
       }
       setPage(1);
   };
@@ -116,11 +121,16 @@ export default function Transactions() {
 
   const handleDelete = async (id: number) => {
       if(!confirm("Are you sure you want to delete this transaction?")) return;
+      
+      const prevTransactions = [...transactions];
+      setTransactions(prev => prev.filter(t => t.id !== id));
+
       try {
           await axios.delete(`${API_URL}/transactions/${id}`);
-          fetchTransactions();
-          router.invalidate(); 
+          
+          fetchTransactions(true);
       } catch (e) {
+          setTransactions(prevTransactions);
           alert("Failed to delete transaction");
       }
   };
@@ -142,8 +152,8 @@ export default function Transactions() {
           });
           
           setEditingTx(null);
-          fetchTransactions();
-          router.invalidate();
+          
+          fetchTransactions(true);
           alert("Transaction Updated!");
       } catch (e) {
           alert("Failed to update transaction");
