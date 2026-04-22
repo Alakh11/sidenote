@@ -255,10 +255,11 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
     if is_duplicate(message_id): return
     
     await ensure_user_exists(phone, sender_name)
+    if await handle_dynamic_replies(phone, button_id):
+        return
     if button_id == "cmd_summary": await handle_summary_request(phone)
     elif button_id == "cmd_today": await handle_today_request(phone)
     elif button_id == "cmd_more": await handle_more_request(phone)
-    
     elif button_id == "cmd_dashboard": await handle_dashboard_request(phone)
     elif button_id == "cmd_month": await handle_monthly_request(phone)
     elif button_id == "cmd_week": await handle_weekly_request(phone)
@@ -267,9 +268,7 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
     elif button_id.startswith("del_"):
         tx_id = int(button_id.split("_")[1])
         await handle_undo_action(phone, tx_id)
-    elif button_id == "cmd_dashboard": 
-        await handle_dashboard_request(phone)
-
+      
 async def handle_budget_set(phone: str, text: str):
     match = re.search(r'\d+(?:\.\d+)?', text)
     if not match:
