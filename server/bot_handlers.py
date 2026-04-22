@@ -495,9 +495,9 @@ async def handle_undo_action(phone: str, tx_id: int):
 
 async def handle_fallback(phone: str, text: str = ""):
     if text in ['hi', 'hello', 'hey']:
-        fallback_message = f"Hey there! 👋\nJust send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options."
+        fallback_message = f"Hey there! 👋\nJust send what you want to note.\n\nExamples:\n*200 chai* \n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options."
     else:
-        fallback_message = f"I didn't quite catch that.\n\nJust send what you want to note.\n\nExamples:\n*200 chai* (Expense)\n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options or *{CMD_UNDO}* to delete a mistake."
+        fallback_message = f"I didn't quite catch that.\n\nJust send what you want to note.\n\nExamples:\n*200 chai* \n*+5000 salary* (Income)\n\nType *{CMD_MENU}* for options or *{CMD_UNDO}* to delete a mistake."
         
     await send_whatsapp_text(phone, fallback_message)
 
