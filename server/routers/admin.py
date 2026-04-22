@@ -846,3 +846,61 @@ def update_auto_reply(reply_id: int, payload: AutoReplyPayload, admin_id: int = 
         return {"message": "Auto-reply updated"}
     finally:
         conn.close()
+
+
+class GlobalCategoryPayload(BaseModel):
+    name: str
+    type: str = "expense"
+    icon: str = "📝"
+    color: str = "#6366F1"
+    keywords: str
+
+@router.get("/global-categories")
+def get_global_categories(admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM global_categories ORDER BY type ASC, name ASC")
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.post("/global-categories")
+def create_global_category(payload: GlobalCategoryPayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO global_categories (name, type, icon, color, keywords)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (payload.name, payload.type, payload.icon, payload.color, payload.keywords.lower()))
+        conn.commit()
+        return {"message": "Category created"}
+    finally:
+        conn.close()
+
+@router.put("/global-categories/{cat_id}")
+def update_global_category(cat_id: int, payload: GlobalCategoryPayload, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE global_categories 
+            SET name=%s, type=%s, icon=%s, color=%s, keywords=%s 
+            WHERE id=%s
+        """, (payload.name, payload.type, payload.icon, payload.color, payload.keywords.lower(), cat_id))
+        conn.commit()
+        return {"message": "Category updated"}
+    finally:
+        conn.close()
+
+@router.delete("/global-categories/{cat_id}")
+def delete_global_category(cat_id: int, admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM global_categories WHERE id = %s", (cat_id,))
+        conn.commit()
+        return {"message": "Category deleted"}
+    finally:
+        conn.close()

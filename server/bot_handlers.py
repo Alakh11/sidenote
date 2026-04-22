@@ -334,25 +334,35 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             else:
                 user_id = int(str(u_data[0]))
                 budget_limit = float(str(u_data[1])) if u_data[1] else 0.0
-                
-            category_id = None
-            target_category_name = None
             
-            for cat_name, keywords in CATEGORY_MAP.items():
-                if any(kw in item_lower for kw in keywords):
-                    target_category_name = cat_name
-                    break
+            cursor.execute("SELECT name, keywords, icon, color FROM global_categories WHERE type = %s", (tx_type,))
+            global_cats = cursor.fetchall()
+            
+            target_category_name = "Others"
+            cat_icon = "📝"
+            cat_color = "#94A3B8" if tx_type == "expense" else "#10B981"
+            
+            if global_cats:
+                for gc in global_cats:
+                    if isinstance(gc, tuple):
+                        gc_name, gc_keys, gc_icon, gc_color = str(gc[0]), str(gc[1]), str(gc[2]), str(gc[3])
+                    else:
+                        gc_name, gc_keys, gc_icon, gc_color = gc['name'], gc['keywords'], gc['icon'], gc['color']
                     
-            if not target_category_name:
-                target_category_name = "Others"
-                
+                    if not gc_keys or gc_keys.lower() == 'none': continue
+                        
+                    kws = [k.strip().lower() for k in gc_keys.split(',')]
+                    if any(kw in item_lower for kw in kws):
+                        target_category_name = gc_name
+                        cat_icon = gc_icon or "📝"
+                        cat_color = gc_color or ("#6366F1" if tx_type == "expense" else "#10B981")
+                        break
+            
             cursor.execute("""
                 SELECT id FROM categories 
-                WHERE (user_id = %s OR user_id IS NULL) 
-                  AND type = %s 
-                  AND name = %s 
+                WHERE user_id = %s AND name = %s AND type = %s 
                 LIMIT 1
-            """, (user_id, tx_type, target_category_name))
+            """, (user_id, target_category_name, tx_type))
             
             cat_row = cursor.fetchone()
             
@@ -360,9 +370,9 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 category_id = int(cat_row[0] if isinstance(cat_row, (tuple, list)) else cat_row['id'])
             else:
                 cursor.execute("""
-                    INSERT INTO categories (user_id, name, type, is_default) 
-                    VALUES (%s, %s, %s, TRUE)
-                """, (user_id, target_category_name, tx_type))
+                    INSERT INTO categories (user_id, name, type, icon, color, is_default) 
+                    VALUES (%s, %s, %s, %s, %s, TRUE)
+                """, (user_id, target_category_name, tx_type, cat_icon, cat_color))
                 conn.commit()
                 category_id = cursor.lastrowid
             
