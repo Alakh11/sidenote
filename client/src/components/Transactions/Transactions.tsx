@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLoaderData, useRouter } from '@tanstack/react-router';
 import axios from 'axios';
 import { 
-  Search, Filter, X, Calendar, IndianRupee, Tag, Trash2, Repeat, CreditCard, Edit, Save 
+  Search, Filter, X, Calendar, IndianRupee, Tag, Trash2, Repeat, CreditCard, Edit, Save, ArrowUp, ArrowDown, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import type { Transaction } from '../../types';
 import { CategoryIcon } from '../Icons/IconHelper';
@@ -13,15 +13,23 @@ export default function Transactions() {
   const user = router.options.context?.user!;
   const API_URL = "https://api.sidenote.in";
 
-  // State
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>(
+    Array.isArray(initialTransactions) ? initialTransactions : initialTransactions?.data || []
+  );
   const [loading, setLoading] = useState(false);
   const [editingTx, setEditingTx] = useState<any | null>(null);
 
-  // Filter State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [totalPages, setTotalPages] = useState(initialTransactions?.total_pages || 1);
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState<'ASC'|'DESC'>('DESC');
+
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  
   const [filters, setFilters] = useState({
-    search: '',
     start_date: '',
     end_date: '',
     category_id: '',
@@ -29,52 +37,88 @@ export default function Transactions() {
     max_amount: '',
     payment_mode: ''
   });
+  
+  const [appliedFilters, setAppliedFilters] = useState({ ...filters });
+
+  useEffect(() => {
+      const timer = setTimeout(() => { 
+          setDebouncedSearch(search); 
+          setPage(1);
+      }, 500);
+      return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchTransactions = useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+        const params: any = {
+            page,
+            limit,
+            sort_by: sortBy,
+            sort_order: sortOrder,
+            search: debouncedSearch,
+            ...appliedFilters
+        };
+        Object.keys(params).forEach(k => !params[k] && delete params[k]);
+
+        const res = await axios.get(`${API_URL}/transactions/all/${user.id}`, { params });
+        
+        if (res.data && res.data.data) {
+            setTransactions(res.data.data);
+            setTotalPages(res.data.total_pages || 1);
+        } else {
+            setTransactions(res.data);
+            setTotalPages(1);
+        }
+    } catch (error) {
+        console.error("Fetch failed", error);
+    } finally {
+        setLoading(false);
+    }
+  }, [page, limit, sortBy, sortOrder, debouncedSearch, appliedFilters, user?.id]);
+
+  useEffect(() => {
+      fetchTransactions();
+  }, [fetchTransactions]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
-  const applyFilters = async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    try {
-        const params: any = {};
-        if(filters.search) params.search = filters.search;
-        if(filters.start_date) params.start_date = filters.start_date;
-        if(filters.end_date) params.end_date = filters.end_date;
-        if(filters.category_id) params.category_id = filters.category_id;
-        if(filters.min_amount) params.min_amount = filters.min_amount;
-        if(filters.max_amount) params.max_amount = filters.max_amount;
-        if(filters.payment_mode) params.payment_mode = filters.payment_mode;
-
-        const res = await axios.get(`${API_URL}/transactions/all/${user.id}`, { params });
-        setTransactions(res.data);
-    } catch (error) {
-        console.error("Filter failed", error);
-    } finally {
-        setLoading(false);
-    }
+  const applyFilters = () => {
+    setAppliedFilters({ ...filters });
+    setPage(1);
   };
 
-  const clearFilters = async () => {
-    if (!user?.id) return;
-    setFilters({ search: '', start_date: '', end_date: '', category_id: '', min_amount: '', max_amount: '', payment_mode: '' });
-    setLoading(true);
-    try {
-        const res = await axios.get(`${API_URL}/transactions/all/${user.id}`);
-        setTransactions(res.data);
-    } catch (error) {
-        console.error("Reset failed", error);
-    } finally {
-        setLoading(false);
-    }
+  const clearFilters = () => {
+    const emptyFilters = { start_date: '', end_date: '', category_id: '', min_amount: '', max_amount: '', payment_mode: '' };
+    setFilters(emptyFilters);
+    setAppliedFilters(emptyFilters);
+    setSearch('');
+    setPage(1);
+  };
+
+  const handleSort = (column: string) => {
+      if (sortBy === column) {
+          setSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+      } else {
+          setSortBy(column);
+          setSortOrder('DESC');
+      }
+      setPage(1);
+  };
+
+  const SortIcon = ({ col }: { col: string }) => {
+      if (sortBy !== col) return null;
+      return sortOrder === 'ASC' ? <ArrowUp size={12} className="inline ml-1" /> : <ArrowDown size={12} className="inline ml-1" />;
   };
 
   const handleDelete = async (id: number) => {
       if(!confirm("Are you sure you want to delete this transaction?")) return;
       try {
           await axios.delete(`${API_URL}/transactions/${id}`);
-          setTransactions(prev => prev.filter(t => t.id !== id));
+          fetchTransactions();
           router.invalidate(); 
       } catch (e) {
           alert("Failed to delete transaction");
@@ -98,8 +142,8 @@ export default function Transactions() {
           });
           
           setEditingTx(null);
+          fetchTransactions();
           router.invalidate();
-          applyFilters();
           alert("Transaction Updated!");
       } catch (e) {
           alert("Failed to update transaction");
@@ -108,6 +152,16 @@ export default function Transactions() {
 
   const inputBaseClass = "w-full pl-10 pr-3 py-2 rounded-lg border border-stone-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-stone-800 dark:focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-stone-700 dark:text-white";
   const labelClass = "text-xs font-bold text-stone-500 dark:text-slate-400 uppercase";
+
+  const SkeletonRow = () => (
+      <tr className="animate-pulse border-b border-stone-50 dark:border-slate-800">
+          <td className="p-6"><div className="h-6 bg-stone-200 dark:bg-slate-800 rounded-full w-32"></div></td>
+          <td className="p-6"><div className="h-5 bg-stone-200 dark:bg-slate-800 rounded w-48 mb-2"></div><div className="h-3 bg-stone-200 dark:bg-slate-800 rounded w-24"></div></td>
+          <td className="p-6"><div className="h-4 bg-stone-200 dark:bg-slate-800 rounded w-24"></div></td>
+          <td className="p-6"><div className="h-4 bg-stone-200 dark:bg-slate-800 rounded w-20"></div></td>
+          <td className="p-6 flex justify-end gap-4"><div className="h-6 bg-stone-200 dark:bg-slate-800 rounded w-20"></div></td>
+      </tr>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in pb-20">
@@ -178,10 +232,17 @@ export default function Transactions() {
         
         <div className="flex gap-2">
            <div className="relative flex-1 md:w-64">
-               <button onClick={applyFilters} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-800 dark:text-slate-500 transition-colors">
+               <button className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-800 dark:text-slate-500 transition-colors">
                     <Search className="w-4 h-4" />
                 </button>
-               <input type="text" name="search" placeholder="Search note, amount, mode..." value={filters.search} onChange={handleFilterChange} onKeyDown={(e) => e.key === 'Enter' && applyFilters()} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-stone-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-stone-800 dark:focus:ring-blue-500" />
+               <input 
+                  type="text" 
+                  name="search" 
+                  placeholder="Search note, amount, mode..." 
+                  value={search} 
+                  onChange={(e) => setSearch(e.target.value)} 
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-stone-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-stone-800 dark:focus:ring-blue-500" 
+               />
            </div>
            <button onClick={() => setIsFilterOpen(!isFilterOpen)} className={`p-2.5 rounded-xl border transition-colors ${isFilterOpen ? 'bg-stone-800 text-white border-stone-800 dark:bg-blue-600' : 'bg-white dark:bg-slate-900 border-stone-200 dark:border-slate-700 text-stone-600 dark:text-slate-400'}`}>
              <Filter className="w-5 h-5" />
@@ -249,31 +310,40 @@ export default function Transactions() {
             </div>
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-100 dark:border-slate-800">
                 <button onClick={clearFilters} className="px-4 py-2 text-sm font-bold text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-white flex items-center gap-2"><X className="w-4 h-4" /> Clear</button>
-                <button onClick={applyFilters} disabled={loading} className="px-6 py-2 bg-stone-900 dark:bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-stone-800 transition disabled:opacity-50">{loading ? 'Filtering...' : 'Apply Filters'}</button>
+                <button onClick={applyFilters} className="px-6 py-2 bg-stone-900 dark:bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-stone-800 transition">Apply Filters</button>
             </div>
         </div>
       )}
 
       {/* --- TABLE UI --- */}
       <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-stone-50 dark:border-slate-800 overflow-hidden transition-colors">
-        {loading ? (
-             <div className="p-10 text-center text-stone-400">Loading...</div>
-        ) : (
           <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[900px]">
                  <thead className="bg-stone-50 dark:bg-slate-800 text-stone-500 dark:text-slate-400 text-sm font-semibold uppercase">
                     <tr>
-                       <th className="p-6 whitespace-nowrap">Category</th>
-                       <th className="p-6 whitespace-nowrap">Description</th>
-                       <th className="p-6 whitespace-nowrap">Date</th>
-                       <th className="p-6 whitespace-nowrap">Payment</th>
-                       <th className="p-6 text-right whitespace-nowrap">Amount</th>
+                       <th className="p-6 whitespace-nowrap cursor-pointer hover:text-indigo-500 transition-colors" onClick={() => handleSort('category_name')}>
+                           Category <SortIcon col="category_name" />
+                       </th>
+                       <th className="p-6 whitespace-nowrap cursor-pointer hover:text-indigo-500 transition-colors" onClick={() => handleSort('note')}>
+                           Description <SortIcon col="note" />
+                       </th>
+                       <th className="p-6 whitespace-nowrap cursor-pointer hover:text-indigo-500 transition-colors" onClick={() => handleSort('date')}>
+                           Date <SortIcon col="date" />
+                       </th>
+                       <th className="p-6 whitespace-nowrap cursor-pointer hover:text-indigo-500 transition-colors" onClick={() => handleSort('payment_mode')}>
+                           Payment <SortIcon col="payment_mode" />
+                       </th>
+                       <th className="p-6 text-right whitespace-nowrap cursor-pointer hover:text-indigo-500 transition-colors" onClick={() => handleSort('amount')}>
+                           Amount <SortIcon col="amount" />
+                       </th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-stone-50 dark:divide-slate-800">
-                    {transactions.length === 0 ? (
+                    {loading ? (
+                        [...Array(5)].map((_, i) => <SkeletonRow key={i} />)
+                    ) : transactions.length === 0 ? (
                         <tr>
-                            <td colSpan={5} className="p-10 text-center text-stone-400 dark:text-slate-500">No transactions found.</td>
+                            <td colSpan={5} className="p-16 text-center text-stone-400 dark:text-slate-500 italic">No transactions found matching your criteria.</td>
                         </tr>
                     ) : (
                         transactions.map((t: Transaction) => (
@@ -316,7 +386,24 @@ export default function Transactions() {
                  </tbody>
               </table>
           </div>
-        )}
+          
+          <div className="p-4 border-t border-stone-100 dark:border-slate-800 flex justify-between items-center bg-stone-50/50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2 text-sm text-stone-500 font-bold">
+                  <select value={limit} onChange={e => {setLimit(Number(e.target.value)); setPage(1);}} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-lg p-1.5 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                  </select>
+                  <span className="hidden sm:inline">per page</span>
+              </div>
+              <div className="flex items-center gap-4">
+                  <span className="text-sm text-stone-500 font-bold">Page {page} of {totalPages || 1}</span>
+                  <div className="flex gap-2">
+                      <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="p-2 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-lg disabled:opacity-50 hover:bg-stone-50 dark:hover:bg-slate-800 transition"><ChevronLeft size={16} className="text-stone-600 dark:text-stone-400"/></button>
+                      <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="p-2 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-lg disabled:opacity-50 hover:bg-stone-50 dark:hover:bg-slate-800 transition"><ChevronRight size={16} className="text-stone-600 dark:text-stone-400"/></button>
+                  </div>
+              </div>
+          </div>
       </div>
     </div>
   );

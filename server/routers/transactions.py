@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional, Any
 from database import get_db
 from schemas import TransactionCreate, CategoryCreate, CategoryUpdate, BudgetSchema
-import logging
+import logging, math
 from datetime import datetime, timedelta
 from utils import get_date_filter_sql
 import mysql.connector
@@ -57,50 +57,48 @@ def get_all_transactions(
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
     payment_mode: Optional[str] = None,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    sort_by: str = Query("date"),
+    sort_order: str = Query("DESC")
 ):
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
-        
-        query = """
-            SELECT t.*, c.name as category_name, c.icon as category_icon
-            FROM transactions t 
-            LEFT JOIN categories c ON t.category_id = c.id 
-            WHERE t.user_id = %s
-        """
+        where_clauses = ["t.user_id = %s"]
         params: list[Any] = [user_id] 
 
         if start_date:
-            query += " AND t.date >= %s"
+            where_clauses.append("t.date >= %s")
             params.append(start_date)
         if end_date:
-            query += " AND t.date <= %s"
+            where_clauses.append("t.date <= %s")
             params.append(end_date)
         if category_id:
-            query += " AND t.category_id = %s"
+            where_clauses.append("t.category_id = %s")
             params.append(category_id)
         if payment_mode and payment_mode != "All Modes":
-            query += " AND t.payment_mode = %s"
+            where_clauses.append("t.payment_mode = %s")
             params.append(payment_mode)
         if min_amount is not None:
-            query += " AND t.amount >= %s"
+            where_clauses.append("t.amount >= %s")
             params.append(min_amount)
         if max_amount is not None:
-            query += " AND t.amount <= %s"
+            where_clauses.append("t.amount <= %s")
             params.append(max_amount)
+            
         if search:
             search_text = f"%{search.lower()}%"
             search_amount_clean = search.replace(",", "")
             search_amount = f"%{search_amount_clean}%"
-            query += """ AND (
+            where_clauses.append("""(
                 LOWER(t.note) LIKE %s OR 
                 t.amount LIKE %s OR 
                 LOWER(t.type) LIKE %s OR 
                 LOWER(t.payment_mode) LIKE %s OR 
                 LOWER(c.name) LIKE %s
-            )"""
-            
+            )""")
             params.extend([
                 search_text,    # note
                 search_amount,  # amount
@@ -109,14 +107,55 @@ def get_all_transactions(
                 search_text     # category_name
             ])
 
-        query += " ORDER BY t.date DESC"
+        where_sql = " AND ".join(where_clauses)
 
-        cursor.execute(query, params)
+        count_query = f"""
+            SELECT COUNT(*) as total 
+            FROM transactions t 
+            LEFT JOIN categories c ON t.category_id = c.id 
+            WHERE {where_sql}
+        """
+        cursor.execute(count_query, params)
+        total_row: Any = cursor.fetchone()
+        total_count = total_row['total'] if total_row else 0
+        total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
+
+        valid_sort_columns = {
+            "date": "t.date",
+            "amount": "t.amount",
+            "category_name": "c.name",
+            "payment_mode": "t.payment_mode",
+            "note": "t.note"
+        }
+        sort_col = valid_sort_columns.get(sort_by, "t.date")
+        sort_dir = "ASC" if sort_order.upper() == "ASC" else "DESC"
+
+        offset = (page - 1) * limit
+        data_query = f"""
+            SELECT t.*, c.name as category_name, c.icon as category_icon
+            FROM transactions t 
+            LEFT JOIN categories c ON t.category_id = c.id 
+            WHERE {where_sql}
+            ORDER BY {sort_col} {sort_dir}
+            LIMIT %s OFFSET %s
+        """
+        data_params = params.copy()
+        data_params.extend([limit, offset])
+        
+        cursor.execute(data_query, data_params)
         transactions = cursor.fetchall()
+        
         conn.close()
-        return transactions
+        
+        return {
+            "data": transactions,
+            "total_pages": total_pages,
+            "total_count": total_count,
+            "current_page": page
+        }
+        
     except Exception as e:
-        logger.error(f"Filter Error: {e}")
+        logger.error(f"Transaction List Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/transactions/{id}")
