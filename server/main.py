@@ -371,13 +371,14 @@ def submit_feedback(data: FeedbackSubmit, user_id: int = Depends(get_current_use
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO feedback (user_id, type, rating, subject, message, created_at) VALUES (%s, %s, %s, %s, %s, NOW())",
+            "INSERT INTO feedback (user_id, `type`, rating, subject, message, created_at) VALUES (%s, %s, %s, %s, %s, NOW())",
             (user_id, data.type, data.rating, data.subject, data.message)
         )
         conn.commit()
         return {"message": "Feedback submitted successfully"}
     except Exception as e:
         conn.rollback()
+        logger.error(f"🚨 CRITICAL FEEDBACK ERROR: {e}") 
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
