@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Globe, Edit, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Save, Globe, Edit, Loader2, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 
 export default function AdminAutoRepliesView() {
@@ -26,11 +26,26 @@ export default function AdminAutoRepliesView() {
     useEffect(() => { fetchReplies(); }, []);
 
     const handleSave = async () => {
+        let buttonsPayload = null;
+        if (newEntry.buttons && newEntry.buttons.trim() !== '') {
+            try {
+                const parsed = JSON.parse(newEntry.buttons);
+                if (!Array.isArray(parsed)) {
+                    alert("Buttons must be a JSON array!\n\nExample: [{\"id\": \"cmd_menu\", \"title\": \"Menu\"}]");
+                    return;
+                }
+                buttonsPayload = newEntry.buttons;
+            } catch (e) {
+                alert("Invalid JSON format in the buttons field.\n\nMake sure to use double quotes around keys and values.\nExample: [{\"id\": \"cmd_menu\", \"title\": \"Menu\"}]");
+                return;
+            }
+        }
+
         try {
             const payload = {
                 trigger_keywords: newEntry.keywords,
                 reply_text: newEntry.text,
-                buttons_json: newEntry.buttons || null
+                buttons_json: buttonsPayload
             };
             
             const config = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
@@ -44,7 +59,7 @@ export default function AdminAutoRepliesView() {
             handleCancel();
             fetchReplies();
         } catch (e) { 
-            alert("Failed to save. Check your Button JSON format."); 
+            alert("Failed to save the rule."); 
         }
     };
 
@@ -65,6 +80,30 @@ export default function AdminAutoRepliesView() {
         setNewEntry({ keywords: '', text: '', buttons: '' });
     };
 
+    const renderButtons = (jsonString: string) => {
+        if (!jsonString) return null;
+        try {
+            const parsed = JSON.parse(jsonString);
+            if (!Array.isArray(parsed)) throw new Error("Not an array");
+            
+            return (
+                <div className="mt-4 flex gap-2 flex-wrap">
+                    {parsed.map((b: any, idx: number) => (
+                        <span key={idx} className="text-[11px] font-bold bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 px-3 py-1.5 rounded-lg text-stone-600 dark:text-slate-400 flex items-center gap-1 shadow-sm">
+                            🔘 {b.title || 'Unnamed Button'}
+                        </span>
+                    ))}
+                </div>
+            );
+        } catch (e) {
+            return (
+                <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-900/50 rounded-lg text-[11px] text-rose-600 dark:text-rose-400 font-mono">
+                    <AlertTriangle size={12} /> Invalid Button JSON in Database. Please edit this rule.
+                </div>
+            );
+        }
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm p-6">
@@ -76,16 +115,19 @@ export default function AdminAutoRepliesView() {
                         <p className="text-sm text-stone-500 mt-1">Manage keyword triggers and automated replies.</p>
                     </div>
                     {!showAdd && (
-                        <button onClick={() => setShowAdd(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition">
+                        <button onClick={() => setShowAdd(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none">
                             <Plus size={18}/> Add Reply
                         </button>
                     )}
                 </div>
 
                 {showAdd && (
-                    <div className="bg-stone-50 dark:bg-slate-800 p-6 rounded-2xl border-2 border-dashed border-indigo-200 dark:border-indigo-900 mb-6 animate-in fade-in zoom-in-95">
+                    <div className="bg-stone-50 dark:bg-slate-800/50 p-6 rounded-2xl border-2 border-dashed border-indigo-200 dark:border-indigo-900/50 mb-6 animate-in fade-in zoom-in-95">
                         <div className="flex justify-between items-center mb-4">
-                            <h4 className="font-bold text-stone-800 dark:text-white">{editingId ? 'Edit Reply Rule' : 'New Reply Rule'}</h4>
+                            <h4 className="font-bold text-stone-800 dark:text-white flex items-center gap-2">
+                                {editingId ? <Edit size={16} className="text-indigo-500"/> : <Plus size={16} className="text-indigo-500"/>} 
+                                {editingId ? 'Edit Reply Rule' : 'New Reply Rule'}
+                            </h4>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input 
@@ -124,12 +166,12 @@ export default function AdminAutoRepliesView() {
                     ) : (
                         <>
                             {replies.length === 0 && !showAdd && (
-                                <div className="text-center p-10 text-stone-400 italic bg-stone-50 dark:bg-slate-800/50 rounded-2xl">
-                                    No auto-replies configured yet.
+                                <div className="text-center p-10 text-stone-400 italic bg-stone-50 dark:bg-slate-800/50 rounded-2xl border border-stone-100 dark:border-slate-800">
+                                    No conversational rules configured yet.
                                 </div>
                             )}
                             {replies.map(r => (
-                                <div key={r.id} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-stone-200 dark:border-slate-700 shadow-sm flex justify-between items-start hover:border-indigo-200 transition">
+                                <div key={r.id} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-stone-200 dark:border-slate-700 shadow-sm flex justify-between items-start hover:border-indigo-300 dark:hover:border-indigo-700 transition">
                                     <div>
                                         <div className="flex gap-2 flex-wrap mb-3">
                                             {r.trigger_keywords.split(',').map((k: string, idx: number) => (
@@ -138,34 +180,27 @@ export default function AdminAutoRepliesView() {
                                                 </span>
                                             ))}
                                         </div>
-                                        <p className="text-stone-700 dark:text-slate-300 font-medium whitespace-pre-wrap">{r.reply_text}</p>
+                                        <p className="text-stone-700 dark:text-slate-300 font-medium whitespace-pre-wrap leading-relaxed">{r.reply_text}</p>
                                         
-                                        {r.buttons_json && (
-                                            <div className="mt-4 flex gap-2 flex-wrap">
-                                                {JSON.parse(r.buttons_json).map((b: any, idx: number) => (
-                                                    <span key={idx} className="text-[11px] font-bold bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 px-3 py-1.5 rounded-lg text-stone-600 dark:text-slate-400 flex items-center gap-1">
-                                                        🔘 {b.title}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
+                                        {renderButtons(r.buttons_json)}
+
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0 ml-4">
                                         <button 
                                             onClick={() => handleEdit(r)} 
-                                            className="text-indigo-500 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition"
+                                            className="text-stone-400 hover:text-indigo-600 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition"
                                             title="Edit Rule"
                                         >
                                             <Edit size={18}/>
                                         </button>
                                         <button 
                                             onClick={async () => { 
-                                                if(confirm("Delete this rule?")) { 
+                                                if(confirm("Delete this rule permanently?")) { 
                                                     await axios.delete(`https://api.sidenote.in/admin/auto-replies/${r.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }); 
                                                     fetchReplies(); 
                                                 } 
                                             }} 
-                                            className="text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition"
+                                            className="text-stone-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition"
                                             title="Delete Rule"
                                         >
                                             <Trash2 size={18}/>
