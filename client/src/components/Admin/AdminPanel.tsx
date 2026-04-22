@@ -1,5 +1,5 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import UserFormModal from './components/UserFormModal';
@@ -136,7 +136,7 @@ export default function AdminPanel() {
   if (viewUser) return <UserDetailView userId={viewUser.id} onBack={() => setViewUser(null)} />;
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-8 animate-fade-in pb-20 w-full overflow-x-hidden">
       <div className="flex flex-col lg:flex-row justify-between lg:items-end gap-6 mb-6">
         <div>
             <h2 className="text-3xl font-bold text-stone-800 dark:text-white flex items-center gap-2">
@@ -145,71 +145,75 @@ export default function AdminPanel() {
             <p className="text-stone-500 dark:text-slate-400 mt-1">System Overview & Management</p>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
-            <div className="bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[140px] shrink-0">
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[130px] shrink-0">
                 <div className="flex items-center gap-2 mb-1"><Users size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Users</p></div>
-                <p className="text-2xl font-black text-stone-800 dark:text-white">{serverStats.total_users}</p>
+                <p className="text-xl sm:text-2xl font-black text-stone-800 dark:text-white">{serverStats.total_users}</p>
             </div>
-            <div className="bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[140px] shrink-0">
+            <div className="bg-white dark:bg-slate-900 px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl border border-stone-100 dark:border-slate-800 shadow-sm min-w-[130px] shrink-0">
                  <div className="flex items-center gap-2 mb-1"><Wallet size={14} className="text-stone-400" /><p className="text-xs font-bold uppercase text-stone-400">Total Tx</p></div>
-                <p className="text-2xl font-black text-indigo-600">{serverStats.total_transactions}</p>
+                <p className="text-xl sm:text-2xl font-black text-indigo-600">{serverStats.total_transactions}</p>
             </div>
             
             {canBroadcast && (
                 <button 
                     onClick={() => setIsBroadcasting(true)}
-                    className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-emerald-200 transition dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0"
+                    className="bg-emerald-100 text-emerald-700 px-3 py-2.5 sm:px-4 sm:py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-emerald-200 transition dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0"
                 >
-                    <Megaphone size={24} />
-                    <span className="text-[10px] uppercase tracking-wider">Broadcast</span>
+                    <Megaphone size={20} className="sm:w-[24px] sm:h-[24px]" />
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-wider">Broadcast</span>
                 </button>
             )}
 
             <button 
                 onClick={() => { setIsCreating(true); setFormData({name:'', email: '', mobile: '', password:'', role: 'user'}); }}
-                className="bg-indigo-600 text-white px-4 py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none shrink-0"
+                className="bg-indigo-600 text-white px-3 py-2.5 sm:px-4 sm:py-3 rounded-2xl font-bold flex flex-col justify-center items-center gap-1 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none shrink-0"
             >
-                <Plus size={24} />
-                <span className="text-[10px] uppercase tracking-wider">New User</span>
+                <Plus size={20} className="sm:w-[24px] sm:h-[24px]" />
+                <span className="text-[9px] sm:text-[10px] uppercase tracking-wider">New User</span>
             </button>
         </div>
       </div>
 
-      <div className="flex justify-center lg:justify-start">
-        <div className="bg-stone-100/80 dark:bg-slate-800/80 p-1.5 rounded-[1.25rem] inline-flex w-full sm:w-auto shadow-inner overflow-x-auto scrollbar-hide">
+      <div className="flex w-full">
+        <div className="bg-stone-100/80 dark:bg-slate-800/80 p-1.5 rounded-[1.25rem] flex w-full sm:w-auto shadow-inner overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <button 
                 onClick={() => setPrimaryTab('users')} 
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${primaryTab === 'users' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'users' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
             >
-                <Users size={16}/> <span className="hidden sm:inline">Users & Activity</span><span className="sm:hidden">Users</span>
+                <Users size={16} className="shrink-0"/> <span className="hidden sm:inline">Users & Activity</span><span className="sm:hidden">Users</span>
             </button>
             <button 
                 onClick={() => setPrimaryTab('bot')} 
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${primaryTab === 'bot' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'bot' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
             >
-                <Globe size={16}/> <span className="hidden sm:inline">Replies and Categories</span><span className="sm:hidden">Bot</span>
+                <Globe size={16} className="shrink-0"/> <span className="hidden sm:inline">Bot & AI</span><span className="sm:hidden">Bot</span>
             </button>
             <button 
                 onClick={() => setPrimaryTab('nudges')} 
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${primaryTab === 'nudges' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'nudges' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
             >
-                <Zap size={16}/> <span className="hidden sm:inline">Nudges & Rules</span><span className="sm:hidden">Rules</span>
+                <Zap size={16} className="shrink-0"/> <span className="hidden sm:inline">Nudges & Rules</span><span className="sm:hidden">Rules</span>
             </button>
             <button 
                 onClick={() => setPrimaryTab('system')} 
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${primaryTab === 'system' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'system' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
             >
-                <Server size={16}/> <span className="hidden sm:inline">System & Support</span><span className="sm:hidden">System</span>
+                <Server size={16} className="shrink-0"/> <span className="hidden sm:inline">System & Support</span><span className="sm:hidden">System</span>
             </button>
         </div>
       </div>
 
       {primaryTab === 'users' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4">
-              <div className="flex justify-center sm:justify-start mb-6">
-                  <div className="bg-stone-100 dark:bg-slate-800/80 p-1 rounded-xl inline-flex shadow-inner">
-                      <button onClick={() => setUserView('list')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${userView === 'list' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>User Management</button>
-                      <button onClick={() => setUserView('activity')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${userView === 'activity' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>User Activity</button>
+          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
+              <div className="flex w-full mb-6">
+                  <div className="bg-stone-100 dark:bg-slate-800/80 p-1 rounded-xl flex w-full sm:w-auto shadow-inner overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                      <button onClick={() => setUserView('list')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${userView === 'list' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <List size={14} className="shrink-0"/> User Directory
+                      </button>
+                      <button onClick={() => setUserView('activity')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${userView === 'activity' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <Activity size={14} className="shrink-0"/> Activity & Retention
+                      </button>
                   </div>
               </div>
 
@@ -222,10 +226,10 @@ export default function AdminPanel() {
                           </div>
                           
                           <div className="flex items-center gap-2 w-full md:w-auto text-sm">
-                              <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                              <span className="text-stone-400 font-bold">to</span>
-                              <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none" value={endDate} onChange={e => setEndDate(e.target.value)} />
-                              {(search || startDate || endDate) && <button onClick={() => {setSearch(''); setStartDate(''); setEndDate('');}} className="text-rose-500 hover:underline text-xs font-bold px-2">Clear</button>}
+                              <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none w-full md:w-auto" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                              <span className="text-stone-400 font-bold hidden sm:inline">to</span>
+                              <input type="date" className="p-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none w-full md:w-auto" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                              {(search || startDate || endDate) && <button onClick={() => {setSearch(''); setStartDate(''); setEndDate('');}} className="text-rose-500 hover:underline text-xs font-bold px-2 shrink-0">Clear</button>}
                           </div>
                       </div>
                       <div className="overflow-x-auto">
@@ -246,12 +250,12 @@ export default function AdminPanel() {
                                                 checked={serverUsers.length > 0 && selectedUserIds.length === serverUsers.length}
                                             />
                                         </th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('name')}>User <SortIcon col="name"/></th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('email')}>Email <SortIcon col="email"/></th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('mobile')}>Mobile <SortIcon col="mobile"/></th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500" onClick={() => handleSort('created_at')}>Joined <SortIcon col="created_at"/></th>
-                                        <th className="p-5">Status</th>
-                                        <th className="p-5 text-center">Actions</th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('name')}>User <SortIcon col="name"/></th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('email')}>Email <SortIcon col="email"/></th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('mobile')}>Mobile <SortIcon col="mobile"/></th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('created_at')}>Joined <SortIcon col="created_at"/></th>
+                                        <th className="p-5 whitespace-nowrap">Status</th>
+                                        <th className="p-5 text-center whitespace-nowrap">Actions</th>
                                     </tr>
                               </thead>
                               <tbody className="divide-y divide-stone-100 dark:divide-slate-800">
@@ -279,9 +283,9 @@ export default function AdminPanel() {
                                               <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800 shrink-0">
                                                   {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
                                               </div>
-                                              <div>
-                                                  <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-stone-800 dark:text-white">{user.name}</p>
+                                              <div className="min-w-[100px]">
+                                                  <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="font-bold text-stone-800 dark:text-white truncate max-w-[150px]">{user.name}</p>
                                                     {user.role === 'superadmin' && <span className="bg-purple-100 text-purple-600 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1 dark:bg-purple-900/30 dark:text-purple-400"><Crown size={10}/> Super</span>}
                                                     {user.role === 'admin' && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1 dark:bg-indigo-900/30 dark:text-indigo-400"><Shield size={10}/> Admin</span>}
                                                   </div>
@@ -292,9 +296,9 @@ export default function AdminPanel() {
                                               <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.email || <span className="text-stone-400 italic">Unlinked</span>}</p>
                                             </td>
                                             <td className="p-5">
-                                                <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.mobile || <span className="text-stone-400 italic">Unlinked</span>}</p>
+                                                <p className="text-sm text-stone-600 dark:text-slate-300 font-medium whitespace-nowrap">{user.mobile || <span className="text-stone-400 italic">Unlinked</span>}</p>
                                             </td>
-                                            <td className="p-5 text-sm font-medium text-stone-500 dark:text-slate-400">
+                                            <td className="p-5 text-sm font-medium text-stone-500 dark:text-slate-400 whitespace-nowrap">
                                                 {user.created_at ? (
                                                     <div className="flex flex-col">
                                                         <span>{formatLocalTime(user.created_at)?.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -308,15 +312,15 @@ export default function AdminPanel() {
                                             </td>
         
                                           <td className="p-5">
-                                                {user.is_verified ? <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400"><CheckCircle2 size={10} /> Verified</span> : <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400"><XCircle size={10} /> Unverified</span>}
+                                                {user.is_verified ? <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400 whitespace-nowrap"><CheckCircle2 size={10} /> Verified</span> : <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400 whitespace-nowrap"><XCircle size={10} /> Unverified</span>}
                                           </td>
                                             
                                           <td className="p-5 flex justify-center gap-2">
-                                              <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="View Full Data"><Eye size={16} /></button>
+                                              <button onClick={() => setViewUser(user)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 shrink-0" title="View Full Data"><Eye size={16} /></button>
                                               {(isSuperAdmin || user.role === 'user') && (
                                                   <>
-                                                    <button onClick={() => { setEditingUser(user); setFormData({name: user.name, email: user.email || '', mobile: user.mobile || '', password: '', role: user.role || 'user'}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" title="Edit Profile"><Edit size={16} /></button>
-                                                    <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400" title="Delete User"><Trash2 size={16} /></button>
+                                                    <button onClick={() => { setEditingUser(user); setFormData({name: user.name, email: user.email || '', mobile: user.mobile || '', password: '', role: user.role || 'user'}); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 shrink-0" title="Edit Profile"><Edit size={16} /></button>
+                                                    <button onClick={() => handleDelete(user.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 shrink-0" title="Delete User"><Trash2 size={16} /></button>
                                                   </>
                                               )}
                                           </td>
@@ -333,7 +337,7 @@ export default function AdminPanel() {
                                   <option value={20}>20</option>
                                   <option value={50}>50</option>
                               </select>
-                              <span>per page</span>
+                              <span className="hidden sm:inline">per page</span>
                           </div>
                           <div className="flex items-center gap-4">
                               <span className="text-sm text-stone-500 font-bold">Page {page} of {totalPages || 1}</span>
@@ -350,13 +354,16 @@ export default function AdminPanel() {
           </div>
       )}
 
-      {/* 2. BOT & AI TAB */}
       {primaryTab === 'bot' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4">
-              <div className="flex justify-center sm:justify-start mb-6">
-                  <div className="bg-stone-100 dark:bg-slate-800/80 p-1 rounded-xl inline-flex shadow-inner">
-                      <button onClick={() => setBotView('replies')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${botView === 'replies' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>Conversational Rules</button>
-                      <button onClick={() => setBotView('categories')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${botView === 'categories' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>Global Categories</button>
+          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
+              <div className="flex w-full mb-6">
+                  <div className="bg-stone-100 dark:bg-slate-800/80 p-1 rounded-xl flex w-full sm:w-auto shadow-inner overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                      <button onClick={() => setBotView('replies')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${botView === 'replies' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <MessageSquare size={14} className="shrink-0"/> Conversational Rules
+                      </button>
+                      <button onClick={() => setBotView('categories')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${botView === 'categories' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <Folder size={14} className="shrink-0"/> Global Categories
+                      </button>
                   </div>
               </div>
 
@@ -364,27 +371,28 @@ export default function AdminPanel() {
           </div>
       )}
 
-      {/* 3. NUDGES & RULES TAB */}
       {primaryTab === 'nudges' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4">
+          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
               <AdminNudgesView />
           </div>
       )}
 
-      {/* 4. SYSTEM & SUPPORT TAB */}
       {primaryTab === 'system' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4">
-              <div className="flex justify-center sm:justify-start mb-6">
-                  <div className="bg-stone-100 dark:bg-slate-800/80 p-1 rounded-xl inline-flex shadow-inner">
-                      <button onClick={() => setSystemView('metrics')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${systemView === 'metrics' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>Performance Metrics</button>
-                      <button onClick={() => setSystemView('feedback')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${systemView === 'feedback' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>Support Tickets</button>
+          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
+              <div className="flex w-full mb-6">
+                  <div className="bg-stone-100 dark:bg-slate-800/80 p-1 rounded-xl flex w-full sm:w-auto shadow-inner overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                      <button onClick={() => setSystemView('metrics')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${systemView === 'metrics' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <BarChart2 size={14} className="shrink-0"/> Performance Metrics
+                      </button>
+                      <button onClick={() => setSystemView('feedback')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${systemView === 'feedback' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <HelpCircle size={14} className="shrink-0"/> Support Tickets
+                      </button>
                   </div>
               </div>
 
               {systemView === 'metrics' ? <SystemMetricsView /> : <AdminFeedbackView />}
           </div>
       )}
-
 
       {/* GLOBAL MODALS */}
       {(isCreating || editingUser) && (
