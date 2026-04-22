@@ -100,7 +100,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 password: formData.password,
                 contact_type: 'mobile'
             });
-            setSuccessMsg("OTP sent to your WhatsApp!");
+            setSuccessMsg("OTP / Case ID sent to your WhatsApp!");
             setAuthStep('otp');
         } else {
             const res = await axios.post(`${API_URL}/auth/login`, { contact: targetMobile, password: formData.password });
@@ -121,7 +121,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
           posthog.identify(String(res.data.user.id), { name: res.data.user.name, email: res.data.user.email, role: res.data.user.role });
           onLoginSuccess(res.data.user, res.data.token);
       } catch (err: any) {
-          setError(err.response?.data?.detail || "Invalid OTP");
+          setError(err.response?.data?.detail || "Invalid OTP / Case ID");
       } finally {
           setLoading(false);
       }
@@ -158,10 +158,10 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
           await axios.post(`${API_URL}/auth/link-mobile/request`, { mobile: targetMobile }, {
               headers: { Authorization: `Bearer ${tempToken}` }
           });
-          setSuccessMsg("Verification code sent to WhatsApp!");
+          setSuccessMsg("Verification code / Case ID sent to WhatsApp!");
           setAuthStep('link_mobile_otp');
       } catch (err: any) {
-          setError(err.response?.data?.detail || "Failed to send OTP.");
+          setError(err.response?.data?.detail || "Failed to send code.");
       } finally {
           setLoading(false);
       }
@@ -177,7 +177,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
           posthog.identify(String(res.data.user.id), { name: res.data.user.name, email: res.data.user.email, role: res.data.user.role });
           onLoginSuccess(res.data.user, tempToken);
       } catch (err: any) {
-          setError(err.response?.data?.detail || "Invalid OTP");
+          setError(err.response?.data?.detail || "Invalid code / Case ID");
       } finally {
           setLoading(false);
       }
@@ -293,7 +293,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
 
         {(authStep === 'otp' || authStep === 'link_mobile_otp') && (
             <div className="text-center space-y-4 animate-in slide-in-from-right-4">
-                <p className="text-sm text-slate-500 mb-6">We've sent a 4-digit code to your WhatsApp.</p>
+                <p className="text-sm text-slate-500 mb-6">Enter the 4-digit OTP / Case ID sent to your WhatsApp.</p>
                 <input 
                     type="text" maxLength={4} placeholder="••••"
                     className="w-full text-center tracking-[1em] text-3xl font-bold py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-[#25D366]/30 dark:text-white"

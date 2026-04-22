@@ -1,26 +1,13 @@
 DASHBOARD_URL = "https://www.sidenote.in/login"
 
 # ==========================================
-# META WHATSAPP TEMPLATE NAMES
+# INTERACTIVE / PULL TEMPLATES (Triggered by user actions)
 # ==========================================
-TEMPLATE_WELCOME = "sidenote_welcome_v1"
+TEMPLATE_WELCOME = "account_activation_v1"
 TEMPLATE_ENTRY_RECORDED = "entry_recorded_v1"
 TEMPLATE_OVERVIEW = "sidenote_overview_v1_1"
 TEMPLATE_WEEKLY = "weekly_overview_v1_1"
 TEMPLATE_MONTHLY = "monthly_overview_v1"
-TEMPLATE_INSIGHT = "weekly_insight_v1_1"
-TEMPLATE_UNVERIFIED = "sidenote_verify_v1"
-
-# ==========================================
-# AUTOMATED NUDGE TEMPLATES
-# ==========================================
-TEMPLATE_HABIT = "habit_nudge_v1"
-TEMPLATE_DAILY_NUDGE = "daily_nudge_v1"
-TEMPLATE_STREAK_NUDGE = "streak_nudge_v1"
-TEMPLATE_WEEKLY_NUDGE = "weekly_nudge_v1"
-TEMPLATE_SOFT_NUDGE = "soft_nudge_v1"
-TEMPLATE_REACTIVATION = "reactivation_v1"
-TEMPLATE_INSIGHT_REACTIVATION = "insight_reactivation_v1"
 
 # ==========================================
 # BOT COMMAND KEYWORDS
@@ -44,15 +31,58 @@ BUDGET_THRESHOLD_WARNING = 0.80
 # TRANSACTION LOGIC KEYWORDS
 # ==========================================
 # If any of these words are in the text, it is marked as Income
-INCOME_KEYWORDS = ['+', 'income', 'salary', 'received', 'profit', 'bonus', 'credit', 'reward']
+INCOME_KEYWORDS = [
+    '+', 'income', 'salary', 'received', 'profit', 'bonus', 'credit', 
+    'reward', 'sold', 'cashback', 'refund', 'freelance'
+]
 
 # Fuzzy Category Map: Maps official DB Category Names to trigger words.
 CATEGORY_MAP = {
-    "Food & Dining": ["chai", "coffee", "tea", "swiggy", "zomato", "restaurant", "lunch", "dinner", "breakfast", "cafe", "pizza", "burger", "food", "meal", "snack", "dessert", "ice cream", "bakery", "sandwich", "biryani", "noodles", "pasta", "soup", "salad", "barbecue", "bbq", "steak", "seafood", "sushi", "taco", "burrito", "wrap"],
-    "Transportation": ["uber", "ola", "rapido", "indrive", "drive", "auto", "petrol", "diesel", "cab", "taxi", "train", "flight", "bus", "metro", "toll", "parking", "fuel"],
-    "Groceries": ["blinkit", "zepto", "instamart", "milk", "vegetables", "grocery", "ration", "fruits", "supermarket", "mart"],
-    "Shopping": ["amazon", "flipkart", "myntra", "clothes", "shoes", "mall", "shopping", "apparel", "ajio", "meesho"],
-    "Bills & Utilities": ["electricity", "water", "gas", "wifi", "internet", "recharge", "phone", "mobile", "bill", "subscription", "rent", "maintenance"],
-    "Health & Fitness": ["gym", "medicine", "doctor", "pharmacy", "hospital", "clinic", "health", "workout", "medical", "therapy", "yoga", "supplements"],
-    "Entertainment": ["movie", "cinema", "concert", "game", "party", "club", "event", "entertainment", "netflix", "spotify", "amazon prime", "hulu", "disney plus", "hotstar", "prime video", "hbo", "mx player", "fun", "leisure", "ott"]
+    'Food & Dining': [
+        'food', 'lunch', 'dinner', 'breakfast', 'snacks', 'restaurant', 'cafe', 
+        'coffee', 'chai', 'tea', 'swiggy', 'zomato', 'pizza', 'burger', 'momos', 
+        'bakery', 'sandwich', 'biryani', 'noodles', 'pasta', 'soup', 'salad'
+    ],
+    'Groceries': [
+    'blinkit', 'zepto', 'instamart', 'milk', 'vegetables', 'grocery',
+    'ration', 'fruits', 'supermarket', 'mart', 'grocer', 'shop', 'market',
+    'store', 'bazar', 'bazaar',
+    'Amazon Pantry', 'BigBasket', 'Grofers', 'Nature Basket', 'Spencers',
+    'More', 'Easyday', 'Reliance Fresh', 'D-Mart', 'Foodhall', 'HyperCity',
+    'Vishal Mega Mart', 'Spar', 'Star Bazaar', 'Metro Cash & Carry', '24Seven',
+    'AaramShop', 'Gully', 'ZopNow', 'Supermart', 'Farmizen', 'Natures Supermarket',
+    'Amazon Now', 'JioMart', 'Paytm Mall', 'ShopClues', 'Licious', 'FreshToHome',
+    'Meatigo', 'Udaan', 'Flipkart Minute', 'Dunzo', 'Zomato Market',
+    'Swiggy Instamart'
+    ],
+    'Travel & Transport': [
+        'uber', 'ola', 'rapido', 'indrive', 'auto', 'cab', 'taxi', 'metro', 
+        'bus', 'train', 'flight', 'petrol', 'diesel', 'fuel', 'toll', 'parking'
+    ],
+    'Shopping': [
+        'amazon', 'flipkart', 'myntra', 'ajio', 'meesho', 'clothes', 'shoes', 
+        'electronics', 'shopping', 'mall', 'store', 'apparel'
+    ],
+    'Bills & Utilities': [
+        'electricity', 'water', 'gas', 'internet', 'wifi', 'recharge', 
+        'mobile', 'phone', 'bill', 'dth', 'maintenance', 'subscription'
+    ],
+    'Entertainment': [
+        'movie', 'cinema', 'netflix', 'amazon prime', 'spotify', 'games', 
+        'concert', 'club', 'party', 'event', 'hulu', 'hotstar', 'ott', 'fun'
+    ],
+    'Health & Wellness': [
+        'pharmacy', 'medicine', 'doctor', 'hospital', 'clinic', 'gym', 
+        'fitness', 'salon', 'haircut', 'medical', 'therapy', 'yoga'
+    ],
+    'Finance': [
+        'investment', 'stocks', 'mutual fund', 'emi', 'loan', 'insurance', 
+        'tax', 'bank fee'
+    ],
+    'Rent & Housing': [
+        'rent', 'brokerage', 'deposit', 'furniture', 'home decor'
+    ],
+    'Education': [
+        'course', 'books', 'tuition', 'school fee', 'college fee', 'stationery'
+    ]
 }

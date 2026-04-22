@@ -50,7 +50,7 @@ async def generate_and_send_otp(cursor, phone: str, name: str):
         msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
         await send_whatsapp_text(phone, msg)
     else:
-        await send_whatsapp_template(phone, "sidenote_otp_v1", [otp_code])
+        await send_whatsapp_template(phone, "sidenote_account_ticket_v1", [name, otp_code])
 
 @router.post("/register")
 async def register(payload: RegisterPayload):
