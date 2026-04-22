@@ -45,8 +45,8 @@ export default function AdminPanel() {
 
   const formatLocalTime = (dateString: string) => {
       if (!dateString) return null;
-      const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
-      return new Date(utcString);
+      const safeString = dateString.replace(' ', 'T');
+      return new Date(safeString);
   };
 
   useEffect(() => {

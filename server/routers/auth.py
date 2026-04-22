@@ -55,8 +55,6 @@ async def register(payload: RegisterPayload):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         field = "email" if payload.contact_type == 'email' else "mobile"
         target_mobile = payload.contact if payload.contact_type == 'mobile' else payload.extra_mobile
         
@@ -120,7 +118,6 @@ def verify_otp(data: VerifyOTP):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
         cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.contact, data.otp))
         if not cursor.fetchone():
             raise HTTPException(status_code=400, detail="Invalid or expired OTP/Case ID.")
@@ -166,8 +163,6 @@ def login(data: UserLogin):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         is_email = "@" in data.contact
         field = "email" if is_email else "mobile"
         
@@ -205,8 +200,6 @@ def google_login(data: GoogleAuth):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
         user: Any = cursor.fetchone()
         
@@ -253,8 +246,6 @@ async def reset_password(data: ResetPassword):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         is_email = "@" in data.contact
         field = "email" if is_email else "mobile"
         
@@ -295,8 +286,6 @@ def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_u
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         user: Any = cursor.fetchone()
         if not user:
@@ -341,8 +330,6 @@ def change_password(data: UserChangePassword, user_id: int = Depends(get_current
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("SELECT id, password_hash FROM users WHERE id = %s", (user_id,))
         user: Any = cursor.fetchone()
         
@@ -370,8 +357,6 @@ def complete_profile(request: ProfileCompletionRequest):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("SELECT id, email FROM users WHERE mobile = %s", (request.mobile,))
         raw_user = cursor.fetchone()
 
@@ -422,8 +407,6 @@ def update_preferences(data: UserPreferencesUpdate, user_id: int = Depends(get_c
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("""
             UPDATE users 
             SET currency = %s, month_start_date = %s 
@@ -445,8 +428,6 @@ async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(ge
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="This WhatsApp number is already registered. Please log in using your phone number instead.")
@@ -479,8 +460,6 @@ def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_curren
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SET time_zone = '+05:30'")
-        
         cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.mobile, data.otp))
         if not cursor.fetchone():
             raise HTTPException(status_code=400, detail="Invalid or expired OTP/Case ID.")

@@ -1,4 +1,3 @@
-# server/database.py
 import mysql.connector
 from mysql.connector import pooling
 import os
@@ -35,7 +34,12 @@ except Exception as e:
 
 def get_db():
     try:
-        return connection_pool.get_connection()
+        conn = connection_pool.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SET time_zone = '+05:30'")
+        cursor.close()
+        
+        return conn
     except Exception as e:
         logger.error(f"DB Pool Exhaustion Error: {e}")
         raise e

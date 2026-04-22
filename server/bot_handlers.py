@@ -3,7 +3,7 @@ import traceback, asyncio
 import time
 from typing import Any, Optional
 from database import get_db
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons, get_whatsapp_media_url, download_whatsapp_media
 from ai_service import extract_receipt_data, extract_voice_data
 from constants import *
@@ -283,7 +283,6 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("SET time_zone = '+05:30'")
             
             # User Check
             cursor.execute("SELECT id, monthly_budget FROM users WHERE mobile = %s", (phone,))
@@ -336,7 +335,6 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             """, (user_id, amount, tx_type, clean_item, category_id))
             conn.commit()
             
-
             # Budget Check Logic
             if tx_type == 'expense' and budget_limit > 0:
                 cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE())", (user_id,))
@@ -393,7 +391,6 @@ async def handle_undo_request(phone: str):
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("SET time_zone = '+05:30'")
             
             user_id = get_user_id(cursor, phone)
             if not user_id:
@@ -435,7 +432,6 @@ async def handle_undo_action(phone: str, tx_id: int):
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("SET time_zone = '+05:30'")
             
             user_id = get_user_id(cursor, phone)
             if not user_id: return
@@ -475,7 +471,6 @@ async def handle_summary_request(phone: str):
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("SET time_zone = '+05:30'")
             user_id = get_user_id(cursor, phone)
             
             if not user_id:
@@ -517,7 +512,6 @@ async def handle_weekly_request(phone: str):
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("SET time_zone = '+05:30'")
             user_id = get_user_id(cursor, phone)
             if not user_id: return
             
@@ -547,7 +541,6 @@ async def handle_monthly_request(phone: str):
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("SET time_zone = '+05:30'")
             user_id = get_user_id(cursor, phone)
             if not user_id: return
             
@@ -572,7 +565,8 @@ async def handle_monthly_request(phone: str):
                 try: conn.close()
                 except: pass
             
-    current_day = datetime.now().day
+    ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+    current_day = ist_now.day
     avg_daily = month_total / current_day if current_day > 0 else 0.0
     variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
     await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
@@ -662,7 +656,6 @@ async def handle_today_request(phone: str):
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("SET time_zone = '+05:30'")
             
             user_id = get_user_id(cursor, phone)
             if not user_id:

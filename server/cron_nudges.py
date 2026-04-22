@@ -13,7 +13,6 @@ async def run_daily_nudges(target_rule: str = "all"):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        cursor.execute("SET time_zone = '+05:30'")
         now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         today = now.date()
         
@@ -137,6 +136,5 @@ async def run_daily_nudges(target_rule: str = "all"):
 
     except Exception as e: logger.error(f"Nudge Engine Error: {e}")
     finally:
-        cursor.execute("SET time_zone = '+00:00'") 
         conn.close()
         logger.info("Nudge Engine Evaluation Complete.")

@@ -365,11 +365,9 @@ def submit_feedback(data: FeedbackSubmit, user_id: int = Depends(get_current_use
     conn = get_db()
     cursor = conn.cursor()
     try:
-        ist_now = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
-        
         cursor.execute(
-            "INSERT INTO feedback (user_id, type, rating, subject, message, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
-            (user_id, data.type, data.rating, data.subject, data.message, ist_now)
+            "INSERT INTO feedback (user_id, type, rating, subject, message, created_at) VALUES (%s, %s, %s, %s, %s, NOW())",
+            (user_id, data.type, data.rating, data.subject, data.message)
         )
         conn.commit()
         return {"message": "Feedback submitted successfully"}

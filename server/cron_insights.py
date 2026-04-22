@@ -15,7 +15,6 @@ async def send_weekly_proactive_insights():
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SET time_zone = '+05:30'")
         
         # Find all active WhatsApp users
         cursor.execute("SELECT id, mobile FROM users WHERE mobile IS NOT NULL")

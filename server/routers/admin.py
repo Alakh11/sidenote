@@ -50,10 +50,10 @@ def get_all_users(
             params.extend([search_term, search_term, search_term, search_term])
 
         if start_date:
-            where_clauses.append("DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s")
+            where_clauses.append("DATE(created_at) >= %s")
             params.append(start_date)
         if end_date:
-            where_clauses.append("DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= %s")
+            where_clauses.append("DATE(created_at) <= %s")
             params.append(end_date)
 
         where_str = " AND ".join(where_clauses)
@@ -234,10 +234,10 @@ def get_system_metrics(
         params: list[Any] = []
         
         if start_date and end_date:
-            time_filter = "DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s AND DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= %s"
+            time_filter = "DATE(created_at) >= %s AND DATE(created_at) <= %s"
             params = [start_date, end_date]
         elif start_date:
-            time_filter = "DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s"
+            time_filter = "DATE(created_at) >= %s"
             params = [start_date]
 
         cursor.execute(f"""
@@ -295,7 +295,7 @@ def truncate_metrics(start_date: str, end_date: str, admin_id: int = Depends(req
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM api_metrics WHERE DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= %s AND DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= %s", (start_date, end_date))
+        cursor.execute("DELETE FROM api_metrics WHERE DATE(created_at) >= %s AND DATE(created_at) <= %s", (start_date, end_date))
         deleted_count = cursor.rowcount
         conn.commit()
         return {"message": f"Successfully deleted {deleted_count} records."}
@@ -333,10 +333,10 @@ def get_all_feedback(
             params.extend([search_term, search_term, search_term, search_term])
         
         if start_date:
-            where_clauses.append("DATE(CONVERT_TZ(f.created_at, '+00:00', '+05:30')) >= %s")
+            where_clauses.append("DATE(f.created_at) >= %s")
             params.append(start_date)
         if end_date:
-            where_clauses.append("DATE(CONVERT_TZ(f.created_at, '+00:00', '+05:30')) <= %s")
+            where_clauses.append("DATE(f.created_at) <= %s")
             params.append(end_date)
 
         where_str = " AND ".join(where_clauses)
@@ -383,9 +383,9 @@ def reply_to_feedback(ticket_id: int, data: AdminReply, admin_id: int = Depends(
         
         cursor.execute("""
             UPDATE feedback 
-            SET admin_reply = CONCAT(COALESCE(admin_reply, ''), %s), status = 'resolved', replied_at = %s 
+            SET admin_reply = CONCAT(COALESCE(admin_reply, ''), %s), status = 'resolved', replied_at = NOW() 
             WHERE id = %s
-        """, (formatted_reply, ist_now, ticket_id))
+        """, (formatted_reply, ticket_id))
         conn.commit()
         return {"message": "Reply sent successfully."}
     except Exception as e:
