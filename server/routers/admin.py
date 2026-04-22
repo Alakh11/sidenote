@@ -553,10 +553,10 @@ def get_user_activity_stats(
         params: list[Any] = []
         
         if start_date:
-            time_filter += " AND DATE(CONVERT_TZ(t.date, '+00:00', '+05:30')) >= %s"
+            time_filter += " AND DATE(t.date) >= %s"
             params.append(start_date)
         if end_date:
-            time_filter += " AND DATE(CONVERT_TZ(t.date, '+00:00', '+05:30')) <= %s"
+            time_filter += " AND DATE(t.date) <= %s"
             params.append(end_date)
         
         count_query = f"""
@@ -576,9 +576,9 @@ def get_user_activity_stats(
                 WHERE 1=1 {time_filter}
             ),
             UserDates AS (
-                SELECT user_id, DATE(CONVERT_TZ(date, '+00:00', '+05:30')) as tx_date
+                SELECT user_id, DATE(date) as tx_date
                 FROM FilteredTx
-                GROUP BY user_id, DATE(CONVERT_TZ(date, '+00:00', '+05:30'))
+                GROUP BY user_id, DATE(date)
             ),
             RankedDates AS (
                 SELECT user_id, tx_date,
@@ -607,8 +607,8 @@ def get_user_activity_stats(
                 MAX(f.name) as name,
                 MAX(f.mobile) as mobile,
                 COUNT(f.date) as total_transactions,
-                COUNT(DISTINCT DATE(CONVERT_TZ(f.date, '+00:00', '+05:30'))) as active_days,
-                CONVERT_TZ(MAX(f.date), '+00:00', '+05:30') as last_active_date,
+                COUNT(DISTINCT DATE(f.date)) as active_days,
+                MAX(f.date) as last_active_date,
                 DATEDIFF(NOW(), MIN(f.date)) as days_since_joining,
                 COALESCE(MAX(s.streak_len), 0) as streak
             FROM FilteredTx f

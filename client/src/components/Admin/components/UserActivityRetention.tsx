@@ -56,10 +56,15 @@ export default function UserActivityRetention() {
 
     const formatTime = (dateString: string) => {
         if (!dateString) return 'Never';
-        const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
-        return new Date(utcString).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const safeString = dateString.replace(' ', 'T'); 
+        
+        return new Date(safeString).toLocaleString('en-IN', { 
+            day: 'numeric', 
+            month: 'short', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
     };
-
     const renderSortIcon = (field: string) => {
         if (activitySortBy !== field) return <ArrowUp size={14} className="opacity-20 inline-block ml-1" />;
         return activitySortOrder === 'ASC' 
