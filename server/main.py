@@ -19,7 +19,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 ist_timezone = ZoneInfo('Asia/Kolkata')
 
-app = FastAPI()
+app = FastAPI(
+    title="SideNote API",
+    description="WhatsApp-first financial ledger system",
+    version="1.0.0"
+)
 VERIFY_TOKEN = os.getenv("WA_WEBHOOK_VERIFY_TOKEN")
 META_APP_SECRET = os.getenv("META_APP_SECRET", "").strip()
 
