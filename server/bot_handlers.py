@@ -1,6 +1,4 @@
-import re
-import traceback, asyncio
-import time
+import re, traceback, asyncio, time, calendar
 from typing import Any, Optional
 from database import get_db
 from datetime import datetime, timedelta, date
@@ -580,7 +578,7 @@ async def handle_weekly_request(phone: str):
     variables = [f"{week_total:g}"] + [f"{d:g}" for d in days]
     await send_whatsapp_template(phone, TEMPLATE_WEEKLY, variables)
 
-async def handle_monthly_request(phone: str):
+async def handle_monthly_request(phone: str, is_end_of_month: bool = False, template_name: str = "monthly_overview"):
     conn = None
     cursor = None
     
@@ -591,18 +589,50 @@ async def handle_monthly_request(phone: str):
             user_id = get_user_id(cursor, phone)
             if not user_id: return
             
-            cursor.execute("SELECT DAY(date), SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE()) GROUP BY DAY(date)", (user_id,))
-            weeks, month_total = [0.0, 0.0, 0.0, 0.0, 0.0], 0.0
+            ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+            year = ist_now.year
+            month = ist_now.month
+            current_day = ist_now.day
+            
+            # Use calendar to get Monday-Sunday weeks for this month
+            cal = calendar.monthcalendar(year, month)
+            total_calendar_weeks = len(cal)
+            
+            day_to_week_idx = {}
+            current_week_idx = 4 # Default max index
+            
+            for week_idx, week_days in enumerate(cal):
+                for day in week_days:
+                    if day != 0:
+                        # Clamp the 6th week (index 5) into Week 5 (index 4)
+                        clamped_idx = min(week_idx, 4) 
+                        day_to_week_idx[day] = clamped_idx
+                        
+                        if not is_end_of_month and day == current_day:
+                            current_week_idx = clamped_idx
+            
+            cursor.execute("""
+                SELECT DAY(date), SUM(amount) 
+                FROM transactions 
+                WHERE user_id = %s 
+                  AND type = 'expense' 
+                  AND MONTH(date) = %s 
+                  AND YEAR(date) = %s 
+                GROUP BY DAY(date)
+            """, (user_id, month, year))
+            
+            # Force exactly 5 weeks to match the Meta Template parameters
+            weeks = [0.0, 0.0, 0.0, 0.0, 0.0]
+            month_total = 0.0
             
             for row in cursor.fetchall():
                 r = tuple(row)
                 day, amt = int(str(r[0])), float(str(r[1]))
                 month_total += amt
-                if day <= 7: weeks[0] += amt
-                elif day <= 14: weeks[1] += amt
-                elif day <= 21: weeks[2] += amt
-                elif day <= 28: weeks[3] += amt
-                else: weeks[4] += amt
+                
+                if day in day_to_week_idx:
+                    w_idx = day_to_week_idx[day]
+                    weeks[w_idx] += amt
                 
         finally:
             if cursor: 
@@ -612,11 +642,41 @@ async def handle_monthly_request(phone: str):
                 try: conn.close()
                 except: pass
             
-    ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
-    current_day = ist_now.day
+    if is_end_of_month:
+        _, days_in_month = calendar.monthrange(year, month)
+        avg_daily = month_total / days_in_month if days_in_month > 0 else 0.0
+        
+        variables = [
+            f"{month_total:g}",
+            f"{weeks[0]:g}",
+            f"{weeks[1]:g}",
+            f"{weeks[2]:g}",
+            f"{weeks[3]:g}",
+            f"{weeks[4]:g}",
+            f"{avg_daily:.0f}"
+        ]
+        await send_whatsapp_template(phone, template_name, variables)
+        return
+
     avg_daily = month_total / current_day if current_day > 0 else 0.0
-    variables = [f"{month_total:g}"] + [f"{w:g}" for w in weeks] + [f"{avg_daily:.0f}"]
-    await send_whatsapp_template(phone, TEMPLATE_MONTHLY, variables)
+
+    lines = [
+        "*Here is your monthly overview in SideNote.*",
+        "",
+        f"The total for this month is *₹{month_total:g}*.",
+        ""
+    ]
+    
+    for i in range(current_week_idx + 1):
+        lines.append(f"Week {i + 1} total is ₹{weeks[i]:g}.")
+        
+    lines.append("")
+    lines.append(f"The average per day is ₹{avg_daily:.0f}.")
+    lines.append("")
+    lines.append("This reflects your notes up to today.")
+        
+    final_message = "\n".join(lines)
+    await send_whatsapp_text(phone, final_message)
 
 async def process_whatsapp_audio(phone: str, media_id: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return

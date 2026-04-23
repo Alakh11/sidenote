@@ -4,6 +4,7 @@ import calendar
 from typing import Any
 from database import get_db
 from whatsapp_service import send_whatsapp_template
+from bot_handlers import handle_monthly_request
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,19 @@ async def run_daily_nudges(target_rule: str = "all"):
                 var_req = rule.get('variables_required') or ""
 
                 if rule['rule_type'] == 'monthly' and is_month_end and now.hour == 22:
-                    template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
+                    template_name = rule['template_name']
+                    cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND template_name = %s AND DATE(sent_at) = CURDATE()", (user_id, template_name))
+                    if cursor.fetchone().get('count', 0) == 0:
+                        try:
+                            await handle_monthly_request(mobile, is_end_of_month=True, template_name=template_name)
+                            cursor.execute("INSERT INTO automated_messages (user_id, template_name, trigger_reason, sent_at) VALUES (%s, %s, %s, NOW())", (user_id, template_name, rule['rule_name']))
+                            conn.commit()
+                            logger.info(f"Fired {template_name} (Monthly) to User {user_id}")
+                        except Exception as e:
+                            logger.error(f"Failed to send {template_name} to User {user_id}: {e}")
+                            conn.rollback()
+                            
+                    template_to_send = None
                     break
                     
                 elif rule['rule_type'] == 'weekly' and is_sunday and now.hour == 19:
