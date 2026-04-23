@@ -603,13 +603,13 @@ def get_user_activity_stats(
                 MAX(f.mobile) as mobile,
                 COUNT(f.date) as total_transactions,
                 COUNT(DISTINCT DATE(f.date)) as active_days,
-                MAX(f.date) as last_active_date,
+                COALESCE(MAX(f.date), MAX(f.created_at)) as last_active_date,
                 DATEDIFF(NOW(), MAX(f.created_at)) as days_since_joining,
                 COALESCE(MAX(s.streak_len), 0) as streak
             FROM FilteredTx f
             LEFT JOIN MaxStreaks s ON f.user_id = s.user_id
             GROUP BY f.user_id
-            ORDER BY {db_sort} IS NULL ASC, {db_sort} {order}
+            ORDER BY COUNT(f.date) = 0 ASC, {db_sort} {order}
             LIMIT %s OFFSET %s
         """
         

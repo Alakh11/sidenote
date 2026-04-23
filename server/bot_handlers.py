@@ -9,6 +9,7 @@ from constants import *
 db_semaphore = asyncio.Semaphore(20)
 
 processed_message_ids: dict[str, float] = {}
+hint_tracker: dict[str, dict[str, Any]] = {}
 
 def is_duplicate(message_id: Optional[str]) -> bool:
     if not message_id: 
@@ -431,27 +432,36 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 except: pass
 
     if success and not silent:
-        live_hints = [
-            'Type "today" to see today\'s total.',
-            'Type "week" to see this week\'s spending.',
-            'Type "month" to see this month\'s total.',
-            'Type "summary" for a full breakdown.'
-        ]
-        
-        live_hints.extend(dynamic_hints)
-        random_hint = random.choice(live_hints)
-
         if is_income:
-            await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.\n\n💡 {random_hint}")
+            await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.")
         else:
             await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
-            
-            follow_up_msg = ""
             if budget_note: 
-                follow_up_msg += f"{budget_note}\n\n"
-            follow_up_msg += f"💡 {random_hint}"
+                await asyncio.sleep(1.5)
+                await send_whatsapp_text(phone, budget_note)
+        
+        ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+        today_str = ist_now.strftime('%Y-%m-%d')
+        
+        user_hint = hint_tracker.get(phone, {'date': today_str, 'count': 0})
+        
+        if user_hint['date'] != today_str:
+            user_hint = {'date': today_str, 'count': 0}
             
-            asyncio.create_task(send_delayed_message(phone, follow_up_msg.strip(), delay=3))
+        if user_hint['count'] < 2:
+            user_hint['count'] += 1
+            hint_tracker[phone] = user_hint
+            
+            live_hints = [
+                'Type "today" to see today\'s total.',
+                'Type "week" to see this week\'s spending.',
+                'Type "month" to see this month\'s total.',
+                'Type "summary" for a full breakdown.'
+            ]
+            live_hints.extend(dynamic_hints)
+            random_hint = random.choice(live_hints)
+
+            asyncio.create_task(send_delayed_message(phone, f"💡 {random_hint}", delay=60))
                 
     elif not success and not silent:
         await send_whatsapp_text(phone, "❌ *Oops! Something went wrong.* I couldn't save that transaction. Please try again.")
