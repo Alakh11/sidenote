@@ -51,9 +51,11 @@ def extract_transaction_details(text: str):
     item = text.replace(amount_str, "", 1)
     item = re.sub(r'\b(rs\.?|rupees|inr|rupee|paise|paisa|taka)\b', '', item)
     item = item.replace('₹', '')
-    item = re.sub(r'\s{2,}', ' ', item).strip("- =:, ")
+    item = item.strip("- =:, +")
+    item = re.sub(r'\s{2,}', ' ', item)
     item = re.sub(r'^(for|on|a|an|the|spent on)\s+', '', item).strip()
     item = re.sub(r'\s+(for|on)$', '', item).strip()
+    item = item.strip("- =:, +")
     
     return amount, item
 
@@ -306,7 +308,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
 
     clean_item = item.replace('\n', ', ').replace('\r', '')
     clean_item = re.sub(r'\s{2,}', ' ', clean_item)
-    clean_item = clean_item.strip("- =:, ")
+    clean_item = clean_item.strip("- =:,+")
     clean_item = clean_item[:240] 
     
     item_lower = clean_item.lower()
@@ -432,25 +434,20 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 except: pass
 
     if success and not silent:
-        if is_income:
-            await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.")
-        else:
-            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
-            if budget_note: 
-                await asyncio.sleep(1.5)
-                await send_whatsapp_text(phone, budget_note)
-        
         ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         today_str = ist_now.strftime('%Y-%m-%d')
         
         user_hint = hint_tracker.get(phone, {'date': today_str, 'count': 0})
-        
         if user_hint['date'] != today_str:
             user_hint = {'date': today_str, 'count': 0}
             
+        include_hint = False
+        random_hint = ""
+        
         if user_hint['count'] < 2:
             user_hint['count'] += 1
             hint_tracker[phone] = user_hint
+            include_hint = True
             
             live_hints = [
                 'Type "today" to see today\'s total.',
@@ -461,7 +458,25 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             live_hints.extend(dynamic_hints)
             random_hint = random.choice(live_hints)
 
-            asyncio.create_task(send_delayed_message(phone, f"💡 {random_hint}", delay=60))
+        if is_income:
+            msg = f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added."
+            if include_hint:
+                msg += f"\n\n💡 {random_hint}"
+            await send_whatsapp_text(phone, msg)
+            
+        else:
+            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
+            
+            follow_up_msg = ""
+            if budget_note: 
+                follow_up_msg += f"{budget_note}\n\n"
+            if include_hint:
+                follow_up_msg += f"💡 {random_hint}"
+            
+            follow_up_msg = follow_up_msg.strip()
+            
+            if follow_up_msg:
+                asyncio.create_task(send_delayed_message(phone, follow_up_msg, delay=3))
                 
     elif not success and not silent:
         await send_whatsapp_text(phone, "❌ *Oops! Something went wrong.* I couldn't save that transaction. Please try again.")
