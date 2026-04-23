@@ -559,25 +559,20 @@ def get_user_activity_stats(
             time_filter += " AND DATE(t.date) <= %s"
             params.append(end_date)
         
-        count_query = f"""
-            SELECT COUNT(DISTINCT u.id) as count 
-            FROM users u
-            JOIN transactions t ON u.id = t.user_id
-            WHERE 1=1 {time_filter}
-        """
-        cursor.execute(count_query, params)
+        count_query = "SELECT COUNT(id) as count FROM users"
+        cursor.execute(count_query)
         total_records = cursor.fetchone()['count']
         
         query = f"""
             WITH FilteredTx AS (
-                SELECT u.id as user_id, u.name, u.mobile, t.date
+                SELECT u.id as user_id, u.name, u.mobile, u.created_at, t.date
                 FROM users u
-                JOIN transactions t ON u.id = t.user_id
-                WHERE 1=1 {time_filter}
+                LEFT JOIN transactions t ON u.id = t.user_id {time_filter}
             ),
             UserDates AS (
                 SELECT user_id, DATE(date) as tx_date
                 FROM FilteredTx
+                WHERE date IS NOT NULL
                 GROUP BY user_id, DATE(date)
             ),
             RankedDates AS (
@@ -609,12 +604,12 @@ def get_user_activity_stats(
                 COUNT(f.date) as total_transactions,
                 COUNT(DISTINCT DATE(f.date)) as active_days,
                 MAX(f.date) as last_active_date,
-                DATEDIFF(NOW(), MIN(f.date)) as days_since_joining,
+                DATEDIFF(NOW(), MAX(f.created_at)) as days_since_joining,
                 COALESCE(MAX(s.streak_len), 0) as streak
             FROM FilteredTx f
             LEFT JOIN MaxStreaks s ON f.user_id = s.user_id
             GROUP BY f.user_id
-            ORDER BY {db_sort} {order}
+            ORDER BY {db_sort} IS NULL ASC, {db_sort} {order}
             LIMIT %s OFFSET %s
         """
         

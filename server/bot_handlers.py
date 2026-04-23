@@ -296,6 +296,10 @@ async def handle_budget_set(phone: str, text: str):
                 except: pass
             
     await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.\n\n_(To change it, just send a new budget. To remove it, type *budget 0*)_")
+    
+async def send_delayed_message(phone: str, msg: str, delay: int = 3):
+    await asyncio.sleep(delay)
+    await send_whatsapp_text(phone, msg)
 
 async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User") -> bool:
 
@@ -442,15 +446,12 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
         else:
             await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
             
-            await asyncio.sleep(5)
-            
             follow_up_msg = ""
             if budget_note: 
                 follow_up_msg += f"{budget_note}\n\n"
-                
             follow_up_msg += f"💡 {random_hint}"
             
-            await send_whatsapp_text(phone, follow_up_msg.strip())
+            asyncio.create_task(send_delayed_message(phone, follow_up_msg.strip(), delay=3))
                 
     elif not success and not silent:
         await send_whatsapp_text(phone, "❌ *Oops! Something went wrong.* I couldn't save that transaction. Please try again.")
