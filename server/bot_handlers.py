@@ -1,4 +1,4 @@
-import re, traceback, asyncio, time, calendar
+import re, traceback, asyncio, time, calendar, random
 from typing import Any, Optional
 from database import get_db
 from datetime import datetime, timedelta, date
@@ -313,6 +313,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
     today_total = 0.0
     budget_note = ""
     success = False
+    dynamic_hints = []
 
     async with db_semaphore:
         try:
@@ -332,6 +333,17 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             else:
                 user_id = int(str(u_data[0]))
                 budget_limit = float(str(u_data[1])) if u_data[1] else 0.0
+
+            cursor.execute("SELECT trigger_keywords FROM auto_replies WHERE is_active = TRUE")
+            ar_rows = cursor.fetchall()
+            if ar_rows:
+                for ar in ar_rows:
+                    try:
+                        kws_str = str(ar[0]) if isinstance(ar, (tuple, list)) else str(ar.get('trigger_keywords', ''))
+                        first_kw = kws_str.split(',')[0].strip()
+                        if first_kw:
+                            dynamic_hints.append(f'Type "{first_kw}" to see a custom reply.')
+                    except: pass
             
             cursor.execute("SELECT name, keywords, icon, color FROM global_categories WHERE type = %s", (tx_type,))
             global_cats = cursor.fetchall()
@@ -390,11 +402,11 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 percent_used = (month_total / budget_limit)
                 
                 if percent_used >= 1.0: 
-                    budget_note = f"\n\n🚨 *OVER BUDGET!* You exceeded your ₹{budget_limit:g} limit by ₹{abs(remaining):g}."
+                    budget_note = f"🚨 *OVER BUDGET!* You exceeded your ₹{budget_limit:g} limit by ₹{abs(remaining):g}."
                 elif percent_used >= BUDGET_THRESHOLD_WARNING: 
-                    budget_note = f"\n\n⚠️ *Budget Warning:* You used {percent_used:.0%} of your budget. ₹{remaining:g} left."
+                    budget_note = f"⚠️ *Budget Warning:* You used {percent_used:.0%} of your budget. ₹{remaining:g} left."
                 else: 
-                    budget_note = f"\n\n💰 Budget: ₹{remaining:g} remaining."
+                    budget_note = f"💰 Budget: ₹{remaining:g} remaining."
                 
             if not silent and not is_income:
                 cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
@@ -415,12 +427,28 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 except: pass
 
     if success and not silent:
+        live_hints = [
+            'Type "today" to see today\'s total.',
+            'Type "week" to see this week\'s spending.',
+            'Type "month" to see this month\'s total.',
+            'Type "summary" for a full breakdown.'
+        ]
+        
+        live_hints.extend(dynamic_hints)
+        random_hint = random.choice(live_hints)
+
         if is_income:
-            await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.")
+            await send_whatsapp_text(phone, f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added.\n\n💡 {random_hint}")
         else:
             await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
+            
+            follow_up_msg = ""
             if budget_note: 
-                await send_whatsapp_text(phone, budget_note)
+                follow_up_msg += f"{budget_note}\n\n"
+                
+            follow_up_msg += f"💡 {random_hint}"
+            
+            await send_whatsapp_text(phone, follow_up_msg.strip())
                 
     elif not success and not silent:
         await send_whatsapp_text(phone, "❌ *Oops! Something went wrong.* I couldn't save that transaction. Please try again.")
