@@ -30,34 +30,37 @@ def is_duplicate(message_id: Optional[str]) -> bool:
 
 def extract_transaction_details(text: str):
     """Smartly extracts the amount and item from a conversational string."""
-    text = text.lower().strip()
+    text_lower = text.lower().strip()
     
-    text = re.sub(r'(?<=\d)\s+(?=\d)', '', text)
-    text = re.sub(r'(?<=\d),(?=\d)', '', text)
+    is_explicit_income = bool(re.search(r'^\s*\+\s*(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)?\s*\d+', text_lower))
     
-    currency_match = re.search(r'(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)\s*(\d+(?:\.\d+)?)', text) or \
-                     re.search(r'(\d+(?:\.\d+)?)\s*(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)', text)
+    text_clean = re.sub(r'(?<=\d)\s+(?=\d)', '', text_lower)
+    text_clean = re.sub(r'(?<=\d),(?=\d)', '', text_clean)
+    
+    currency_match = re.search(r'(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)\s*(\d+(?:\.\d+)?)', text_clean) or \
+                     re.search(r'(\d+(?:\.\d+)?)\s*(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)', text_clean)
                      
     if currency_match:
         amount_str = currency_match.group(1)
     else:
-        numbers = re.findall(r'\d+(?:\.\d+)?', text)
+        numbers = re.findall(r'\d+(?:\.\d+)?', text_clean)
         if not numbers:
-            return None, text
+            return None, text_clean, False
         amount_str = max(numbers, key=float)
         
     amount = float(amount_str)
     
-    item = text.replace(amount_str, "", 1)
+    item = text_clean.replace(amount_str, "", 1)
     item = re.sub(r'\b(rs\.?|rupees|inr|rupee|paise|paisa|taka)\b', '', item)
     item = item.replace('₹', '')
     item = item.strip("- =:, +")
+    
     item = re.sub(r'\s{2,}', ' ', item)
     item = re.sub(r'^(for|on|a|an|the|spent on)\s+', '', item).strip()
     item = re.sub(r'\s+(for|on)$', '', item).strip()
     item = item.strip("- =:, +")
     
-    return amount, item
+    return amount, item, is_explicit_income
 
 def get_user_id(cursor: Any, phone: str) -> int | None:
     """Fetches the user_id associated with the mobile number."""
@@ -189,13 +192,13 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
             for line in lines:
                 if not line.strip(): continue
                 
-                amount, item = extract_transaction_details(line)
+                amount, item, explicit_inc = extract_transaction_details(line)
                 
                 if amount is not None:
-                    is_saved = await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name)
+                    is_saved = await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name, explicit_income=explicit_inc)
                     
                     if is_saved:
-                        if any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
+                        if explicit_inc or any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
                             total_income += amount
                         else:
                             total_expense += amount
@@ -222,9 +225,9 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                 await handle_fallback(phone, text)
                 
         else:
-            amount, item = extract_transaction_details(text)
+            amount, item, explicit_inc = extract_transaction_details(text)
             if amount is not None:
-                await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
+                await handle_transaction_entry(phone, amount, item, sender_name=sender_name, explicit_income=explicit_inc)
             else:
                 await handle_fallback(phone, text)
 
@@ -300,11 +303,11 @@ async def handle_budget_set(phone: str, text: str):
             
     await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.\n\n_(To change it, just send a new budget. To remove it, type *budget 0*)_")
     
-async def send_delayed_message(phone: str, msg: str, delay: int = 3):
+async def send_delayed_message(phone: str, msg: str, delay: int = 10):
     await asyncio.sleep(delay)
     await send_whatsapp_text(phone, msg)
 
-async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User") -> bool:
+async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User", explicit_income: bool = False) -> bool:
 
     clean_item = item.replace('\n', ', ').replace('\r', '')
     clean_item = re.sub(r'\s{2,}', ' ', clean_item)
@@ -312,7 +315,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
     clean_item = clean_item[:240] 
     
     item_lower = clean_item.lower()
-    is_income = any(keyword in item_lower for keyword in INCOME_KEYWORDS)
+    is_income = explicit_income or any(keyword in item_lower for keyword in INCOME_KEYWORDS)
     tx_type = 'income' if is_income else 'expense'
 
     conn = None
@@ -476,7 +479,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             follow_up_msg = follow_up_msg.strip()
             
             if follow_up_msg:
-                asyncio.create_task(send_delayed_message(phone, follow_up_msg, delay=3))
+                asyncio.create_task(send_delayed_message(phone, follow_up_msg, delay=10))
                 
     elif not success and not silent:
         await send_whatsapp_text(phone, "❌ *Oops! Something went wrong.* I couldn't save that transaction. Please try again.")
