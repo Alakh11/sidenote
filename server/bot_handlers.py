@@ -442,7 +442,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
         else:
             await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
             
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(5)
             
             follow_up_msg = ""
             if budget_note: 
