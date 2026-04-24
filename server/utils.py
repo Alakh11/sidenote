@@ -27,16 +27,14 @@ def create_default_categories(user_id: int, cursor):
     defaults = [
         ("Salary", "#10B981", "income", "💰"),
         ("Freelance", "#3B82F6", "income", "💻"),
-        ("Investments", "#8B5CF6", "income", "📈"),
-        ("Food & Dining", "#EF4444", "expense", "🍔"),
-        ("Transportation", "#F59E0B", "expense", "🚗"),
+        ("Food & Dining", "#EF4444", "expense", "🍽"),
         ("Shopping", "#EC4899", "expense", "🛍️"),
-        ("Utilities", "#6366F1", "expense", "💡"),
+        ("Bills & Utilities", "#6366F1", "expense", "💡"),
         ("Entertainment", "#8B5CF6", "expense", "🎬"),
-        ("Health", "#10B981", "expense", "💊"),
-        ("Education", "#3B82F6", "expense", "🎓"),
-        ("Travel", "#F97316", "expense", "✈️"),
-        ("Rent/Housing", "#6366F1", "expense", "🏠"),
+        ("Health & Wellness", "#10B981", "expense", "🧘"),
+        ("Education", "#3B82F6", "expense", "📚"),
+        ("Travel & Transport", "#F97316", "expense", "✈️"),
+        ("Rent & Housing", "#09D2EC", "expense", "🏠"),
     ]
     
     query = "INSERT INTO categories (user_id, name, color, type, icon, is_default) VALUES (%s, %s, %s, %s, %s, TRUE)"
