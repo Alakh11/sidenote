@@ -910,28 +910,34 @@ def get_command_analytics(
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        where_clauses = []
+        where_clauses = ["1=1"]
         params = []
 
         if start_date:
-            where_clauses.append("DATE(created_at) >= %s")
+            where_clauses.append("DATE(l.created_at) >= %s")
             params.append(start_date)
         else:
-            where_clauses.append("created_at >= NOW() - INTERVAL 30 DAY")
+            where_clauses.append("l.created_at >= NOW() - INTERVAL 30 DAY")
             
         if end_date:
-            where_clauses.append("DATE(created_at) <= %s")
+            where_clauses.append("DATE(l.created_at) <= %s")
             params.append(end_date)
             
-        global_where = " AND ".join(where_clauses)
-        
+        if search:
+            search_term = f"%{search}%"
+            where_clauses.append("(u.name LIKE %s OR u.mobile LIKE %s)")
+            params.extend([search_term, search_term])
+            
+        where_str = " AND ".join(where_clauses)
+
         cursor.execute(f"""
-            SELECT command, COUNT(*) as usage_count 
-            FROM bot_command_logs 
-            WHERE {global_where}
-            GROUP BY command 
+            SELECT l.command, COUNT(*) as usage_count 
+            FROM bot_command_logs l
+            JOIN users u ON l.user_id = u.id
+            WHERE {where_str}
+            GROUP BY l.command 
             ORDER BY usage_count DESC 
-            LIMIT 7
+            LIMIT 10
         """, params)
         top_commands = cursor.fetchall()
         
@@ -940,10 +946,11 @@ def get_command_analytics(
             cmd['percentage'] = round((cmd['usage_count'] / total_uses) * 100)
 
         cursor.execute(f"""
-            SELECT DATE(created_at) as date, COUNT(*) as daily_count 
-            FROM bot_command_logs 
-            WHERE {global_where}
-            GROUP BY DATE(created_at)
+            SELECT DATE(l.created_at) as date, COUNT(*) as daily_count 
+            FROM bot_command_logs l
+            JOIN users u ON l.user_id = u.id
+            WHERE {where_str}
+            GROUP BY DATE(l.created_at)
             ORDER BY date ASC
             LIMIT 30
         """, params)
@@ -951,26 +958,17 @@ def get_command_analytics(
         for day in daily_usage:
             day['date'] = day['date'].strftime('%b %d') if hasattr(day['date'], 'strftime') else str(day['date'])
 
-        user_where = [c.replace("created_at", "l.created_at") for c in where_clauses]
-        user_params = list(params)
-        
-        if search:
-            search_term = f"%{search}%"
-            user_where.append("(u.name LIKE %s OR u.mobile LIKE %s)")
-            user_params.extend([search_term, search_term])
-            
-        u_where_str = " AND ".join(user_where)
-
+        # 4. Per User Data Breakdown
         cursor.execute(f"""
             SELECT u.id, u.name, u.mobile, u.profile_pic, COUNT(l.id) as total_commands,
                    GROUP_CONCAT(DISTINCT l.command SEPARATOR ', ') as used_commands
             FROM bot_command_logs l
             JOIN users u ON l.user_id = u.id
-            WHERE {u_where_str}
+            WHERE {where_str}
             GROUP BY u.id, u.name, u.mobile, u.profile_pic
             ORDER BY total_commands DESC
             LIMIT 50
-        """, user_params)
+        """, params)
         user_data = cursor.fetchall()
         
         max_user_cmd = max((row['total_commands'] for row in user_data), default=1)
@@ -983,8 +981,6 @@ def get_command_analytics(
             "user_data": user_data
         }
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Command Analytics Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch command analytics")
     finally:
