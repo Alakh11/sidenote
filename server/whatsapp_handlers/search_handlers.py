@@ -129,12 +129,23 @@ async def handle_search_command(phone: str, text: str):
             return
 
         cursor.execute("""
-            SELECT t.amount, t.note, t.type, t.date, c.name as cat_name
-            FROM transactions t
-            LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.user_id = %s AND (t.note LIKE %s OR c.name LIKE %s)
-            ORDER BY t.date DESC LIMIT 15
-        """, (user_id, f"%{query}%", f"%{query}%"))
+            SELECT id, name FROM categories 
+            WHERE user_id = %s AND LOWER(name) LIKE %s LIMIT 1
+        """, (user_id, f"%{query}%"))
+        cat_row = cursor.fetchone()
+        
+        if cat_row:
+            cat_id = cat_row['id']
+            cat_name = cat_row['name']
+            await handle_category_pagination(phone, user_id, cat_id, cat_name, offset=0)
+            return
+        
+        cursor.execute("""
+            SELECT amount, note, type, date 
+            FROM transactions 
+            WHERE user_id = %s AND note LIKE %s
+            ORDER BY date DESC LIMIT 15
+        """, (user_id, f"%{query}%"))
         
         transactions = cursor.fetchall()
         

@@ -143,7 +143,7 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
         tx_id = int(button_id.split("_")[1])
         log_bot_command(phone, 'undo')
         await handle_undo_action(phone, tx_id)
-    elif button_id.startswith("srch_cat_"):
+    elif button_id.startswith("srch_"):
         log_bot_command(phone, 'search_pagination')
         await handle_search_interactive(phone, button_id)
     else:
