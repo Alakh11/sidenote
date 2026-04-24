@@ -132,6 +132,20 @@ async def ensure_user_exists(phone: str, sender_name: str = "WhatsApp User") -> 
         return True
     return False
 
+def log_bot_command(phone: str, command: str):
+    """Quietly logs command usage for the Admin Analytics Panel."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        user_id = get_user_id(cursor, phone)
+        if user_id:
+            cursor.execute("INSERT INTO bot_command_logs (user_id, command) VALUES (%s, %s)", (user_id, command))
+            conn.commit()
+    except Exception as e:
+        pass
+    finally:
+        conn.close()
+
 async def handle_dynamic_replies(phone: str, incoming_text: str):
     incoming_text = incoming_text.lower().strip()
     conn = None
@@ -147,7 +161,9 @@ async def handle_dynamic_replies(phone: str, incoming_text: str):
             for row in mappings:
                 keywords = [k.strip() for k in row['trigger_keywords'].split(',')]
                 
-                if any(k == incoming_text or f" {k} " in f" {incoming_text} " for k in keywords):
+                matched_keyword = next((k for k in keywords if k == incoming_text or f" {k} " in f" {incoming_text} "), None)
+                
+                if matched_keyword:
                     reply_body = row['reply_text']
                     buttons = None
                     
@@ -160,6 +176,9 @@ async def handle_dynamic_replies(phone: str, incoming_text: str):
                         await send_whatsapp_interactive_buttons(phone, reply_body, buttons)
                     else:
                         await send_whatsapp_text(phone, reply_body)
+
+                    log_bot_command(phone, matched_keyword)
+                    
                     return True
         except Exception as e:
             print(f"Dynamic Reply Error: {e}")
@@ -178,18 +197,16 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
     if is_new and text in ['hi', 'hello', 'hey', 'start', 'begin', 'good morning', 'good evening', 'good afternoon', 'good night', 'good day', 'morning', 'evening', 'afternoon', 'night', 'day']:
         return
         
-    if text == CMD_MENU: await handle_menu_request(phone)
-    elif text == CMD_UNDO: await handle_undo_request(phone)
-    elif text == CMD_SUMMARY: await handle_summary_request(phone)
-    elif text == CMD_WEEK: await handle_weekly_request(phone)
-    elif text == CMD_MONTH: await handle_monthly_request(phone)
-    elif text == CMD_TODAY: await handle_today_request(phone)
-    elif text == CMD_MORE: await handle_more_request(phone)
-    elif text == CMD_HELP: 
-        await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!\n- Send a Voice Note!")
-    elif await handle_dynamic_replies(phone, text):
-        return
-    elif text.startswith(CMD_SET_BUDGET): await handle_budget_set(phone, text)
+    if text == CMD_MENU: log_bot_command(phone, 'menu'); await handle_menu_request(phone)
+    elif text == CMD_UNDO: log_bot_command(phone, 'undo'); await handle_undo_request(phone)
+    elif text == CMD_SUMMARY: log_bot_command(phone, 'summary'); await handle_summary_request(phone)
+    elif text == CMD_WEEK: log_bot_command(phone, 'week'); await handle_weekly_request(phone)
+    elif text == CMD_MONTH: log_bot_command(phone, 'month'); await handle_monthly_request(phone)
+    elif text == CMD_TODAY: log_bot_command(phone, 'today'); await handle_today_request(phone)
+    elif text == CMD_MORE: log_bot_command(phone, 'more'); await handle_more_request(phone)
+    elif text == CMD_HELP: log_bot_command(phone, 'help'); await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!\n- Send a Voice Note!")
+    elif text.startswith(CMD_SET_BUDGET): log_bot_command(phone, 'set_budget'); await handle_budget_set(phone, text)
+    
     else:
         if '\n' in text:
             lines = text.split('\n')
@@ -231,14 +248,17 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                     
                 await send_whatsapp_text(phone, summary_msg.strip())
             else:
-                await handle_fallback(phone, text)
+                if not await handle_dynamic_replies(phone, text):
+                    await handle_fallback(phone, text)
                 
         else:
             amount, item, explicit_inc, p_mode = extract_transaction_details(text)
+            
             if amount is not None:
                 await handle_transaction_entry(phone, amount, item, sender_name=sender_name, explicit_income=explicit_inc, payment_mode=p_mode)
             else:
-                await handle_fallback(phone, text)
+                if not await handle_dynamic_replies(phone, text):
+                    await handle_fallback(phone, text)
 
 async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
@@ -268,19 +288,19 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
     if is_duplicate(message_id): return
     
     await ensure_user_exists(phone, sender_name)
-    if await handle_dynamic_replies(phone, button_id):
-        return
-    if button_id == "cmd_summary": await handle_summary_request(phone)
-    elif button_id == "cmd_today": await handle_today_request(phone)
-    elif button_id == "cmd_more": await handle_more_request(phone)
-    elif button_id == "cmd_dashboard": await handle_dashboard_request(phone)
-    elif button_id == "cmd_month": await handle_monthly_request(phone)
-    elif button_id == "cmd_week": await handle_weekly_request(phone)
-    elif button_id == "cmd_help": 
-        await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!")
+    if button_id == "cmd_summary": log_bot_command(phone, 'summary'); await handle_summary_request(phone)
+    elif button_id == "cmd_today": log_bot_command(phone, 'today'); await handle_today_request(phone)
+    elif button_id == "cmd_more": log_bot_command(phone, 'more'); await handle_more_request(phone)
+    elif button_id == "cmd_dashboard": log_bot_command(phone, 'dashboard'); await handle_dashboard_request(phone)
+    elif button_id == "cmd_month": log_bot_command(phone, 'month'); await handle_monthly_request(phone)
+    elif button_id == "cmd_week": log_bot_command(phone, 'week'); await handle_weekly_request(phone)
+    elif button_id == "cmd_help": log_bot_command(phone, 'help'); await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!")
     elif button_id.startswith("del_"):
         tx_id = int(button_id.split("_")[1])
+        log_bot_command(phone, 'undo')
         await handle_undo_action(phone, tx_id)
+    else:
+        await handle_dynamic_replies(phone, button_id)
       
 async def handle_budget_set(phone: str, text: str):
     match = re.search(r'\d+(?:\.\d+)?', text)

@@ -1,5 +1,5 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List, Bot } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import UserFormModal from './components/UserFormModal';
@@ -11,6 +11,7 @@ import UserActivityRetention from './components/UserActivityRetention';
 import AdminNudgesView from './components/AdminNudgesView';
 import AdminAutoRepliesView from './components/AdminAutoRepliesView';
 import AdminCategoriesView from './components/AdminCategoriesView';
+import BotLogCommandHistory from './components/BotLogCommandHistory';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -41,7 +42,7 @@ export default function AdminPanel() {
 
   const [primaryTab, setPrimaryTab] = useState<PrimaryTab>('users');
   
-  const [userView, setUserView] = useState<'list' | 'activity'>('list');
+  const [userView, setUserView] = useState<'list' | 'activity' | 'bot-commands'>('list');
   const [botView, setBotView] = useState<'replies' | 'categories'>('replies');
   const [systemView, setSystemView] = useState<'metrics' | 'feedback'>('metrics');
   
@@ -214,10 +215,13 @@ export default function AdminPanel() {
                       <button onClick={() => setUserView('activity')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${userView === 'activity' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
                           <Activity size={14} className="shrink-0"/> Activity & Retention
                       </button>
+                      <button onClick={() => setUserView('bot-commands')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${userView === 'bot-commands' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <Bot size={14} className="shrink-0"/> Bot Command History
+                      </button>
                   </div>
               </div>
 
-              {userView === 'list' ? (
+              {userView === 'list' && (
                   <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-stone-100 dark:border-slate-800 shadow-sm overflow-hidden">
                       <div className="p-6 border-b border-stone-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 bg-stone-50/50 dark:bg-slate-800/50">
                           <div className="relative w-full md:max-w-xs">
@@ -348,9 +352,11 @@ export default function AdminPanel() {
                           </div>
                       </div>
                   </div>
-              ) : (
-                  <UserActivityRetention />
               )}
+              
+              {userView === 'activity' && <UserActivityRetention />}
+              {userView === 'bot-commands' && <BotLogCommandHistory />}
+
           </div>
       )}
 

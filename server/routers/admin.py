@@ -899,3 +899,44 @@ def delete_global_category(cat_id: int, admin_id: int = Depends(require_admin)):
         return {"message": "Category deleted"}
     finally:
         conn.close()
+        
+@router.get("/engagement/commands")
+def get_command_analytics(admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT command, COUNT(*) as usage_count 
+            FROM bot_command_logs 
+            WHERE created_at >= NOW() - INTERVAL 30 DAY
+            GROUP BY command 
+            ORDER BY usage_count DESC 
+            LIMIT 7
+        """)
+        top_commands = cursor.fetchall()
+        
+        total_uses = sum(row['usage_count'] for row in top_commands) if top_commands else 1
+        for cmd in top_commands:
+            cmd['percentage'] = round((cmd['usage_count'] / total_uses) * 100)
+
+        cursor.execute("""
+            SELECT DATE(created_at) as date, COUNT(*) as daily_count 
+            FROM bot_command_logs 
+            WHERE created_at >= NOW() - INTERVAL 14 DAY
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        """)
+        daily_usage = cursor.fetchall()
+
+        for day in daily_usage:
+            day['date'] = day['date'].strftime('%b %d')
+
+        return {
+            "top_commands": top_commands,
+            "daily_usage": daily_usage
+        }
+    except Exception as e:
+        logger.error(f"Command Analytics Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch command analytics")
+    finally:
+        conn.close()
