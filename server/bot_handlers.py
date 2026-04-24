@@ -372,20 +372,33 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             cat_color = "#94A3B8" if tx_type == "expense" else "#10B981"
             
             explicit_category_found = False
-            first_word = clean_item.split(' ')[0] if clean_item else ""
+            words = clean_item.split(' ') if clean_item else []
+            first_word = words[0].lower() if len(words) > 0 else ""
+            last_word = words[-1].lower() if len(words) > 1 else ""
             
             if global_cats:
                 for gc in global_cats:
                     gc_name = str(gc[0]) if isinstance(gc, tuple) else gc['name']
-                    if first_word.lower() == gc_name.lower():
+                    aliases = [gc_name.lower()]
+                    if "&" in gc_name:
+                        aliases.extend([a.strip().lower() for a in gc_name.split("&")])
+                        
+                    matched_word = None
+                    if first_word in aliases:
+                        matched_word = words[0]
+                    elif last_word in aliases:
+                        matched_word = words[-1]
+                        
+                    if matched_word:
                         target_category_name = gc_name
                         cat_icon = str(gc[2]) if isinstance(gc, tuple) else gc['icon']
                         cat_color = str(gc[3]) if isinstance(gc, tuple) else gc['color']
                         explicit_category_found = True
                         
-                        clean_item = clean_item[len(first_word):].strip("- =:, +").strip()
+                        clean_item = re.sub(r'\b' + re.escape(matched_word) + r'\b', '', clean_item, count=1, flags=re.IGNORECASE)
+                        clean_item = clean_item.strip("- =:, +").strip()
                         if not clean_item: 
-                            clean_item = gc_name
+                            clean_item = gc_name 
                         break
                 
                 if not explicit_category_found:
@@ -395,9 +408,14 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                         else:
                             gc_name, gc_keys, gc_icon, gc_color = gc['name'], gc['keywords'], gc['icon'], gc['color']
                         
-                        if not gc_keys or gc_keys.lower() == 'none': continue
+                        aliases = [gc_name.lower()]
+                        if "&" in gc_name:
+                            aliases.extend([a.strip().lower() for a in gc_name.split("&")])
                             
-                        kws = [k.strip().lower() for k in gc_keys.split(',')]
+                        kws = aliases
+                        if gc_keys and gc_keys.lower() != 'none':
+                            kws.extend([k.strip().lower() for k in gc_keys.split(',')])
+                            
                         if any(kw in item_lower for kw in kws):
                             target_category_name = gc_name
                             cat_icon = gc_icon or "📝"
