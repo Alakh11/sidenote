@@ -29,10 +29,19 @@ def is_duplicate(message_id: Optional[str]) -> bool:
     return False
 
 def extract_transaction_details(text: str):
-    """Smartly extracts the amount and item from a conversational string."""
+    """Smartly extracts the amount, item, and payment mode from a conversational string."""
     text_lower = text.lower().strip()
     
     is_explicit_income = bool(re.search(r'^\s*\+\s*(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)?\s*\d+', text_lower))
+    
+    payment_mode = "Cash"
+    mode_mappings = [('upi', 'UPI'), ('card', 'Card'), ('net banking', 'Net Banking'), ('cash', 'Cash')]
+    
+    for mode, formatted_mode in mode_mappings:
+        if re.search(r'\b' + mode + r'\b', text_lower):
+            payment_mode = formatted_mode
+            text_lower = re.sub(r'\b' + mode + r'\b', '', text_lower, count=1)
+            break
     
     text_clean = re.sub(r'(?<=\d)\s+(?=\d)', '', text_lower)
     text_clean = re.sub(r'(?<=\d),(?=\d)', '', text_clean)
@@ -45,7 +54,7 @@ def extract_transaction_details(text: str):
     else:
         numbers = re.findall(r'\d+(?:\.\d+)?', text_clean)
         if not numbers:
-            return None, text_clean, False
+            return None, text_clean, False, payment_mode
         amount_str = max(numbers, key=float)
         
     amount = float(amount_str)
@@ -60,7 +69,7 @@ def extract_transaction_details(text: str):
     item = re.sub(r'\s+(for|on)$', '', item).strip()
     item = item.strip("- =:, +")
     
-    return amount, item, is_explicit_income
+    return amount, item, is_explicit_income, payment_mode
 
 def get_user_id(cursor: Any, phone: str) -> int | None:
     """Fetches the user_id associated with the mobile number."""
@@ -192,10 +201,10 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
             for line in lines:
                 if not line.strip(): continue
                 
-                amount, item, explicit_inc = extract_transaction_details(line)
+                amount, item, explicit_inc, p_mode = extract_transaction_details(line)
                 
                 if amount is not None:
-                    is_saved = await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name, explicit_income=explicit_inc)
+                    is_saved = await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name, explicit_income=explicit_inc, payment_mode=p_mode)
                     
                     if is_saved:
                         if explicit_inc or any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
@@ -225,9 +234,9 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                 await handle_fallback(phone, text)
                 
         else:
-            amount, item, explicit_inc = extract_transaction_details(text)
+            amount, item, explicit_inc, p_mode = extract_transaction_details(text)
             if amount is not None:
-                await handle_transaction_entry(phone, amount, item, sender_name=sender_name, explicit_income=explicit_inc)
+                await handle_transaction_entry(phone, amount, item, sender_name=sender_name, explicit_income=explicit_inc, payment_mode=p_mode)
             else:
                 await handle_fallback(phone, text)
 
@@ -307,7 +316,7 @@ async def send_delayed_message(phone: str, msg: str, delay: int = 10):
     await asyncio.sleep(delay)
     await send_whatsapp_text(phone, msg)
 
-async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User", explicit_income: bool = False) -> bool:
+async def handle_transaction_entry(phone: str, amount: float, item: str, silent: bool = False, sender_name: str = "WhatsApp User", explicit_income: bool = False, payment_mode: str = "Cash") -> bool:
 
     clean_item = item.replace('\n', ', ').replace('\r', '')
     clean_item = re.sub(r'\s{2,}', ' ', clean_item)
@@ -362,21 +371,38 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             cat_icon = "📝"
             cat_color = "#94A3B8" if tx_type == "expense" else "#10B981"
             
+            explicit_category_found = False
+            first_word = clean_item.split(' ')[0] if clean_item else ""
+            
             if global_cats:
                 for gc in global_cats:
-                    if isinstance(gc, tuple):
-                        gc_name, gc_keys, gc_icon, gc_color = str(gc[0]), str(gc[1]), str(gc[2]), str(gc[3])
-                    else:
-                        gc_name, gc_keys, gc_icon, gc_color = gc['name'], gc['keywords'], gc['icon'], gc['color']
-                    
-                    if not gc_keys or gc_keys.lower() == 'none': continue
-                        
-                    kws = [k.strip().lower() for k in gc_keys.split(',')]
-                    if any(kw in item_lower for kw in kws):
+                    gc_name = str(gc[0]) if isinstance(gc, tuple) else gc['name']
+                    if first_word.lower() == gc_name.lower():
                         target_category_name = gc_name
-                        cat_icon = gc_icon or "📝"
-                        cat_color = gc_color or ("#6366F1" if tx_type == "expense" else "#10B981")
+                        cat_icon = str(gc[2]) if isinstance(gc, tuple) else gc['icon']
+                        cat_color = str(gc[3]) if isinstance(gc, tuple) else gc['color']
+                        explicit_category_found = True
+                        
+                        clean_item = clean_item[len(first_word):].strip("- =:, +").strip()
+                        if not clean_item: 
+                            clean_item = gc_name
                         break
+                
+                if not explicit_category_found:
+                    for gc in global_cats:
+                        if isinstance(gc, tuple):
+                            gc_name, gc_keys, gc_icon, gc_color = str(gc[0]), str(gc[1]), str(gc[2]), str(gc[3])
+                        else:
+                            gc_name, gc_keys, gc_icon, gc_color = gc['name'], gc['keywords'], gc['icon'], gc['color']
+                        
+                        if not gc_keys or gc_keys.lower() == 'none': continue
+                            
+                        kws = [k.strip().lower() for k in gc_keys.split(',')]
+                        if any(kw in item_lower for kw in kws):
+                            target_category_name = gc_name
+                            cat_icon = gc_icon or "📝"
+                            cat_color = gc_color or ("#6366F1" if tx_type == "expense" else "#10B981")
+                            break
             
             cursor.execute("""
                 SELECT id FROM categories 
@@ -398,8 +424,8 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             
             cursor.execute("""
                 INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) 
-                VALUES (%s, %s, %s, %s, NOW(), %s, 'Cash')
-            """, (user_id, amount, tx_type, clean_item, category_id))
+                VALUES (%s, %s, %s, %s, NOW(), %s, %s)
+            """, (user_id, amount, tx_type, clean_item, category_id, payment_mode))
             conn.commit()
             
             # Budget Check Logic
@@ -508,9 +534,19 @@ async def handle_undo_request(phone: str):
                 await send_whatsapp_text(phone, "You haven't made any entries today that can be undone.")
                 return
 
+            used_titles = set()
             for row in rows:
                 r = tuple(row)
-                title = f"❌ {float(str(r[1])):g} {str(r[2])}"[:20]
+                base_title = f"❌ {float(str(r[1])):g} {str(r[2])}"
+                title = base_title[:20]
+                
+                counter = 1
+                while title in used_titles:
+                    suffix = f" ({counter})"
+                    title = base_title[:20 - len(suffix)] + suffix
+                    counter += 1
+                    
+                used_titles.add(title)
                 buttons.append({"id": f"del_{str(r[0])}", "title": title})
                 
         except Exception as e:
