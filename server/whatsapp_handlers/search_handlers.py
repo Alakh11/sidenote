@@ -81,7 +81,7 @@ async def handle_search_command(phone: str, text: str):
                 inc = float(totals['total_inc'] or 0)
                 
                 msg = f"📊 *Overview for {month_name.capitalize()}*\n\n"
-                msg += f"💸 Total Expense: ₹{exp:g}\n"
+                msg += f" Total Expense: ₹{exp:g}\n"
                 msg += f"💰 Total Income: ₹{inc:g}\n\n"
                 msg += "Type `summary` for your current month charts."
                 await send_whatsapp_text(phone, msg)

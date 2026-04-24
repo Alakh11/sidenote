@@ -6,7 +6,7 @@ import logging, math
 from datetime import datetime, timedelta
 from utils import get_date_filter_sql
 import mysql.connector
-from tracking import track_event, link_web_and_whatsapp
+from tracking import track_event
 
 router = APIRouter(tags=["Transactions & Categories"])
 logger = logging.getLogger(__name__)
