@@ -223,10 +223,14 @@ def delete_category(id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute("DELETE FROM transactions WHERE category_id = %s", (id,))
+        cursor.execute("UPDATE transactions SET category_id = NULL WHERE category_id = %s", (id,))
+        
         cursor.execute("DELETE FROM categories WHERE id = %s", (id,))
         conn.commit()
-        return {"message": "Category deleted"}
+        return {"message": "Category deleted and transactions moved to Uncategorized"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
         
