@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Terminal, Activity, Search, Calendar, Users } from 'lucide-react';
 
-const COLORS = [
-    'bg-indigo-500', 
-    'bg-rose-500', 
-    'bg-amber-500', 
-    'bg-emerald-500', 
-    'bg-cyan-500', 
-    'bg-violet-500', 
-    'bg-pink-500'
-];
+const getColorByPercentage = (percent: number) => {
+    if (percent >= 90) return 'bg-rose-500';
+    if (percent >= 80) return 'bg-orange-500';
+    if (percent >= 70) return 'bg-amber-500';
+    if (percent >= 60) return 'bg-yellow-400';
+    if (percent >= 50) return 'bg-lime-500';
+    if (percent >= 40) return 'bg-emerald-500';
+    if (percent >= 30) return 'bg-teal-500';
+    if (percent >= 20) return 'bg-cyan-500';
+    if (percent >= 10) return 'bg-blue-500';
+    return 'bg-indigo-400';
+};
 
 export default function BotLogCommandHistory() {
     const [topCommands, setTopCommands] = useState<any[]>([]);
@@ -115,9 +118,9 @@ export default function BotLogCommandHistory() {
                                     <p className="text-stone-400 text-sm italic">No commands logged yet.</p>
                                 ) : (
                                     topCommands.map((cmd, idx) => {
-                                        const colorClass = COLORS[idx % COLORS.length];
+                                        const colorClass = getColorByPercentage(cmd.percentage);
                                         return (
-                                            <div key={idx} className="group">
+                                            <div key={idx} className="group cursor-default">
                                                 <div className="flex justify-between text-sm font-bold mb-2 text-stone-600 dark:text-slate-300">
                                                     <span className="uppercase tracking-wider">/{cmd.command}</span>
                                                     <div className="flex items-center gap-2">
@@ -153,12 +156,12 @@ export default function BotLogCommandHistory() {
                                 ) : (
                                     dailyUsage.map((day, idx) => {
                                         const heightPercent = (day.daily_count / maxDailyUses) * 100;
-                                        // Cycle through colors or use a gradient approach
-                                        const colorClass = COLORS[idx % COLORS.length]; 
+                                        const colorClass = getColorByPercentage(heightPercent); 
                                         return (
-                                            <div key={idx} className="relative flex-1 flex flex-col items-center group min-w-[20px]">
-                                                <div className="opacity-0 group-hover:opacity-100 absolute -top-10 bg-stone-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg transition-opacity whitespace-nowrap z-10 pointer-events-none">
-                                                    {day.daily_count} uses
+                                            <div key={idx} className="relative flex-1 flex flex-col items-center group min-w-[20px] cursor-pointer">
+                                                <div className="opacity-0 group-hover:opacity-100 absolute -top-12 bg-stone-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg transition-opacity whitespace-nowrap z-10 pointer-events-none flex flex-col items-center">
+                                                    <span>{day.daily_count} uses</span>
+                                                    <span className="text-stone-400 font-normal">{Math.round(heightPercent)}% of peak</span>
                                                 </div>
                                                 <div className="w-full bg-stone-100 dark:bg-slate-800 rounded-t-sm h-[140px] flex items-end transition-colors group-hover:bg-stone-200 dark:group-hover:bg-slate-700">
                                                     <div 
@@ -202,6 +205,7 @@ export default function BotLogCommandHistory() {
                                     ) : (
                                         userData.map((user) => {
                                             const isUrl = user.profile_pic && user.profile_pic.startsWith('http');
+                                            const colorClass = getColorByPercentage(user.percentage);
                                             return (
                                                 <tr key={user.id} className="hover:bg-stone-50 dark:hover:bg-slate-800/50 transition">
                                                     <td className="p-5 flex items-center gap-3">
@@ -218,7 +222,7 @@ export default function BotLogCommandHistory() {
                                                             <span className="font-bold text-stone-800 dark:text-slate-200 min-w-[30px]">{user.total_commands}</span>
                                                             <div className="w-full bg-stone-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden hidden sm:block">
                                                                 <div 
-                                                                    className="bg-blue-500 h-1.5 rounded-full"
+                                                                    className={`${colorClass} h-1.5 rounded-full`}
                                                                     style={{ width: `${user.percentage}%` }}
                                                                 ></div>
                                                             </div>

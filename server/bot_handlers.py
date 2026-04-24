@@ -144,7 +144,7 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
         log_bot_command(phone, 'undo')
         await handle_undo_action(phone, tx_id)
     elif button_id.startswith("srch_"):
-        log_bot_command(phone, 'search_pagination')
+        log_bot_command(phone, 'search')
         await handle_search_interactive(phone, button_id)
     else:
         await handle_dynamic_replies(phone, button_id)
