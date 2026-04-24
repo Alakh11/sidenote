@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, date
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons, get_whatsapp_media_url, download_whatsapp_media
 from ai_service import extract_receipt_data, extract_voice_data
 from constants import *
+from search_handlers import handle_search_command, handle_search_interactive
 
 db_semaphore = asyncio.Semaphore(20)
 
@@ -205,6 +206,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
     elif text == CMD_TODAY: log_bot_command(phone, 'today'); await handle_today_request(phone)
     elif text == CMD_MORE: log_bot_command(phone, 'more'); await handle_more_request(phone)
     elif text == CMD_HELP: log_bot_command(phone, 'help'); await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!\n- Send a Voice Note!")
+    elif text.startswith("search ") or text.startswith("find "): log_bot_command(phone, 'search');await handle_search_command(phone, text)
     elif text.startswith(CMD_SET_BUDGET): log_bot_command(phone, 'set_budget'); await handle_budget_set(phone, text)
     
     else:
@@ -299,6 +301,11 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
         tx_id = int(button_id.split("_")[1])
         log_bot_command(phone, 'undo')
         await handle_undo_action(phone, tx_id)
+        
+    elif button_id.startswith("srch_cat_"):
+        log_bot_command(phone, 'search_pagination')
+        await handle_search_interactive(phone, button_id)
+        
     else:
         await handle_dynamic_replies(phone, button_id)
       
