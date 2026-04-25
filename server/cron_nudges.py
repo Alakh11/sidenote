@@ -1,4 +1,4 @@
-import logging, os
+import logging, os, asyncio
 from datetime import datetime, timedelta, date
 import calendar
 from typing import Any
@@ -45,6 +45,8 @@ async def run_daily_nudges(target_rule: str = "all"):
         users = cursor.fetchall()
 
         for user in users:
+            await asyncio.sleep(0.01) 
+            
             user_id, mobile = int(user['id']), str(user['mobile'])
                 
             cursor.execute("SELECT MAX(date) as last_active FROM transactions WHERE user_id = %s", (user_id,))
