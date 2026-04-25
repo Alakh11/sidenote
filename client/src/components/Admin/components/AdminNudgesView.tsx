@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import MasterNudgeControl from './MasterNudgeControl';
 import RuleEngineGrid from './RuleEngineGrid';
 import AutomatedNudgeHistory from './AutomatedNudgeHistory';
 import RuleFormModal from './RuleFormModal';
@@ -13,8 +12,6 @@ export default function AdminNudgesView() {
 
     const [activeSubTab, setActiveSubTab] = useState<'rules' | 'history'>('rules');
 
-    const [cronStatus, setCronStatus] = useState<{status: 'running' | 'paused' | 'offline', next_run: string | null}>({ status: 'offline', next_run: null });
-    const [togglingCron, setTogglingCron] = useState(false);
     const [rules, setRules] = useState<any[]>([]);
     const [loadingRules, setLoadingRules] = useState(true);
 
@@ -28,27 +25,7 @@ export default function AdminNudgesView() {
     const [nudgeSortBy, setNudgeSortBy] = useState('sent_at');
     const [nudgeSortOrder, setNudgeSortOrder] = useState('DESC');
 
-
-    const formatTime = (dateString: string) => {
-        if (!dateString || dateString === 'None' || dateString === 'Paused') return 'N/A';
-        const safeString = dateString.replace(' ', 'T');
-        return new Date(safeString).toLocaleString('en-IN', { 
-            day: 'numeric', 
-            month: 'short', 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-    };
-
     // --- API Fetchers ---
-    const fetchCronStatus = useCallback(async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/admin/engagement/cron-status`, { headers: { Authorization: `Bearer ${token}` } });
-            setCronStatus({ status: res.data.status, next_run: res.data.next_run });
-        } catch (error) { }
-    }, []);
-
     const fetchRules = useCallback(async () => {
         setLoadingRules(true);
         try {
@@ -71,10 +48,9 @@ export default function AdminNudgesView() {
     }, [nudgePage, nudgeSortBy, nudgeSortOrder]);
 
     useEffect(() => {
-        fetchCronStatus();
         fetchRules();
         fetchNudges();
-    }, [fetchCronStatus, fetchRules, fetchNudges]);
+    }, [fetchRules, fetchNudges]);
 
     const handleNudgeSort = (field: string) => {
         if (nudgeSortBy === field) {
@@ -86,16 +62,6 @@ export default function AdminNudgesView() {
     };
 
     // --- Actions ---
-    const handleToggleCron = async () => {
-        setTogglingCron(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/admin/engagement/cron-toggle`, {}, { headers: { Authorization: `Bearer ${token}` } });
-            setCronStatus({ status: res.data.status, next_run: res.data.next_run });
-        } catch (error: any) { alert("Failed to toggle engine."); }
-        setTogglingCron(false);
-    };
-
     const handleToggleRule = async (ruleName: string, currentStatus: boolean) => {
         setRules(prevRules => prevRules.map(rule => 
             rule.rule_name === ruleName ? { ...rule, is_active: !currentStatus } : rule
@@ -121,17 +87,6 @@ export default function AdminNudgesView() {
             alert(res.data.message);
             setTimeout(() => { setNudgePage(1); fetchNudges(); fetchRules(); setIsTriggering(false); }, 1500);
         } catch (error: any) { alert(error.response?.data?.detail || "Failed."); setIsTriggering(false); }
-    };
-
-    const handleFlushAndTrigger = async () => {
-        if (!confirm("ADMIN ACTION: Delete all previous logs and run fresh? This cannot be undone.")) return;
-        setIsTriggering(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/admin/engagement/flush-and-trigger`, {}, { headers: { Authorization: `Bearer ${token}` } });
-            alert(res.data.message);
-            setTimeout(() => { setNudgePage(1); fetchNudges(); fetchRules(); setIsTriggering(false); }, 2500);
-        } catch (error: any) { alert(error.response?.data?.detail || "Denied."); setIsTriggering(false); }
     };
 
     const handleSaveRule = async (data: any) => {
@@ -177,27 +132,6 @@ export default function AdminNudgesView() {
 
             {activeSubTab === 'rules' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
-                    
-                    <div className="relative">
-                        {cronStatus.next_run && cronStatus.status === 'running' && (
-                            <div className="flex justify-end mb-2">
-                                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 px-3 py-1 rounded-full font-mono shadow-sm flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Next run: {formatTime(cronStatus.next_run)}
-                                </span>
-                            </div>
-                        )}
-                        
-                        <MasterNudgeControl
-                            cronStatus={cronStatus.status as any} 
-                            togglingCron={togglingCron}
-                            isTriggering={isTriggering}
-                            onToggleCron={handleToggleCron}
-                            onForceFireAll={() => handleForceFireRule('all')}
-                            onFlushAndTrigger={handleFlushAndTrigger}
-                        />
-                    </div>
-
                     <RuleEngineGrid
                         rules={rules} 
                         loadingRules={loadingRules} 
