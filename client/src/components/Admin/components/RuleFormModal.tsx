@@ -11,19 +11,35 @@ export default function RuleFormModal({ onClose, onSave, editingRule }: any) {
         hours_max: 0,
         bypass_limits: false,
         is_active: true,
-        variables_required: ''
+        variables_required: '',
+        schedule_time: '10:00',
+        schedule_day: 'Monday'
     });
 
     useEffect(() => {
         if (editingRule) setFormData({
             ...editingRule,
             rule_type: editingRule.rule_type || 'inactivity',
-            variables_required: editingRule.variables_required || ''
+            variables_required: editingRule.variables_required || '',
+            schedule_time: editingRule.schedule_time || '10:00',
+            schedule_day: editingRule.schedule_day || 'Monday'
         });
     }, [editingRule]);
 
-    const handleSubmit = () => onSave(formData);
+    const handleSubmit = () => {
+        const payload = { ...formData };
+        if (['daily', 'weekly', 'monthly'].includes(payload.rule_type)) {
+            payload.hours_min = 0;
+            payload.hours_max = 0;
+        } else {
+            payload.schedule_time = '';
+            payload.schedule_day = '';
+        }
+        onSave(payload);
+    };
+    
     const isTimeBased = formData.rule_type === 'inactivity' || formData.rule_type === 'onboarding';
+    const isScheduled = formData.rule_type === 'daily' || formData.rule_type === 'weekly' || formData.rule_type === 'monthly';
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -58,6 +74,7 @@ export default function RuleFormModal({ onClose, onSave, editingRule }: any) {
                             <select className="w-full p-3 mt-1 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={formData.rule_type} onChange={e => setFormData({...formData, rule_type: e.target.value})}>
                                 <option value="inactivity">Standard Inactivity</option>
                                 <option value="onboarding">Onboarding</option>
+                                <option value="daily">Scheduled (Daily)</option>
                                 <option value="weekly">Scheduled (Weekly)</option>
                                 <option value="monthly">Scheduled (Monthly)</option>
                             </select>
@@ -71,7 +88,7 @@ export default function RuleFormModal({ onClose, onSave, editingRule }: any) {
                     </div>
 
                     {isTimeBased && (
-                        <div className="grid grid-cols-2 gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                        <div className="grid grid-cols-2 gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800 animate-in fade-in slide-in-from-top-2">
                             <div>
                                 <label className="text-xs font-bold uppercase text-indigo-400 ml-1">Min Inactive Hours</label>
                                 <input type="number" step="0.5" className="w-full p-3 mt-1 bg-white border border-indigo-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={formData.hours_min} onChange={e => setFormData({...formData, hours_min: parseFloat(e.target.value)})} />
@@ -80,6 +97,31 @@ export default function RuleFormModal({ onClose, onSave, editingRule }: any) {
                                 <label className="text-xs font-bold uppercase text-indigo-400 ml-1">Max Inactive Hours</label>
                                 <input type="number" step="0.5" className="w-full p-3 mt-1 bg-white border border-indigo-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={formData.hours_max} onChange={e => setFormData({...formData, hours_max: parseFloat(e.target.value)})} />
                             </div>
+                        </div>
+                    )}
+
+                    {isScheduled && (
+                        <div className="grid grid-cols-2 gap-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800 animate-in fade-in slide-in-from-top-2">
+                            <div>
+                                <label className="text-xs font-bold uppercase text-emerald-500 ml-1">Time of Day</label>
+                                <input type="time" className="w-full p-3 mt-1 bg-white border border-emerald-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={formData.schedule_time} onChange={e => setFormData({...formData, schedule_time: e.target.value})} />
+                            </div>
+                            
+                            {formData.rule_type === 'weekly' && (
+                                <div>
+                                    <label className="text-xs font-bold uppercase text-emerald-500 ml-1">Day of Week</label>
+                                    <select className="w-full p-3 mt-1 bg-white border border-emerald-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={formData.schedule_day} onChange={e => setFormData({...formData, schedule_day: e.target.value})}>
+                                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
+                            {formData.rule_type === 'monthly' && (
+                                <div>
+                                    <label className="text-xs font-bold uppercase text-emerald-500 ml-1">Day of Month</label>
+                                    <input type="number" min="1" max="31" placeholder="e.g., 1 or 15" className="w-full p-3 mt-1 bg-white border border-emerald-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={formData.schedule_day} onChange={e => setFormData({...formData, schedule_day: e.target.value})} />
+                                </div>
+                            )}
                         </div>
                     )}
 

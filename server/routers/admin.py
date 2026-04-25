@@ -715,6 +715,19 @@ def toggle_cron_engine(request: Request, admin_id: int = Depends(require_admin))
     
 class ToggleRulePayload(BaseModel):
     is_active: bool
+    
+class RulePayload(BaseModel):
+    rule_name: str
+    template_name: str
+    description: str
+    rule_type: str = "inactivity"
+    hours_min: float = 0
+    hours_max: float = 0
+    bypass_limits: bool = False
+    is_active: bool = True
+    variables_required: str = ""
+    schedule_time: Optional[str] = None
+    schedule_day: Optional[str] = None
 
 @router.get("/engagement/rules")
 def get_nudge_rules(admin_id: int = Depends(require_admin)):
@@ -725,12 +738,14 @@ def get_nudge_rules(admin_id: int = Depends(require_admin)):
             SELECT ns.id, ns.rule_name, ns.template_name, ns.rule_type, 
                    ns.hours_min, ns.hours_max, ns.bypass_limits, 
                    ns.is_active, ns.description, ns.variables_required,
+                   ns.schedule_time, ns.schedule_day,
                    COUNT(am.id) as `30d_sends`
             FROM nudge_settings ns
             LEFT JOIN automated_messages am ON ns.rule_name = am.trigger_reason AND am.sent_at >= NOW() - INTERVAL 30 DAY
             GROUP BY ns.id, ns.rule_name, ns.template_name, ns.rule_type, 
                      ns.hours_min, ns.hours_max, ns.bypass_limits, 
-                     ns.is_active, ns.description, ns.variables_required
+                     ns.is_active, ns.description, ns.variables_required,
+                     ns.schedule_time, ns.schedule_day
             ORDER BY ns.id ASC
         """)
         return cursor.fetchall()
@@ -748,16 +763,6 @@ def toggle_nudge_rule(rule_name: str, payload: ToggleRulePayload, admin_id: int 
     finally:
         conn.close()
         
-class RulePayload(BaseModel):
-    rule_name: str
-    template_name: str
-    description: str
-    rule_type: str = "inactivity"
-    hours_min: float = 0
-    hours_max: float = 0
-    bypass_limits: bool = False
-    is_active: bool = True
-    variables_required: str = ""
 
 @router.post("/engagement/rules")
 def create_nudge_rule(payload: RulePayload, admin_id: int = Depends(require_admin)):
@@ -765,9 +770,10 @@ def create_nudge_rule(payload: RulePayload, admin_id: int = Depends(require_admi
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO nudge_settings (rule_name, template_name, description, rule_type, hours_min, hours_max, bypass_limits, is_active, variables_required)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (payload.rule_name, payload.template_name, payload.description, payload.rule_type, payload.hours_min, payload.hours_max, payload.bypass_limits, payload.is_active, payload.variables_required))
+            INSERT INTO nudge_settings 
+            (rule_name, template_name, description, rule_type, hours_min, hours_max, bypass_limits, is_active, variables_required, schedule_time, schedule_day)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (payload.rule_name, payload.template_name, payload.description, payload.rule_type, payload.hours_min, payload.hours_max, payload.bypass_limits, payload.is_active, payload.variables_required, payload.schedule_time, payload.schedule_day))
         conn.commit()
         return {"message": "Rule created successfully!"}
     except Exception as e:
@@ -783,9 +789,10 @@ def edit_nudge_rule(rule_id: int, payload: RulePayload, admin_id: int = Depends(
     try:
         cursor.execute("""
             UPDATE nudge_settings 
-            SET rule_name=%s, template_name=%s, description=%s, rule_type=%s, hours_min=%s, hours_max=%s, bypass_limits=%s, is_active=%s, variables_required=%s
+            SET rule_name=%s, template_name=%s, description=%s, rule_type=%s, hours_min=%s, hours_max=%s, 
+                bypass_limits=%s, is_active=%s, variables_required=%s, schedule_time=%s, schedule_day=%s
             WHERE id=%s
-        """, (payload.rule_name, payload.template_name, payload.description, payload.rule_type, payload.hours_min, payload.hours_max, payload.bypass_limits, payload.is_active, payload.variables_required, rule_id))
+        """, (payload.rule_name, payload.template_name, payload.description, payload.rule_type, payload.hours_min, payload.hours_max, payload.bypass_limits, payload.is_active, payload.variables_required, payload.schedule_time, payload.schedule_day, rule_id))
         conn.commit()
         return {"message": "Rule updated successfully!"}
     finally:

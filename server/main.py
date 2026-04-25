@@ -211,6 +211,35 @@ def init_db():
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
+        
+        # 11. System Settings (Master variables)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(50) UNIQUE NOT NULL,
+                setting_value VARCHAR(255) NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+
+        # 12. Nudge Settings (The Rule Engine)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS nudge_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                rule_name VARCHAR(50) UNIQUE NOT NULL,
+                template_name VARCHAR(100) NOT NULL,
+                description TEXT,
+                rule_type VARCHAR(20) DEFAULT 'inactivity',
+                hours_min FLOAT DEFAULT 0,
+                hours_max FLOAT DEFAULT 0,
+                bypass_limits BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE,
+                variables_required VARCHAR(255),
+                schedule_time VARCHAR(10) DEFAULT '10:00',
+                schedule_day VARCHAR(20) DEFAULT 'Monday',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
         conn.close()
         logger.info("Database and Tables initialized successfully")
@@ -221,7 +250,7 @@ def init_db():
 @app.on_event("startup")
 def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=ist_timezone)
-    scheduler.add_job(run_daily_nudges, 'interval', minutes=15, id='nudge_engine')
+    scheduler.add_job(run_daily_nudges, 'interval', minutes=30, id='nudge_engine')
     scheduler.start()
     app.state.scheduler = scheduler
     

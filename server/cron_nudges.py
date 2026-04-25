@@ -17,11 +17,12 @@ async def run_daily_nudges(target_rule: str = "all"):
         now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         today = now.date()
         
+        current_day_name = calendar.day_name[today.weekday()]
+        current_day_num = today.day
+        last_day_of_month = calendar.monthrange(today.year, today.month)[1]
+        
         cursor.execute("SELECT * FROM nudge_settings WHERE is_active = TRUE ORDER BY hours_min DESC")
         active_rules = cursor.fetchall()
-        
-        is_sunday = today.weekday() == 6
-        is_month_end = today.day == calendar.monthrange(today.year, today.month)[1]
 
         cursor.execute("SELECT id, name, mobile, created_at FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL")
         users = cursor.fetchall()
@@ -50,7 +51,6 @@ async def run_daily_nudges(target_rule: str = "all"):
             else: continue
                 
             hours_inactive = (now - last_active).total_seconds() / 3600.0
-            if hours_inactive > 200 or hours_inactive <= 0: continue
 
             cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND DATE(sent_at) = CURDATE()", (user_id,))
             daily_limit_reached = cursor.fetchone().get('count', 0) >= 1
@@ -67,34 +67,67 @@ async def run_daily_nudges(target_rule: str = "all"):
             for rule in active_rules:
                 if target_rule != "all" and target_rule != rule['rule_name']: continue
                 var_req = rule.get('variables_required') or ""
-
-                if rule['rule_type'] == 'monthly' and is_month_end and now.hour == 22:
-                    template_name = rule['template_name']
-                    cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND template_name = %s AND DATE(sent_at) = CURDATE()", (user_id, template_name))
-                    if cursor.fetchone().get('count', 0) == 0:
-                        try:
-                            await handle_monthly_request(mobile, is_end_of_month=True, template_name=template_name)
-                            cursor.execute("INSERT INTO automated_messages (user_id, template_name, trigger_reason, sent_at) VALUES (%s, %s, %s, NOW())", (user_id, template_name, rule['rule_name']))
-                            conn.commit()
-                            logger.info(f"Fired {template_name} (Monthly) to User {user_id}")
-                        except Exception as e:
-                            logger.error(f"Failed to send {template_name} to User {user_id}: {e}")
-                            conn.rollback()
-                            
-                    template_to_send = None
-                    break
-                    
-                elif rule['rule_type'] == 'weekly' and is_sunday and now.hour == 19:
-                    template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
-                    break
+                rule_type = rule.get('rule_type', 'inactivity')
                 
-                elif rule['rule_type'] == 'onboarding' and not has_transactions:
+                try:
+                    time_str = str(rule.get('schedule_time', '10:00'))
+                    target_hour = int(time_str.split(':')[0])
+                    target_minute = int(time_str.split(':')[1]) if ':' in time_str else 0
+                except:
+                    target_hour, target_minute = 10, 0
+
+                target_mins = (target_hour * 60) + target_minute
+                now_mins = (now.hour * 60) + now.minute
+                
+                time_diff = now_mins - target_mins
+                if time_diff < 0: time_diff += 24 * 60 
+                
+                is_time_match = 0 <= time_diff < 30
+
+                if rule_type == 'monthly':
+                    try:
+                        target_day = int(rule.get('schedule_day', last_day_of_month))
+                    except:
+                        target_day = last_day_of_month
+                        
+                    is_target_day = (current_day_num == target_day) or (target_day >= last_day_of_month and current_day_num == last_day_of_month)
+                    
+                    if is_target_day and is_time_match:
+                        template_name = rule['template_name']
+                        cursor.execute("SELECT COUNT(*) as count FROM automated_messages WHERE user_id = %s AND template_name = %s AND DATE(sent_at) = CURDATE()", (user_id, template_name))
+                        if cursor.fetchone().get('count', 0) == 0:
+                            try:
+                                await handle_monthly_request(mobile, is_end_of_month=True, template_name=template_name)
+                                cursor.execute("INSERT INTO automated_messages (user_id, template_name, trigger_reason, sent_at) VALUES (%s, %s, %s, NOW())", (user_id, template_name, rule['rule_name']))
+                                conn.commit()
+                                logger.info(f"Fired {template_name} (Monthly) to User {user_id}")
+                            except Exception as e:
+                                logger.error(f"Failed to send {template_name} to User {user_id}: {e}")
+                                conn.rollback()
+                                
+                        template_to_send = None
+                        break
+                        
+                elif rule_type == 'weekly':
+                    target_day_name = rule.get('schedule_day', 'Monday')
+                    if current_day_name == target_day_name and is_time_match:
+                        template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
+                        break
+                
+                elif rule_type == 'daily':
+                    if is_time_match:
+                        template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
+                        break
+                
+                if hours_inactive > 200 or hours_inactive <= 0: continue
+
+                if rule_type == 'onboarding' and not has_transactions:
                     if rule['hours_min'] <= hours_inactive < rule['hours_max']:
                         if not rule['bypass_limits'] and (daily_limit_reached or weekly_limit_reached): continue
                         template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
                         break
 
-                elif rule['rule_type'] == 'inactivity':
+                elif rule_type == 'inactivity':
                     if rule['hours_min'] <= hours_inactive < rule['hours_max']:
                         if not rule['bypass_limits'] and (daily_limit_reached or weekly_limit_reached): continue
                         template_to_send, trigger_reason, dynamic_vars_string = rule['template_name'], rule['rule_name'], var_req
