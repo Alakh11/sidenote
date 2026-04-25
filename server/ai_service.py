@@ -11,7 +11,7 @@ logger = logging.getLogger("uvicorn")
 def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        logger.error("AI Error: GEMINI_API_KEY is missing.")
+        logger.error("Error: GEMINI_API_KEY is missing.")
         return None
 
     try:
@@ -35,7 +35,7 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
         )
         
         if not response or not response.text:
-            logger.error("AI Error: Empty response text.")
+            logger.error("Error: Empty response text.")
             return None
 
         clean_text = response.text.strip()
@@ -49,7 +49,7 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
         return dict(json.loads(clean_text))
         
     except Exception as e:
-        logger.error(f"AI Receipt Parsing Error: {e}")
+        logger.error(f" Receipt Parsing Error: {e}")
         return None
     
 def extract_voice_data(audio_bytes: bytes, mime_type: str = "audio/ogg") -> dict | None:
@@ -79,5 +79,5 @@ def extract_voice_data(audio_bytes: bytes, mime_type: str = "audio/ogg") -> dict
         return json.loads(clean_text)
         
     except Exception as e:
-        logger.error(f"Voice AI Error: {e}")
+        logger.error(f"Voice Parsing Error: {e}")
         return None

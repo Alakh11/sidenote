@@ -99,7 +99,7 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, mess
     if receipt_data and 'amount' in receipt_data and 'item' in receipt_data:
         amount = float(receipt_data['amount'])
         item = str(receipt_data['item'])
-        print(f"🤖 AI Successfully Extracted: ₹{amount} for {item}")
+        print(f"Data Successfully Extracted: ₹{amount} for {item}")
         await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
     else:
         await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read that receipt.")
