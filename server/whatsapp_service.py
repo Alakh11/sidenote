@@ -195,3 +195,30 @@ async def download_whatsapp_media(media_url: str) -> bytes | None:
         except Exception as e:
             logger.error(f"Failed to download Media: {e}")
             return None
+        
+
+async def upload_whatsapp_media(file_bytes: bytes, mime_type: str, filename: str) -> str | None:
+    """Uploads a local file to Meta's servers and returns the secure media_id."""
+    url = f"https://graph.facebook.com/v23.0/{WA_PHONE_ID}/media"
+    headers = {"Authorization": f"Bearer {WA_TOKEN}"}
+    
+    files = {
+        'file': (filename, file_bytes, mime_type)
+    }
+    data = {
+        'messaging_product': 'whatsapp'
+    }
+    
+    async with outbound_semaphore:
+        try:
+            response = await http_client.post(url, headers=headers, data=data, files=files)
+            response.raise_for_status()
+            media_id = response.json().get('id')
+            logger.info(f"Successfully uploaded media to Meta. ID: {media_id}")
+            return str(media_id)
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Meta Media Upload Error: {e.response.text}")
+            return None
+        except Exception as e:
+            logger.error(f"Meta Media Upload Network Error: {repr(e)}")
+            return None

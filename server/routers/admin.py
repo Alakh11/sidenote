@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request, File, UploadFile
 from typing import Any, Optional, List
 from database import get_db
 from security import require_admin, pwd_context
@@ -6,7 +6,7 @@ from schemas import UserRegister, AdminUpdateUser
 import logging, os
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_media
+from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_media, upload_whatsapp_media
 from cron_nudges import run_daily_nudges
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
@@ -420,6 +420,33 @@ class BroadcastPayload(BaseModel):
     filename: Optional[str] = None
     target_user_ids: list[int] = []
     audience: str = "all"
+    
+@router.post("/broadcast/upload-media")
+async def upload_media_for_broadcast(
+    file: UploadFile = File(...), 
+    admin_id: int = Depends(require_admin)
+):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
+        admin_data: Any = cursor.fetchone()
+        if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
+             raise HTTPException(status_code=403, detail="Permission denied.")
+
+        file_bytes = await file.read()
+        
+        mime_type = file.content_type or "application/octet-stream"
+        filename = file.filename or "uploaded_file"
+        
+        media_id = await upload_whatsapp_media(file_bytes, mime_type, filename)
+        
+        if not media_id:
+            raise HTTPException(status_code=500, detail="Failed to upload media to WhatsApp servers.")
+            
+        return {"media_id": media_id, "message": "File uploaded successfully"}
+    finally:
+        conn.close()
 
 @router.post("/broadcast")
 async def broadcast_whatsapp_message(
@@ -443,30 +470,26 @@ async def broadcast_whatsapp_message(
         if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
              raise HTTPException(status_code=403, detail="You do not have permission to send broadcasts.")
 
+        query = "SELECT DISTINCT u.mobile FROM users u "
         params: list[Any] = []
         
         if payload.audience == "active_24h":
-            query = """
-                SELECT DISTINCT u.mobile 
-                FROM users u
-                JOIN transactions t ON u.id = t.user_id
-                WHERE u.is_verified = TRUE 
-                AND u.mobile IS NOT NULL 
-                AND t.date >= NOW() - INTERVAL 24 HOUR
-            """
+            query += "JOIN transactions t ON u.id = t.user_id "
+            query += "WHERE u.is_verified = TRUE AND u.mobile IS NOT NULL "
+            query += "AND t.date >= NOW() - INTERVAL 24 HOUR "
         else:
-            query = "SELECT mobile FROM users WHERE is_verified = TRUE AND mobile IS NOT NULL"
+            query += "WHERE u.is_verified = TRUE AND u.mobile IS NOT NULL "
             
-            if payload.target_user_ids:
-                format_strings = ','.join(['%s'] * len(payload.target_user_ids))
-                query += f" AND id IN ({format_strings})"
-                params.extend(payload.target_user_ids)
+        if payload.target_user_ids:
+            format_strings = ','.join(['%s'] * len(payload.target_user_ids))
+            query += f" AND u.id IN ({format_strings})"
+            params.extend(payload.target_user_ids)
 
         cursor.execute(query, params)
         users = cursor.fetchall()
         
         if not users:
-            raise HTTPException(status_code=400, detail="No users found matching this criteria.")
+            raise HTTPException(status_code=400, detail="No active users found matching this criteria.")
         
         queued_count = 0
         for u in users:

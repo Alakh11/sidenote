@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, Clock, Image as ImageIcon, FileText, Video, Mic } from 'lucide-react';
+import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, Clock, Image as ImageIcon, FileText, Video, Mic, Link, UploadCloud } from 'lucide-react';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -9,15 +9,14 @@ type MessageType = 'template' | 'text' | 'image' | 'document' | 'video' | 'audio
 export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: () => void, selectedUserIds: number[] }) {
     const [messageType, setMessageType] = useState<MessageType>('template');
     
-    // Template State
-    const [templateName, setTemplateName] = useState('sidenote_welcome_v1');
+    const [templateName, setTemplateName] = useState('account_activation_v1');
     const [variables, setVariables] = useState('');
-    
-    // Text State
     const [messageText, setMessageText] = useState('');
     
     // Media State
+    const [mediaSource, setMediaSource] = useState<'url' | 'upload'>('url');
     const [mediaLink, setMediaLink] = useState('');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [caption, setCaption] = useState('');
     const [filename, setFilename] = useState('');
     
@@ -25,6 +24,9 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
     const [sendToAll, setSendToAll] = useState(selectedUserIds.length === 0);
     const [audienceFilter, setAudienceFilter] = useState<'all' | 'active_24h'>('all');
     const [loading, setLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState('');
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (messageType !== 'template') {
@@ -39,14 +41,37 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
+            let finalMediaId = null;
+
+            if (['image', 'document', 'video', 'audio'].includes(messageType) && mediaSource === 'upload') {
+                if (!selectedFile) {
+                    alert("Please select a file first.");
+                    setLoading(false);
+                    return;
+                }
+                setUploadProgress('Uploading to WhatsApp...');
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const uploadRes = await axios.post(`${API_URL}/admin/broadcast/upload-media`, formData, {
+                    headers: { 
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                finalMediaId = uploadRes.data.media_id;
+            }
+
+            setUploadProgress('Queuing Broadcast...');
             const payload = {
                 message_type: messageType,
                 template_name: messageType === 'template' ? templateName : null,
                 variables: messageType === 'template' && variables.trim() ? variables.split(',').map(s => s.trim()) : [],
                 message_text: messageType === 'text' ? messageText : null,
-                media_link: ['image', 'document', 'video', 'audio'].includes(messageType) ? mediaLink : null,
+                media_link: mediaSource === 'url' ? mediaLink : null,
+                media_id: finalMediaId,
                 caption: ['image', 'document', 'video'].includes(messageType) ? caption : null,
-                filename: messageType === 'document' ? filename : null,
+                filename: messageType === 'document' ? (filename || selectedFile?.name) : null,
                 target_user_ids: sendToAll ? [] : selectedUserIds,
                 audience: audienceFilter
             };
@@ -60,6 +85,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
             alert(e.response?.data?.detail || "Broadcast failed");
         } finally {
             setLoading(false);
+            setUploadProgress('');
         }
     };
 
@@ -147,7 +173,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                                 Templates apply standard Meta billing rates. Ideal for reactivating users outside the 24h window.
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs font-bold uppercase text-stone-400 ml-1">Template Name (Meta API)</label>
+                                <label className="text-xs font-bold uppercase text-stone-400 ml-1">Template Name</label>
                                 <input 
                                     className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition font-mono text-sm" 
                                     value={templateName} 
@@ -186,7 +212,6 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                         </div>
                     )}
 
-                    {/* 3. MEDIA FIELDS */}
                     {['image', 'document', 'video', 'audio'].includes(messageType) && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300 font-medium flex items-start gap-2">
@@ -194,23 +219,45 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                                 <span>Media messages bypass Meta's template billing, but will <strong>FAIL</strong> if sent to users outside the 24-hour service window.</span>
                             </div>
                             
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold uppercase text-stone-400 ml-1">Media URL (Public Link)</label>
-                                <input 
-                                    type="url"
-                                    className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm" 
-                                    placeholder={`https://example.com/file.${messageType === 'document' ? 'pdf' : messageType === 'image' ? 'jpg' : 'mp4'}`}
-                                    value={mediaLink} 
-                                    onChange={e => setMediaLink(e.target.value)} 
-                                />
+                            <div className="flex gap-2 p-1 bg-stone-100 dark:bg-slate-800 rounded-xl">
+                                <button type="button" onClick={() => setMediaSource('url')} className={`flex-1 py-2 flex items-center justify-center gap-2 text-xs font-bold rounded-lg transition ${mediaSource === 'url' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}>
+                                    <Link size={14} /> Public Link
+                                </button>
+                                <button type="button" onClick={() => setMediaSource('upload')} className={`flex-1 py-2 flex items-center justify-center gap-2 text-xs font-bold rounded-lg transition ${mediaSource === 'upload' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}>
+                                    <UploadCloud size={14} /> Upload File
+                                </button>
                             </div>
+
+                            {mediaSource === 'url' ? (
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold uppercase text-stone-400 ml-1">Media URL</label>
+                                    <input 
+                                        type="url" 
+                                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm" 
+                                        placeholder={`https://example.com/file.${messageType === 'document' ? 'pdf' : messageType === 'image' ? 'jpg' : 'mp4'}`} 
+                                        value={mediaLink} 
+                                        onChange={e => setMediaLink(e.target.value)} 
+                                    />
+                                </div>
+                            ) : (
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold uppercase text-stone-400 ml-1">Select File</label>
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef}
+                                        onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
+                                        className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" 
+                                    />
+                                    {selectedFile && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 ml-2 mt-1">Ready to upload: {selectedFile.name}</p>}
+                                </div>
+                            )}
 
                             {['image', 'document', 'video'].includes(messageType) && (
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold uppercase text-stone-400 ml-1">Caption (Optional)</label>
                                     <input 
-                                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm" 
-                                        placeholder="Add a message..."
+                                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm" 
+                                        placeholder="Add a message..." 
                                         value={caption} 
                                         onChange={e => setCaption(e.target.value)} 
                                     />
@@ -221,8 +268,8 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold uppercase text-stone-400 ml-1">Custom Filename (Optional)</label>
                                     <input 
-                                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm font-mono" 
-                                        placeholder="e.g., Monthly_Report.pdf"
+                                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono" 
+                                        placeholder="e.g., Monthly_Report.pdf" 
                                         value={filename} 
                                         onChange={e => setFilename(e.target.value)} 
                                     />
@@ -236,7 +283,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                     <button onClick={onClose} className="flex-1 py-3.5 bg-stone-100 rounded-xl font-bold text-stone-600 hover:bg-stone-200 dark:bg-slate-800 dark:text-slate-300 disabled:opacity-50" disabled={loading}>Cancel</button>
                     
                     <button onClick={handleSend} disabled={loading} className="flex-1 py-3.5 bg-emerald-600 rounded-xl font-bold text-white hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-lg shadow-emerald-200 dark:shadow-none disabled:opacity-50">
-                        {loading ? <span className="animate-pulse">Queuing...</span> : <><Send size={18} /> Queue Broadcast</>}
+                        {loading ? <span className="animate-pulse">{uploadProgress || 'Sending...'}</span> : <><Send size={18} /> Queue Broadcast</>}
                     </button>
                 </div>
             </div>
