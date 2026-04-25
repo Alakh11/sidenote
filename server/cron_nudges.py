@@ -1,4 +1,4 @@
-import logging
+import logging, os
 from datetime import datetime, timedelta, date
 import calendar
 from typing import Any
@@ -6,7 +6,18 @@ from database import get_db
 from whatsapp_service import send_whatsapp_template
 from bot_handlers import handle_monthly_request
 
-logger = logging.getLogger(__name__)
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("logs/nudge_engine.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("NudgeEngine")
 
 async def run_daily_nudges(target_rule: str = "all"):
     logger.info(f"Starting Dynamic Nudge Engine. Target: {target_rule}")

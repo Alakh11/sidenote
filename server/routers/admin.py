@@ -3,7 +3,7 @@ from typing import Any, Optional, List
 from database import get_db
 from security import require_admin, pwd_context
 from schemas import UserRegister, AdminUpdateUser
-import logging
+import logging, os
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text
@@ -644,7 +644,6 @@ async def trigger_automated_nudges(
     background_tasks: BackgroundTasks, 
     admin_id: int = Depends(require_admin)
 ):
-    """Admins and Superadmins: Manually triggers the daily nudge evaluation engine."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -655,7 +654,11 @@ async def trigger_automated_nudges(
              raise HTTPException(status_code=403, detail="You do not have permission to trigger the nudge engine.")
 
         background_tasks.add_task(run_daily_nudges, data.nudge_type)
-        return {"message": f"Nudge engine triggered for '{data.nudge_type.replace('_', ' ').title()}'! Refresh logs in a few moments."}
+        
+        return {
+            "message": f"Nudge engine triggered for '{data.nudge_type}'",
+            "status": "dispatched"
+        }
     finally:
         conn.close()
 
@@ -808,6 +811,29 @@ def delete_nudge_rule(rule_id: int, admin_id: int = Depends(require_admin)):
         return {"message": "Rule permanently deleted."}
     finally:
         conn.close()
+        
+@router.get("/engagement/debug-logs")
+def get_nudge_debug_logs(admin_id: int = Depends(require_admin)):
+    log_path = "logs/nudge_engine.log"
+    if not os.path.exists(log_path):
+        return {"logs": "No logs generated yet"}
+    
+    try:
+        with open(log_path, "r") as f:
+            lines = f.readlines()
+            return {"logs": "".join(lines[-150:])}
+    except Exception as e:
+        return {"logs": f"Error reading logs: {str(e)}"}
+    
+@router.delete("/engagement/debug-logs")
+def clear_nudge_debug_logs(admin_id: int = Depends(require_admin)):
+    log_path = "logs/nudge_engine.log"
+    try:
+        with open(log_path, "w") as f:
+            f.write(f"--- Log Cleared by Admin at {datetime.now()} ---\n")
+        return {"message": "Logs cleared successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
         
 class AutoReplyPayload(BaseModel):
     trigger_keywords: str
