@@ -65,6 +65,7 @@ export default function UserActivityRetention() {
             minute: '2-digit' 
         });
     };
+    
     const renderSortIcon = (field: string) => {
         if (activitySortBy !== field) return <ArrowUp size={14} className="opacity-20 inline-block ml-1" />;
         return activitySortOrder === 'ASC' 
@@ -89,14 +90,24 @@ export default function UserActivityRetention() {
                             type="date" 
                             className="p-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none font-medium shadow-sm focus:ring-2 focus:ring-indigo-500" 
                             value={startDate} 
-                            onChange={e => {setStartDate(e.target.value); setActivityPage(1);}} 
+                            onChange={e => {
+                                const val = e.target.value;
+                                setStartDate(val);
+                                if (endDate && val > endDate) setEndDate(val);
+                                setActivityPage(1);
+                            }} 
                         />
                         <span className="text-stone-400 font-bold uppercase text-xs">to</span>
                         <input 
                             type="date" 
                             className="p-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-white outline-none font-medium shadow-sm focus:ring-2 focus:ring-indigo-500" 
                             value={endDate} 
-                            onChange={e => {setEndDate(e.target.value); setActivityPage(1);}} 
+                            onChange={e => {
+                                const val = e.target.value;
+                                setEndDate(val);
+                                if (startDate && val < startDate) setStartDate(val);
+                                setActivityPage(1);
+                            }} 
                         />
                         {(startDate || endDate) && (
                             <button 

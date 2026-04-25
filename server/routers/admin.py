@@ -551,23 +551,38 @@ def get_user_activity_stats(
         
         time_filter = ""
         params: list[Any] = []
+        is_filtered = False
         
         if start_date:
             time_filter += " AND DATE(t.date) >= %s"
             params.append(start_date)
+            is_filtered = True
         if end_date:
             time_filter += " AND DATE(t.date) <= %s"
             params.append(end_date)
+            is_filtered = True
         
-        count_query = "SELECT COUNT(id) as count FROM users"
-        cursor.execute(count_query)
-        total_records = cursor.fetchone()['count']
+        if is_filtered:
+            count_query = f"""
+                SELECT COUNT(DISTINCT u.id) as count 
+                FROM users u 
+                JOIN transactions t ON u.id = t.user_id 
+                WHERE 1=1 {time_filter}
+            """
+            cursor.execute(count_query, params)
+            total_records = cursor.fetchone()['count']
+            join_type = "INNER JOIN"
+        else:
+            count_query = "SELECT COUNT(id) as count FROM users"
+            cursor.execute(count_query)
+            total_records = cursor.fetchone()['count']
+            join_type = "LEFT JOIN"
         
         query = f"""
             WITH FilteredTx AS (
                 SELECT u.id as user_id, u.name, u.mobile, u.created_at, t.date
                 FROM users u
-                LEFT JOIN transactions t ON u.id = t.user_id {time_filter}
+                {join_type} transactions t ON u.id = t.user_id {time_filter}
             ),
             UserDates AS (
                 SELECT user_id, DATE(date) as tx_date
@@ -616,6 +631,8 @@ def get_user_activity_stats(
         cursor.execute(query, params + [limit, offset])
         return {"data": cursor.fetchall(), "total": total_records, "page": page, "limit": limit}
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
         logger.error(f"Activity Stats Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
