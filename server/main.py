@@ -19,6 +19,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 ist_timezone = ZoneInfo('Asia/Kolkata')
 
+ENVIRONMENT = os.getenv("ENVIRONMENT")
+
+app = FastAPI(
+    title="SideNote API",
+    description="WhatsApp-first financial ledger system",
+    version="1.0.0",
+    docs_url=None if ENVIRONMENT == "production" else "/docs",
+    redoc_url=None if ENVIRONMENT == "production" else "/redoc",
+    openapi_url=None if ENVIRONMENT == "production" else "/openapi.json"
+)
+
 app = FastAPI(
     title="SideNote API",
     description="WhatsApp-first financial ledger system",
@@ -29,7 +40,6 @@ META_APP_SECRET = os.getenv("META_APP_SECRET", "").strip()
 
 # CORS Setup
 origins = [
-    "http://localhost:5173",
     "https://sidenote.in",
     "https://www.sidenote.in"
 ]
@@ -38,8 +48,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # --- Include Routers ---
@@ -53,9 +63,6 @@ app.include_router(admin.router)
 def health_check():
     return {"status": "ok", "message": "API is running"}
 
-@app.get("/test-whatsapp")
-async def trigger_whatsapp_test():
-    return await send_whatsapp_template("919580813770", "sidenote_welcome_v1", [])
 
 @app.on_event("startup")
 def init_db():
@@ -342,6 +349,12 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
     return {"status": "ok"}
 
 def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: int):
+    if any(endpoint.endswith(ext) for ext in ['.php', '.env', '.json', '.yml', '.yaml', '.txt', '.git']):
+        return
+        
+    if status_code == 404:
+        return
+
     if endpoint == "/admin/metrics" or endpoint == "/": 
         return
         
