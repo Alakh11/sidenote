@@ -188,7 +188,7 @@ export default function BotLogCommandHistory() {
                             </div>
                             <h3 className="text-lg font-bold text-stone-800 dark:text-white">Command Usage by User</h3>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto pb-10">
                             <table className="w-full text-left">
                                 <thead className="bg-stone-50 dark:bg-slate-800 text-stone-500 dark:text-slate-400 text-xs uppercase font-bold">
                                     <tr>
@@ -233,13 +233,18 @@ export default function BotLogCommandHistory() {
                                                             {user.used_commands ? user.used_commands.split(', ').map((item: string, i: number) => {
                                                                 const [cmd, count] = item.split(':');
                                                                 return (
-                                                                    <span 
-                                                                        key={i} 
-                                                                        title={`${count} times`}
-                                                                        className="cursor-help bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 text-[10px] px-2 py-1 rounded font-mono uppercase tracking-wider border border-stone-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors shadow-sm"
-                                                                    >
-                                                                        {cmd}
-                                                                    </span>
+                                                                    <div key={i} className="relative group">
+                                                                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity bg-stone-800 dark:bg-slate-700 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none z-10">
+                                                                            {count} times
+                                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-stone-800 dark:border-t-slate-700"></div>
+                                                                        </div>
+                                                                        
+                                                                        <button 
+                                                                            className="cursor-pointer bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 text-[10px] px-2 py-1 rounded font-mono uppercase tracking-wider border border-stone-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 focus:border-indigo-500 outline-none transition-colors shadow-sm"
+                                                                        >
+                                                                            {cmd}
+                                                                        </button>
+                                                                    </div>
                                                                 );
                                                             }) : <span className="text-stone-400 text-xs italic">None</span>}
                                                         </div>
