@@ -30,11 +30,6 @@ app = FastAPI(
     openapi_url=None if ENVIRONMENT == "production" else "/openapi.json"
 )
 
-app = FastAPI(
-    title="SideNote API",
-    description="WhatsApp-first financial ledger system",
-    version="1.0.0"
-)
 VERIFY_TOKEN = os.getenv("WA_WEBHOOK_VERIFY_TOKEN")
 META_APP_SECRET = os.getenv("META_APP_SECRET", "").strip()
 
@@ -62,8 +57,6 @@ app.include_router(admin.router)
 @app.api_route("/", tags=["Health"], methods=["GET", "HEAD"])
 def health_check():
     return {"status": "ok", "message": "API is running"}
-
-
 @app.on_event("startup")
 def init_db():
     try:

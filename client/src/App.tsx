@@ -22,6 +22,15 @@ function App() {
             if (error.response.status === 503) setServerError(503);
             if (error.response.status === 410) setServerError(410);
         }
+        if (error.response && error.response.status === 401) {
+            console.warn("Session expired. Logging out.");
+            localStorage.removeItem('token');
+            localStorage.removeItem('user_data');
+            delete axios.defaults.headers.common['Authorization'];
+            posthog.reset();
+            
+            window.location.href = '/login'; 
+        }
         return Promise.reject(error);
       }
     );

@@ -21,7 +21,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    to_encode.update({"exp": datetime.utcnow() + timedelta(days=7)})
+    to_encode.update({"exp": datetime.utcnow() + timedelta(hours=24)})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
