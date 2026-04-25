@@ -9,13 +9,13 @@ export default function SystemLogViewer() {
     const logEndRef = useRef<HTMLDivElement>(null);
 
     const fetchLogs = async () => {
-        setLoading(true);
+        if (logs === 'Initializing stream...') setLoading(true);
         try {
             const token = localStorage.getItem('token');
             const res = await axios.get('https://api.sidenote.in/admin/engagement/debug-logs', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setLogs(res.data.logs);
+            setLogs(res.data.logs || 'Log file is currently empty. Waiting for engine activity...');
         } catch (error) {
             setLogs(prev => prev + '\n[ERROR]: Failed to fetch logs from server.');
         } finally {
@@ -30,15 +30,23 @@ export default function SystemLogViewer() {
         }
     }, [logs]);
 
-    // Interval logic
     useEffect(() => {
         fetchLogs();
+    }, []);
+
+    // Interval logic
+    useEffect(() => {
         let interval: any;
         if (autoRefresh) {
-            interval = setInterval(fetchLogs, 5000); // Refresh every 5 seconds
+            interval = setInterval(() => {
+                fetchLogs();
+            }, 10000);
         }
-        return () => clearInterval(interval);
-    }, [autoRefresh]);
+        
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [autoRefresh])
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(logs);

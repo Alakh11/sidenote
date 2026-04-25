@@ -9,15 +9,21 @@ from bot_handlers import handle_monthly_request
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("logs/nudge_engine.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("NudgeEngine")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+if not logger.handlers:
+    file_handler = logging.FileHandler('logs/nudge_engine.log')
+    file_handler.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    
+    logger.addHandler(file_handler)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
 async def run_daily_nudges(target_rule: str = "all"):
     logger.info(f"Starting Dynamic Nudge Engine. Target: {target_rule}")
