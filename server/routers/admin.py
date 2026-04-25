@@ -958,14 +958,19 @@ def get_command_analytics(
         for day in daily_usage:
             day['date'] = day['date'].strftime('%b %d') if hasattr(day['date'], 'strftime') else str(day['date'])
 
-        # 4. Per User Data Breakdown
         cursor.execute(f"""
-            SELECT u.id, u.name, u.mobile, u.profile_pic, COUNT(l.id) as total_commands,
-                   GROUP_CONCAT(DISTINCT l.command SEPARATOR ', ') as used_commands
-            FROM bot_command_logs l
-            JOIN users u ON l.user_id = u.id
-            WHERE {where_str}
-            GROUP BY u.id, u.name, u.mobile, u.profile_pic
+            WITH UserCmdCounts AS (
+                SELECT u.id as user_id, u.name, u.mobile, u.profile_pic, l.command, COUNT(l.id) as cmd_count
+                FROM bot_command_logs l
+                JOIN users u ON l.user_id = u.id
+                WHERE {where_str}
+                GROUP BY u.id, u.name, u.mobile, u.profile_pic, l.command
+            )
+            SELECT user_id as id, name, mobile, profile_pic, 
+                   SUM(cmd_count) as total_commands,
+                   GROUP_CONCAT(CONCAT(command, ':', cmd_count) SEPARATOR ', ') as used_commands
+            FROM UserCmdCounts
+            GROUP BY user_id, name, mobile, profile_pic
             ORDER BY total_commands DESC
             LIMIT 50
         """, params)

@@ -230,11 +230,18 @@ export default function BotLogCommandHistory() {
                                                     </td>
                                                     <td className="p-5">
                                                         <div className="flex flex-wrap gap-1.5">
-                                                            {user.used_commands ? user.used_commands.split(', ').map((cmd: string, i: number) => (
-                                                                <span key={i} className="bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 text-[10px] px-2 py-1 rounded font-mono uppercase tracking-wider border border-stone-200 dark:border-slate-700">
-                                                                    {cmd}
-                                                                </span>
-                                                            )) : <span className="text-stone-400 text-xs italic">None</span>}
+                                                            {user.used_commands ? user.used_commands.split(', ').map((item: string, i: number) => {
+                                                                const [cmd, count] = item.split(':');
+                                                                return (
+                                                                    <span 
+                                                                        key={i} 
+                                                                        title={`${count} times`}
+                                                                        className="cursor-help bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 text-[10px] px-2 py-1 rounded font-mono uppercase tracking-wider border border-stone-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors shadow-sm"
+                                                                    >
+                                                                        {cmd}
+                                                                    </span>
+                                                                );
+                                                            }) : <span className="text-stone-400 text-xs italic">None</span>}
                                                         </div>
                                                     </td>
                                                 </tr>
