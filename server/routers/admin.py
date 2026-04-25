@@ -627,15 +627,15 @@ async def trigger_automated_nudges(
     background_tasks: BackgroundTasks, 
     admin_id: int = Depends(require_admin)
 ):
-    """SUPERADMIN ONLY: Manually triggers the daily nudge evaluation engine."""
+    """Admins and Superadmins: Manually triggers the daily nudge evaluation engine."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         admin_data: Any = cursor.fetchone()
         
-        if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
-             raise HTTPException(status_code=403, detail="Only Superadmins can trigger the nudge engine.")
+        if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
+             raise HTTPException(status_code=403, detail="You do not have permission to trigger the nudge engine.")
 
         background_tasks.add_task(run_daily_nudges, data.nudge_type)
         return {"message": f"Nudge engine triggered for '{data.nudge_type.replace('_', ' ').title()}'! Refresh logs in a few moments."}
@@ -644,15 +644,15 @@ async def trigger_automated_nudges(
 
 @router.post("/engagement/flush-and-trigger")
 async def flush_and_trigger_nudges(background_tasks: BackgroundTasks, admin_id: int = Depends(require_admin)):
-    """SUPERADMIN ONLY: Deletes all previous nudge logs and triggers a fresh engine run."""
+    """Admins and Superadmins: Deletes all previous nudge logs and triggers a fresh engine run."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
         admin_data: Any = cursor.fetchone()
         
-        if not isinstance(admin_data, dict) or admin_data.get('role') != 'superadmin':
-             raise HTTPException(status_code=403, detail="Only Superadmins can flush logs.")
+        if not isinstance(admin_data, dict) or admin_data.get('role') not in ['admin', 'superadmin']:
+             raise HTTPException(status_code=403, detail="You do not have permission to flush logs.")
 
         cursor.execute("TRUNCATE TABLE automated_messages")
         conn.commit()

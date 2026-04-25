@@ -7,7 +7,6 @@ import RuleFormModal from './RuleFormModal';
 import { LayoutGrid, List } from 'lucide-react';
 
 export default function AdminNudgesView() {
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     const [isTriggering, setIsTriggering] = useState(false);
     const LIMIT = 10;
     const API_URL = "https://api.sidenote.in";
@@ -29,15 +28,6 @@ export default function AdminNudgesView() {
     const [nudgeSortBy, setNudgeSortBy] = useState('sent_at');
     const [nudgeSortOrder, setNudgeSortOrder] = useState('DESC');
 
-    useEffect(() => {
-        try {
-            const userStr = localStorage.getItem('user_data');
-            if (userStr) {
-                const userObj = JSON.parse(userStr);
-                if (userObj.role === 'superadmin') setIsSuperAdmin(true);
-            }
-        } catch (e) { console.error("Failed to parse user role"); }
-    }, []);
 
     const formatTime = (dateString: string) => {
         if (!dateString || dateString === 'None' || dateString === 'Paused') return 'N/A';
@@ -134,7 +124,7 @@ export default function AdminNudgesView() {
     };
 
     const handleFlushAndTrigger = async () => {
-        if (!confirm("SUPERADMIN ACTION: Delete all previous logs and run fresh? This cannot be undone.")) return;
+        if (!confirm("ADMIN ACTION: Delete all previous logs and run fresh? This cannot be undone.")) return;
         setIsTriggering(true);
         try {
             const token = localStorage.getItem('token');
@@ -185,7 +175,7 @@ export default function AdminNudgesView() {
                 </button>
             </div>
 
-            {activeSubTab === 'rules' && isSuperAdmin && (
+            {activeSubTab === 'rules' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
                     
                     <div className="relative">
