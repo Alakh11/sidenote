@@ -9,6 +9,13 @@ from bot_handlers import handle_monthly_request
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
+def custom_ist_time(*args):
+    utc_dt = datetime.utcnow()
+    ist_dt = utc_dt + timedelta(hours=5, minutes=30)
+    return ist_dt.timetuple()
+
+logging.Formatter.converter = custom_ist_time
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
