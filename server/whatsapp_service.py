@@ -2,7 +2,7 @@ import httpx
 import os
 import logging
 import asyncio
-from typing import Any
+from typing import Any, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -102,7 +102,7 @@ async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, butt
         try:
             response = await http_client.post(WA_URL, json=payload, headers=headers)
             response.raise_for_status()
-            logger.info(f"Standard text sent to {to_number}")
+            logger.info(f"Interactive buttons sent to {to_number}")
             return {"status": "success"}
         except httpx.HTTPStatusError as e:
             logger.error(f"WhatsApp Button Error: {e.response.text}")
@@ -110,6 +110,63 @@ async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, butt
         except Exception as e:
             logger.error(f"WhatsApp Button Network Error: {repr(e)}")
             return {"status": "error"}
+
+
+async def send_whatsapp_media(
+    to_number: str, 
+    media_type: str, 
+    media_link: Optional[str] = None, 
+    media_id: Optional[str] = None, 
+    caption: Optional[str] = None,
+    filename: Optional[str] = None
+):
+    """
+    Sends media (image, audio, video, document, sticker) to a user.
+    Provide either a public 'media_link' OR a Meta-hosted 'media_id'.
+    """
+    if not media_link and not media_id:
+        logger.error("Failed to send media: Must provide either media_link or media_id")
+        return {"status": "error", "detail": "Missing media source"}
+
+    valid_types = ["image", "audio", "video", "document", "sticker"]
+    if media_type not in valid_types:
+        logger.error(f"Invalid media type: {media_type}")
+        return {"status": "error", "detail": f"Type must be one of {valid_types}"}
+
+    headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
+    
+    media_object: dict[str, Any] = {}
+    if media_link:
+        media_object["link"] = media_link
+    else:
+        media_object["id"] = media_id
+
+    if caption and media_type in ["image", "video", "document"]:
+        media_object["caption"] = caption
+        
+    if filename and media_type == "document":
+        media_object["filename"] = filename
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": to_number,
+        "type": media_type,
+        media_type: media_object
+    }
+
+    async with outbound_semaphore:
+        try:
+            response = await http_client.post(WA_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(f"Media ({media_type}) sent to {to_number}")
+            return {"status": "success"}
+        except httpx.HTTPStatusError as e:
+            logger.error(f"WhatsApp Media Error ({media_type}): {e.response.text}")
+            return {"status": "error", "detail": e.response.text}
+        except Exception as e:
+            logger.error(f"WhatsApp Media Network Error ({media_type}): {repr(e)}")
+            return {"status": "error", "detail": str(e)}
 
 
 async def get_whatsapp_media_url(media_id: str) -> str | None:

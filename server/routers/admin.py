@@ -6,7 +6,7 @@ from schemas import UserRegister, AdminUpdateUser
 import logging, os
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from whatsapp_service import send_whatsapp_template, send_whatsapp_text
+from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_media
 from cron_nudges import run_daily_nudges
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
@@ -414,6 +414,10 @@ class BroadcastPayload(BaseModel):
     template_name: Optional[str] = None
     variables: list[str] = []
     message_text: Optional[str] = None
+    media_link: Optional[str] = None
+    media_id: Optional[str] = None
+    caption: Optional[str] = None
+    filename: Optional[str] = None
     target_user_ids: list[int] = []
     audience: str = "all"
 
@@ -424,9 +428,11 @@ async def broadcast_whatsapp_message(
     admin_id: int = Depends(require_admin)
 ):
     if payload.message_type == "template" and not payload.template_name:
-        raise HTTPException(status_code=400, detail="Template name is required for template broadcasts.")
+        raise HTTPException(status_code=400, detail="Template name is required.")
     if payload.message_type == "text" and not payload.message_text:
-        raise HTTPException(status_code=400, detail="Message text is required for text broadcasts.")
+        raise HTTPException(status_code=400, detail="Message text is required.")
+    if payload.message_type in ["image", "video", "audio", "document"] and not (payload.media_link or payload.media_id):
+        raise HTTPException(status_code=400, detail="A media link or media ID is required for media broadcasts.")
 
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
@@ -469,8 +475,18 @@ async def broadcast_whatsapp_message(
                 
                 if payload.message_type == "text":
                     background_tasks.add_task(send_whatsapp_text, mobile_number, payload.message_text or "")
-                else:
+                elif payload.message_type == "template":
                     background_tasks.add_task(send_whatsapp_template, mobile_number, payload.template_name or "", payload.variables)
+                elif payload.message_type in ["image", "video", "audio", "document"]:
+                    background_tasks.add_task(
+                        send_whatsapp_media, 
+                        to_number=mobile_number, 
+                        media_type=payload.message_type, 
+                        media_link=payload.media_link, 
+                        media_id=payload.media_id,
+                        caption=payload.caption,
+                        filename=payload.filename
+                    )
                     
                 queued_count += 1
                     
