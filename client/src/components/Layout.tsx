@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
 import { 
   LayoutDashboard, PieChart, Wallet, LogOut, Menu, X, Target, Shield, 
-  Repeat, Settings, ChevronRight, Trophy, Sun, Moon, ReceiptIndianRupee,
-  HandCoins, UserPen
+   ChevronRight, Trophy, Sun, Moon, UserPen //Repeat, Settings, ReceiptIndianRupee, HandCoins
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { usePreferences } from '../context/PreferencesContext';
@@ -47,11 +46,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/transactions', label: 'Transactions', icon: Wallet },
     { to: '/budget', label: 'Budgets', icon: Target },
     { to: '/goals', label: 'Savings Goals', icon: Trophy },
-    { to: '/debts', label: 'Debts Tracker', icon: HandCoins },
-    { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee },
+    // { to: '/debts', label: 'Debts Tracker', icon: HandCoins },
+    // { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee },
     { to: '/analytics', label: 'Analytics', icon: PieChart },
-    { to: '/recurring', label: 'Recurring Bills', icon: Repeat },
-    { to: '/categories', label: 'Categories', icon: Settings },
+    // { to: '/recurring', label: 'Recurring Bills', icon: Repeat },
+    // { to: '/categories', label: 'Categories', icon: Settings },
   ];
 
   const NavItem = ({ item, onClick }: any) => {
