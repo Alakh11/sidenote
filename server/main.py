@@ -245,12 +245,49 @@ def init_db():
         logger.info("Database and Tables initialized successfully")
     except Exception as e:
         logger.error(f"Init DB Error: {e}")
+
+def get_next_cron_run_time():
+    """Calculates exactly when the engine should run next based on DB state."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Get current IST time
+        now_ist = datetime.utcnow() + timedelta(hours=5, minutes=30)
         
+        cursor.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'last_cron_run'")
+        result = cursor.fetchone()
+        
+        if result and result.get('setting_value'):
+            last_run_str = result['setting_value']
+            last_run = datetime.strptime(last_run_str, '%Y-%m-%d %H:%M:%S')
+            
+            # Calculate the intended next run (15 mins after the last run)
+            intended_next_run = last_run + timedelta(minutes=15)
+            
+            # CATCH-UP LOGIC: If the server was offline for deployment and missed 
+            # its scheduled time, run it immediately (10 seconds after boot).
+            if intended_next_run <= now_ist:
+                logger.info(f"Engine missed its schedule. Catching up now.")
+                return now_ist + timedelta(seconds=10)
+            
+            # Otherwise, wait until the properly scheduled time
+            logger.info(f"Engine schedule restored. Next run: {intended_next_run}")
+            return intended_next_run
+            
+        # Default fallback if table is empty: run in 10 seconds
+        return now_ist + timedelta(seconds=10)
+    except Exception as e:
+        logger.error(f"Failed to read cron state: {e}")
+        # Safe fallback
+        return datetime.utcnow() + timedelta(hours=5, minutes=30, seconds=10)
+    finally:
+        conn.close()
 
 @app.on_event("startup")
 def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=ist_timezone)
-    scheduler.add_job(run_daily_nudges, 'interval', minutes=15, id='nudge_engine')
+    next_run = get_next_cron_run_time()
+    scheduler.add_job(run_daily_nudges, 'interval', minutes=15, id='nudge_engine', next_run_time=next_run,replace_existing=True)
     scheduler.start()
     app.state.scheduler = scheduler
     

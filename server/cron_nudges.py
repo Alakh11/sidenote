@@ -34,11 +34,11 @@ if not logger.handlers:
 
 async def run_daily_nudges(target_rule: str = "all"):
     logger.info(f"Starting Bulk-Optimized Nudge Engine. Target: {target_rule}")
+    now = datetime.utcnow() + timedelta(hours=5, minutes=30)
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     
     try:
-        now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         today = now.date()
         current_day_name = calendar.day_name[today.weekday()]
         current_day_num = today.day
@@ -216,7 +216,25 @@ async def run_daily_nudges(target_rule: str = "all"):
                     logger.error(f"Failed to send {template_to_send} to User {user_id}: {e}")
                     conn.rollback()
 
-    except Exception as e: logger.error(f"Nudge Engine Error: {e}")
+    except Exception as e: 
+        logger.error(f"Nudge Engine Error: {e}")
     finally:
         conn.close()
         logger.info("Nudge Engine Evaluation Complete.")
+        
+        try:
+            settings_conn = get_db()
+            settings_cursor = settings_conn.cursor()
+            
+            now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+            
+            settings_cursor.execute("""
+                INSERT INTO system_settings (setting_key, setting_value) 
+                VALUES ('last_cron_run', %s) 
+                ON DUPLICATE KEY UPDATE setting_value = %s
+            """, (now_str, now_str))
+            
+            settings_conn.commit()
+            settings_conn.close()
+        except Exception as log_e:
+            logger.error(f"Failed to save last_cron_run state: {log_e}")
