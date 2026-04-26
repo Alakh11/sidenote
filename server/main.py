@@ -35,11 +35,10 @@ META_APP_SECRET = os.getenv("META_APP_SECRET", "").strip()
 
 # CORS Setup
 origins = [
+    "http://localhost:5173",
     "https://sidenote.in",
     "https://www.sidenote.in"
 ]
-if ENVIRONMENT != "production":
-    origins.append("http://localhost:5173")
 
 app.add_middleware(
     CORSMiddleware,
