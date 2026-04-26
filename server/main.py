@@ -38,6 +38,8 @@ origins = [
     "https://sidenote.in",
     "https://www.sidenote.in"
 ]
+if ENVIRONMENT != "production":
+    origins.append("http://localhost:5173")
 
 app.add_middleware(
     CORSMiddleware,
