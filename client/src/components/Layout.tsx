@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
 import { 
   LayoutDashboard, PieChart, Wallet, LogOut, Menu, X, Target, Shield, 
-   ChevronRight, Trophy, Sun, Moon, UserPen //Repeat, Settings, ReceiptIndianRupee, HandCoins
+   ChevronRight, Trophy, Sun, Moon, UserPen, Repeat, Settings, ReceiptIndianRupee, HandCoins
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { usePreferences } from '../context/PreferencesContext';
@@ -45,15 +45,27 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     ...(isAdmin ? [{ to: '/admin', label: 'Admin Panel', icon: Shield }] : []),
     { to: '/transactions', label: 'Transactions', icon: Wallet },
     { to: '/budget', label: 'Budgets', icon: Target },
-    { to: '/goals', label: 'Savings Goals', icon: Trophy },
-    // { to: '/debts', label: 'Debts Tracker', icon: HandCoins },
-    // { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee },
     { to: '/analytics', label: 'Analytics', icon: PieChart },
-    // { to: '/recurring', label: 'Recurring Bills', icon: Repeat },
-    // { to: '/categories', label: 'Categories', icon: Settings },
+    { to: '/goals', label: 'Savings Goals', icon: Trophy },
+    { to: '/debts', label: 'Debts Tracker', icon: HandCoins, comingSoon: true },
+    { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee, comingSoon: true },
+    { to: '/recurring', label: 'Recurring Bills', icon: Repeat, comingSoon: true },
+    { to: '/categories', label: 'Categories', icon: Settings, comingSoon: true },
   ];
 
   const NavItem = ({ item, onClick }: any) => {
+    if (item.comingSoon) {
+      return (
+        <div className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-medium text-stone-400 dark:text-slate-500 opacity-60 cursor-not-allowed select-none">
+          <item.icon className="w-5 h-5 shrink-0" />
+          <span className="flex-1 text-left truncate">{item.label}</span>
+          <span className="text-[9px] font-bold uppercase tracking-wider bg-stone-200 text-stone-500 px-2 py-0.5 rounded-md dark:bg-slate-800 dark:text-slate-400 whitespace-nowrap ml-auto">
+            Soon
+          </span>
+        </div>
+      );
+    }
+
     return (
       <Link
         to={item.to}
@@ -63,9 +75,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             className: "!bg-gradient-to-r !from-[#25D366] !to-[#1EA952] !text-white shadow-lg shadow-[#25D366]/30 dark:shadow-[#25D366]/20"
         }}
       >
-        <item.icon className="w-5 h-5 transition-transform group-hover:scale-110" />
-        <span className="flex-1 text-left">{item.label}</span>
-        <ChevronRight className="w-4 h-4 opacity-0 group-[.active]:opacity-100 text-white/70" />
+        <item.icon className="w-5 h-5 transition-transform group-hover:scale-110 shrink-0" />
+        <span className="flex-1 text-left truncate">{item.label}</span>
+        <ChevronRight className="w-4 h-4 opacity-0 group-[.active]:opacity-100 text-white/70 shrink-0" />
       </Link>
     );
   };
