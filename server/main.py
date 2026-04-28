@@ -6,7 +6,7 @@ from database import get_db
 from routers import auth, transactions, features, analytics, admin
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image, process_whatsapp_audio
 from security import get_current_user, verify_meta_signature
-from whatsapp_service import send_whatsapp_template
+from whatsapp_service import send_whatsapp_template, send_policy_consent_prompt, send_whatsapp_text
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_nudges import run_daily_nudges
 from pydantic import BaseModel
@@ -14,6 +14,7 @@ from typing import Optional
 from tracking import track_event
 from starlette.background import BackgroundTask
 from zoneinfo import ZoneInfo
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,13 +59,14 @@ app.include_router(admin.router)
 @app.api_route("/", tags=["Health"], methods=["GET", "HEAD"])
 def health_check():
     return {"status": "ok", "message": "API is running"}
+
 @app.on_event("startup")
 def init_db():
     try:
         conn = get_db()
         cursor = conn.cursor()
         
-        # 1. Users Table
+        # Ensure has_consented exists in users table creation
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -78,6 +80,7 @@ def init_db():
                 month_start_date INT DEFAULT 1,
                 is_verified BOOLEAN DEFAULT FALSE,
                 bot_state VARCHAR(50) DEFAULT 'NEW',
+                has_consented BOOLEAN DEFAULT FALSE, 
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 monthly_budget DECIMAL(15, 2) DEFAULT 0
             )
@@ -248,38 +251,28 @@ def init_db():
         logger.error(f"Init DB Error: {e}")
 
 def get_next_cron_run_time():
-    """Calculates exactly when the engine should run next based on DB state."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Get current IST time
         now_ist = datetime.utcnow() + timedelta(hours=5, minutes=30)
-        
         cursor.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'last_cron_run'")
         result = cursor.fetchone()
         
         if result and result.get('setting_value'):
             last_run_str = result['setting_value']
             last_run = datetime.strptime(last_run_str, '%Y-%m-%d %H:%M:%S')
-            
-            # Calculate the intended next run (15 mins after the last run)
             intended_next_run = last_run + timedelta(minutes=15)
             
-            # CATCH-UP LOGIC: If the server was offline for deployment and missed 
-            # its scheduled time, run it immediately (10 seconds after boot).
             if intended_next_run <= now_ist:
                 logger.info(f"Engine missed its schedule. Catching up now.")
                 return now_ist + timedelta(seconds=10)
             
-            # Otherwise, wait until the properly scheduled time
             logger.info(f"Engine schedule restored. Next run: {intended_next_run}")
             return intended_next_run
             
-        # Default fallback if table is empty: run in 10 seconds
         return now_ist + timedelta(seconds=10)
     except Exception as e:
         logger.error(f"Failed to read cron state: {e}")
-        # Safe fallback
         return datetime.utcnow() + timedelta(hours=5, minutes=30, seconds=10)
     finally:
         conn.close()
@@ -288,9 +281,73 @@ def get_next_cron_run_time():
 def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=ist_timezone)
     next_run = get_next_cron_run_time()
-    scheduler.add_job(run_daily_nudges, 'interval', minutes=15, id='nudge_engine', next_run_time=next_run,replace_existing=True)
+    scheduler.add_job(run_daily_nudges, 'interval', minutes=15, id='nudge_engine', next_run_time=next_run, replace_existing=True)
     scheduler.start()
     app.state.scheduler = scheduler
+
+
+async def process_incoming_message(message: dict, sender_phone: str, message_id: Optional[str], sender_name: str):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("SELECT id, has_consented FROM users WHERE mobile = %s", (sender_phone,))
+        user = cursor.fetchone()
+        
+        if user:
+            if not user.get('has_consented'):
+                is_interactive = message.get("type") == "interactive"
+                
+                if is_interactive:
+                    button_id = message["interactive"]["button_reply"]["id"]
+                    
+                    if button_id == "accept_tnc":
+                        cursor.execute("UPDATE users SET has_consented = TRUE WHERE id = %s", (user['id'],))
+                        conn.commit()
+                        await send_whatsapp_text(
+                            sender_phone, 
+                            "✅ *Thank you!* You have successfully accepted the updated Terms and Privacy Policy.\n\nYou can now continue logging your expenses!"
+                        )
+                        return
+                        
+                    elif button_id == "decline_tnc":
+                        await send_whatsapp_text(
+                            sender_phone, 
+                            "⚠️ You must accept the updated Terms and Privacy Policy to continue using SideNote."
+                        )
+                        await send_policy_consent_prompt(sender_phone)
+                        return
+                
+                await send_policy_consent_prompt(sender_phone)
+                return
+
+        if message['type'] == 'text':
+            text_body = message['text']['body']
+            print(f"📩 Text from {sender_name} ({sender_phone}): {text_body}")
+            await process_whatsapp_text(sender_phone, text_body, message_id, sender_name)
+            
+        elif message['type'] == 'interactive':
+            button_id = message['interactive']['button_reply']['id']
+            print(f"👆 Button clicked by {sender_name} ({sender_phone}): {button_id}")
+            await process_whatsapp_interactive(sender_phone, button_id, message_id, sender_name)
+            
+        elif message['type'] in ['image', 'document']:
+            media_type = message['type'] 
+            media_id = str(message[media_type]['id'])
+            mime_type = str(message[media_type]['mime_type'])
+            print(f"📄 {media_type.capitalize()} received from {sender_name} ({sender_phone}). Processing ...")
+            await process_whatsapp_image(sender_phone, media_id, mime_type, message_id, sender_name)
+        
+        elif message['type'] == 'audio':
+            media_id = str(message['audio']['id'])
+            print(f"🎙️ Voice note received from {sender_name} ({sender_phone}).")
+            await process_whatsapp_audio(sender_phone, media_id, message_id, sender_name)
+
+    except Exception as e:
+        logger.error(f"Error in Master Message Router: {e}")
+    finally:
+        conn.close()
+
     
 @app.get("/webhook")
 async def verify_webhook(
@@ -341,28 +398,9 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
             sender_phone = message['from']
             message_id = message.get('id')
             
-            if message['type'] == 'text':
-                text_body = message['text']['body']
-                print(f"📩 Text from {sender_name} ({sender_phone}): {text_body}")
-                background_tasks.add_task(process_whatsapp_text, sender_phone, text_body, message_id, sender_name)
-                
-            elif message['type'] == 'interactive':
-                button_id = message['interactive']['button_reply']['id']
-                print(f"👆 Button clicked by {sender_name} ({sender_phone}): {button_id}")
-                background_tasks.add_task(process_whatsapp_interactive, sender_phone, button_id, message_id, sender_name)
-                
-            elif message['type'] in ['image', 'document']:
-                media_type = message['type'] 
-                media_id = str(message[media_type]['id'])
-                mime_type = str(message[media_type]['mime_type'])
-                
-                print(f"📄 {media_type.capitalize()} received from {sender_name} ({sender_phone}). Processing ...")
-                background_tasks.add_task(process_whatsapp_image, sender_phone, media_id, mime_type, message_id, sender_name)
-            
-            elif message['type'] == 'audio':
-                media_id = str(message['audio']['id'])
-                print(f"🎙️ Voice note received from {sender_name} ({sender_phone}).")
-                background_tasks.add_task(process_whatsapp_audio, sender_phone, media_id, message_id, sender_name)
+            # --- THE MAGIC HAPPENS HERE ---
+            # Instead of routing here, we pass EVERYTHING to the background task Gatekeeper!
+            background_tasks.add_task(process_incoming_message, message, sender_phone, message_id, sender_name)
 
         elif 'statuses' in value:
             status = value['statuses'][0]
@@ -378,6 +416,7 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
         print(f"⚠️ Webhook Processing Error: {e}")
 
     return {"status": "ok"}
+
 
 def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: int):
     if any(endpoint.endswith(ext) for ext in ['.php', '.env', '.json', '.yml', '.yaml', '.txt', '.git']):

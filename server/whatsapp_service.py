@@ -222,3 +222,21 @@ async def upload_whatsapp_media(file_bytes: bytes, mime_type: str, filename: str
         except Exception as e:
             logger.error(f"Meta Media Upload Network Error: {repr(e)}")
             return None
+
+async def send_policy_consent_prompt(to_number: str):
+    """Sends the mandatory Terms and Privacy Policy update with Yes/No buttons."""
+    body_text = (
+        "*SideNote Update:*\n\n"
+        "Our Terms and Privacy Policy have been updated.\n\n"
+        "By continuing to use SideNote, you agree to the updated Terms and consent "
+        "to the processing of your data as described.\n\n"
+        "*Privacy Policy:* https://sidenote.in/privacy\n"
+        "*Terms:* https://sidenote.in/terms"
+    )
+    
+    buttons = [
+        {"id": "accept_tnc", "title": "Yes, I Agree"},
+        {"id": "decline_tnc", "title": "No"}
+    ]
+    
+    return await send_whatsapp_interactive_buttons(to_number, body_text, buttons)
