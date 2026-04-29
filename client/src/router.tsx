@@ -10,16 +10,16 @@ import axios from 'axios';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import Transactions from './components/Transactions/Transactions';
-import Recurring from './components/Recurring/Recurring';
+// import Recurring from './components/Recurring/Recurring';
 import BudgetPlanner from './components/Budget/BudgetPlanner';
 import Goals from './components/Goals/Goals';
 import Analytics from './components/Analytics/Analytics';
-import CategoryManager from './components/CategoryManager/CategoryManager'; 
+// import CategoryManager from './components/CategoryManager/CategoryManager'; 
 import type { User } from './types';
 import NotFound from './components/Error/NotFound';
 import ErrorPage from './components/Error/ErrorPage';
-import LoanTracker from './components/Loans/LoanTracker';
-import Debts from './components/Debts/Debts';
+// import LoanTracker from './components/Loans/LoanTracker';
+// import Debts from './components/Debts/Debts';
 import AdminPanel from './components/Admin/AdminPanel';
 import ProfileSettings from './components/Settings/ProfileSettings';
 import Home from './components/Home/home';
@@ -149,16 +149,16 @@ const goalsRoute = createRoute({
 });
 
 // --- 6. Recurring Route ---
-const recurringRoute = createRoute({
-  getParentRoute: () => authRoute,
-  path: '/recurring',
-  loader: async ({ context }) => {
-    const userId = context.user!.id;
-    const res = await axios.get(`${API_URL}/recurring/${userId}`);
-    return res.data;
-  },
-  component: Recurring,
-});
+// const recurringRoute = createRoute({
+//   getParentRoute: () => authRoute,
+//   path: '/recurring',
+//   loader: async ({ context }) => {
+//     const userId = context.user!.id;
+//     const res = await axios.get(`${API_URL}/recurring/${userId}`);
+//     return res.data;
+//   },
+//   component: Recurring,
+// });
 
 // --- 7. Analytics Route ---
 const analyticsRoute = createRoute({
@@ -186,49 +186,49 @@ const analyticsRoute = createRoute({
 });
 
 // --- 8. Categories Route ---
-const categoriesRoute = createRoute({
-  getParentRoute: () => authRoute,
-  path: '/categories',
-  loader: async ({ context }) => {
-    const userId = context.user!.id;
-    const res = await axios.get(`${API_URL}/categories/${userId}`);
-    return res.data;
-  },
-  component: CategoryManager,
-});
+// const categoriesRoute = createRoute({
+//   getParentRoute: () => authRoute,
+//   path: '/categories',
+//   loader: async ({ context }) => {
+//     const userId = context.user!.id;
+//     const res = await axios.get(`${API_URL}/categories/${userId}`);
+//     return res.data;
+//   },
+//   component: CategoryManager,
+// });
 
 // --- 9. Loans Route ---
-const loansRoute = createRoute({
-  getParentRoute: () => authRoute,
-  path: '/loans',
-  loader: async ({ context }) => {
-    const userId = context.user!.id;
-    const res = await axios.get(`${API_URL}/loans/${userId}`);
-    return res.data;
-  },
-  component: LoanTracker,
-});
+// const loansRoute = createRoute({
+//   getParentRoute: () => authRoute,
+//   path: '/loans',
+//   loader: async ({ context }) => {
+//     const userId = context.user!.id;
+//     const res = await axios.get(`${API_URL}/loans/${userId}`);
+//     return res.data;
+//   },
+//   component: LoanTracker,
+// });
 
 // --- 10. Debts Route (Money Lent) ---
-const debtsRoute = createRoute({
-  getParentRoute: () => authRoute,
-  path: '/debts',
-  loader: async ({ context }) => {
-    const userId = context.user!.id;
+// const debtsRoute = createRoute({
+//   getParentRoute: () => authRoute,
+//   path: '/debts',
+//   loader: async ({ context }) => {
+//     const userId = context.user!.id;
 
-    const [dashboardData, borrowersList] = await Promise.all([
-        axios.get(`${API_URL}/debts/dashboard/${userId}`),
-        axios.get(`${API_URL}/debts/borrowers/${userId}`)
-    ]);
+//     const [dashboardData, borrowersList] = await Promise.all([
+//         axios.get(`${API_URL}/debts/dashboard/${userId}`),
+//         axios.get(`${API_URL}/debts/borrowers/${userId}`)
+//     ]);
     
-    return {
-        stats: dashboardData.data.stats,
-        top_borrowers: dashboardData.data.top_borrowers,
-        all_borrowers: borrowersList.data
-    };
-  },
-  component: Debts,
-});
+//     return {
+//         stats: dashboardData.data.stats,
+//         top_borrowers: dashboardData.data.top_borrowers,
+//         all_borrowers: borrowersList.data
+//     };
+//   },
+//   component: Debts,
+// });
 
 // --- 11. Index & 404 ---
 const indexRoute = createRoute({
@@ -340,11 +340,11 @@ const routeTree = rootRoute.addChildren([
     transactionsRoute,
     budgetRoute,
     goalsRoute,
-    recurringRoute,
+    // recurringRoute,
     analyticsRoute,
-    categoriesRoute,
-    loansRoute,
-    debtsRoute,
+    // categoriesRoute,
+    // loansRoute,
+    // debtsRoute,
     adminRoute,
     settingsRoute,
     feedbackRoute,
