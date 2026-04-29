@@ -1,7 +1,7 @@
 import { 
-  ShieldCheck, Database, Settings, 
-  Share2, Clock, UserCog, MessageCircle, CheckCircle2, ArrowLeft,
-  Scale, Key, Globe, ShieldAlert, AlertTriangle
+  ShieldCheck, Database, Settings, HardDrive, 
+  Share2, Clock, UserCog, CheckCircle2, ArrowLeft,
+  Scale, Key, Globe, ShieldAlert, FileText, Mail,RefreshCw
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 
@@ -12,136 +12,164 @@ export default function PrivacyPolicy() {
   const sections = [
     {
       id: 1,
-      title: "Identity of Data Fiduciary",
-      icon: ShieldCheck,
+      title: "Introduction",
+      icon: FileText,
       color: "text-blue-500",
       bg: "bg-blue-50 dark:bg-blue-900/20",
-      content: "Sidenote is operated by:",
-      bullets: [
-        "Name: Yogesh Yadav (Grievance Officer and Data Fiduciary)",
-        "Business: Sidenote (sidenote.in)",
-        "Address: Noida, Uttar Pradesh, India",
-        "Email: admin.sidenote@gmail.com",
-      ],
-      extra: "As a sole proprietorship, Yogesh Yadav is personally responsible for all data processing activities and acts as the Data Fiduciary under the DPDP Act, 2023."
+      content: "This Privacy Policy explains how SideNote (“we”, “us”, or “our”) collects, uses, stores, and protects your personal data when you use our WhatsApp-based expense tracking service and web dashboard available at sidenote.in.",
+      extra: "This policy is provided in accordance with the Digital Personal Data Protection Act, 2023 and the Information Technology Act, 2000. By using SideNote, you agree to the practices described in this policy."
     },
     {
       id: 2,
-      title: "Consent & Withdrawal",
-      icon: Key,
+      title: "Identity of Data Fiduciary",
+      icon: ShieldCheck,
       color: "text-indigo-500",
       bg: "bg-indigo-50 dark:bg-indigo-900/20",
-      content: "We collect and process your personal data only with your prior, informed, and explicit consent. Your consent is obtained when you send your first message or complete account setup.",
-      extra: "You may withdraw your consent at any time by deleting your account. Upon withdrawal, we will cease all processing and delete your data within 30 days."
+      content: "SideNote operates as a sole proprietorship and acts as the Data Fiduciary under applicable law.",
+      bullets: [
+        "Business Name: SideNote",
+        "Email: info@sidenote.in",
+        "Address: Noida, Uttar Pradesh, India"
+      ]
     },
     {
       id: 3,
-      title: "What Personal Data We Collect",
-      icon: Database,
+      title: "Consent & Withdrawal",
+      icon: Key,
       color: "text-emerald-500",
       bg: "bg-emerald-50 dark:bg-emerald-900/20",
-      content: "We collect only the minimum data necessary. We collect:",
+      content: "We collect and process your personal data based on your consent, obtained when you send messages to the WhatsApp service or use the dashboard.",
       bullets: [
-        "Your WhatsApp phone number",
-        "Expense entries you type (amount, description, date, mode)",
-        "IP address, browser type, and session logs for security"
+        "You may withdraw consent at any time by deleting your account",
+        "Processing will stop upon withdrawal",
+        "Data will be deleted within 30 days, unless required by law"
       ],
-      extra: "We do NOT collect bank details, SMS logs, contacts, or location data."
+      extra: "Withdrawal does not affect prior lawful processing."
     },
     {
       id: 4,
-      title: "Purpose of Data Collection",
-      icon: Settings,
+      title: "Data We Collect",
+      icon: Database,
       color: "text-amber-500",
       bg: "bg-amber-50 dark:bg-amber-900/20",
-      content: "Your data is processed only to:",
+      content: "We collect only the minimum data required to provide our service.",
       bullets: [
-        "Provide expense tracking via WhatsApp",
-        "Generate reports accessible through your dashboard",
-        "Authenticate accounts and respond to support requests",
-        "Maintain security and comply with Indian laws"
-      ],
-      extra: "We will not use your data for advertising or profiling without fresh, explicit consent."
+        "Provided: WhatsApp phone number and Expense entries",
+        "Automated: IP address, browser details, session logs, timestamps",
+        "NOT Collected: Bank accounts, SMS logs, Contacts, Location"
+      ]
     },
     {
       id: 5,
-      title: "Third-Party Processors",
-      icon: Share2,
+      title: "Purpose of Data Use",
+      icon: Settings,
       color: "text-purple-500",
       bg: "bg-purple-50 dark:bg-purple-900/20",
-      content: "We rely on secure third-party infrastructure. By using Sidenote, you consent to cross-border data transfers to:",
-      bullets: [
-        "Meta Platforms Inc. (WhatsApp API)",
-        "Render Inc. (US-based Backend Hosting)",
-        "GitHub Inc. (US-based Frontend Hosting)"
-      ],
-      extra: "We do not sell, rent, or share your personal data with any third party for commercial purposes."
+      content: "Your data is used only for recording entries, generating summaries, providing dashboard access, support, security, and legal compliance.",
+      extra: "We do not sell your data or use it for advertising."
     },
     {
       id: 6,
-      title: "Data Retention",
-      icon: Clock,
+      title: "Third-Party Services & Transfers",
+      icon: Share2,
       color: "text-teal-500",
       bg: "bg-teal-50 dark:bg-teal-900/20",
-      content: "We retain data only as long as necessary:",
+      content: "Your data may be processed and stored outside India, including in the United States. By using SideNote, you consent to such transfers to:",
       bullets: [
-        "Expense logs: Retained for the duration of your active account",
-        "Account deletion: Permanent erasure of logs and phone number within 30 days",
-        "Technical logs: Deleted after 90 days"
+        "WhatsApp / Meta Platforms Inc.",
+        "Render Inc. (Backend Hosting - US)",
+        "GitHub Inc. (Frontend Hosting - US)"
       ]
     },
     {
       id: 7,
-      title: "Data Security",
-      icon: ShieldAlert,
-      color: "text-rose-500",
-      bg: "bg-rose-50 dark:bg-rose-900/20",
-      content: "We implement encrypted transmission, access controls, and dashboard authentication. While we take precautions, absolute security cannot be guaranteed. In the event of a breach, we will notify you within 72 hours."
-    },
-    {
-      id: 8,
-      title: "Your Rights (DPDP Act, 2023)",
-      icon: UserCog,
-      color: "text-cyan-500",
-      bg: "bg-cyan-50 dark:bg-cyan-900/20",
-      content: "As a Data Principal, you have the right to:",
+      title: "Data Retention",
+      icon: Clock,
+      color: "text-sky-500",
+      bg: "bg-sky-50 dark:bg-sky-900/20",
+      content: "Data retention schedules:",
       bullets: [
-        "Access a summary of your data (Respond within 30 days)",
-        "Correct or Erase your data permanently",
-        "File a grievance or nominate an individual",
-        "Withdraw consent at any time",
-        "Complain to the Data Protection Board of India"
+        "Account data: retained while your account is active",
+        "After account deletion: deleted within 30 days",
+        "Technical logs: retained for up to 90 days"
       ]
     },
     {
+      id: 8,
+      title: "Data Security",
+      icon: HardDrive,
+      color: "text-rose-500",
+      bg: "bg-rose-50 dark:bg-rose-900/20",
+      content: "We implement reasonable safeguards, including encrypted transmission, access controls, and secure infrastructure.",
+      extra: "No system is completely secure. In case of a data breach, we will notify affected users within 72 hours, as required by law."
+    },
+    {
       id: 9,
-      title: "Grievance Officer",
-      icon: Scale,
-      color: "text-orange-500",
-      bg: "bg-orange-50 dark:bg-orange-900/20",
-      content: "In accordance with Section 13 of the DPDP Act, 2023:",
+      title: "Your Rights",
+      icon: UserCog,
+      color: "text-cyan-500",
+      bg: "bg-cyan-50 dark:bg-cyan-900/20",
+      content: "Under applicable law, you have the right to:",
       bullets: [
-        "Name: Yogesh Yadav",
-        "Email: admin.sidenote@gmail.com",
-        "Address: Noida, Uttar Pradesh, India",
-        "Resolution Time: Acknowledged in 48h, resolved within 30 days"
+        "Access your personal data",
+        "Correct or update inaccurate data",
+        "Request deletion of your data",
+        "Withdraw consent",
+        "File a grievance via email"
       ]
     },
     {
       id: 10,
-      title: "Age Restriction",
-      icon: AlertTriangle,
-      color: "text-red-500",
-      bg: "bg-red-50 dark:bg-red-900/20",
-      content: "Sidenote is intended for individuals aged 18 years and above. We do not knowingly collect personal data from minors. Minors found using the service will have their accounts immediately deleted."
+      title: "Grievance Redressal",
+      icon: Scale,
+      color: "text-orange-500",
+      bg: "bg-orange-50 dark:bg-orange-900/20",
+      content: "For complaints or concerns:",
+      bullets: [
+        "Email: info@sidenote.in",
+        "Response time: within 48 hours",
+        "Resolution time: within 30 days"
+      ]
     },
     {
       id: 11,
-      title: "Changes & Governing Law",
-      icon: Globe,
+      title: "Age Restriction",
+      icon: ShieldAlert,
+      color: "text-red-500",
+      bg: "bg-red-50 dark:bg-red-900/20",
+      content: "SideNote is intended for users aged 18 years and above. If we become aware that a minor has used the service, their data will be deleted."
+    },
+    {
+      id: 12,
+      title: "Changes to This Policy",
+      icon: RefreshCw,
       color: "text-[#25D366]",
       bg: "bg-[#25D366]/10 dark:bg-[#25D366]/20",
-      content: "We will notify you of material changes via WhatsApp. This policy is governed by the laws of India (DPDP Act 2023, IT Act 2000). Disputes are subject to the jurisdiction of Noida, UP courts."
+      content: "We may update this Privacy Policy from time to time.",
+      bullets: [
+        "Material changes → prior notice",
+        "Continued use → acceptance"
+      ]
+    },
+    {
+      id: 13,
+      title: "Governing Law",
+      icon: Globe,
+      color: "text-indigo-500",
+      bg: "bg-indigo-50 dark:bg-indigo-900/20",
+      content: "This policy is governed by the laws of India. Jurisdiction: Noida, Uttar Pradesh, India."
+    },
+    {
+      id: 14,
+      title: "Contact",
+      icon: Mail,
+      color: "text-stone-500",
+      bg: "bg-stone-100 dark:bg-slate-800",
+      content: "For any questions:",
+      bullets: [
+        "Email: info@sidenote.in",
+        "Address: Noida, Uttar Pradesh, India"
+      ]
     }
   ];
 
@@ -156,57 +184,54 @@ export default function PrivacyPolicy() {
         
         <Link 
             to="/" 
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white rounded-full font-bold transition-all shadow-lg mb-8"
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white rounded-full font-bold transition-all shadow-lg mb-8"
         >
-          <ArrowLeft size={18} /> Back to Home
+          <ArrowLeft size={14} /> Back to Home
         </Link>
 
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-6 md:p-10 lg:p-12 border border-stone-100 dark:border-slate-800">
+        <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl p-6 md:p-8 lg:p-10 border border-stone-100 dark:border-slate-800">
           
-          <div className="mb-10 text-center">
-            <div className="inline-flex items-center justify-center p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl mb-6 text-emerald-600 dark:text-emerald-400">
-                <ShieldCheck size={36} />
+          <div className="mb-8 text-center">
+            <div className="inline-flex items-center justify-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl mb-4 text-emerald-600 dark:text-emerald-400">
+                <ShieldCheck size={28} />
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-stone-800 dark:text-white mb-4 tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-black text-stone-800 dark:text-white mb-3 tracking-tight">
               Privacy Policy
             </h1>
-            <p className="text-stone-500 dark:text-slate-400 text-sm md:text-base max-w-2xl mx-auto">
-              This policy explains how Sidenote collects, uses, stores, and protects your personal data. Published in compliance with the Digital Personal Data Protection Act, 2023 ("DPDP Act") and the Information Technology Act, 2000.
-            </p>
-            <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-                <span className="inline-block px-4 py-1.5 bg-stone-100 dark:bg-slate-800 rounded-full text-xs font-bold text-stone-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+                <span className="inline-block px-3 py-1 bg-stone-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-stone-500 dark:text-slate-400 uppercase tracking-wider">
                   Effective: {effectiveDate}
                 </span>
-                <span className="inline-block px-4 py-1.5 bg-stone-100 dark:bg-slate-800 rounded-full text-xs font-bold text-stone-500 dark:text-slate-400 uppercase tracking-wider">
+                <span className="inline-block px-3 py-1 bg-stone-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-stone-500 dark:text-slate-400 uppercase tracking-wider">
                   Updated: {lastUpdated}
                 </span>
             </div>
           </div>
 
-          <div className="space-y-8 md:space-y-10 max-w-3xl mx-auto">
+          <div className="space-y-6 max-w-3xl mx-auto">
               {sections.map((section) => (
-                <div key={section.id} className="flex flex-col md:flex-row gap-4 md:gap-6 group">
-                    <div className="flex-shrink-0">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${section.bg} ${section.color} transition-transform group-hover:scale-110`}>
-                            <section.icon size={24} />
+                <div key={section.id} className="flex flex-row gap-3 md:gap-4 group">
+                    <div className="flex-shrink-0 mt-0.5">
+                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center ${section.bg} ${section.color} transition-transform group-hover:scale-110`}>
+                            <section.icon className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-stone-800 dark:text-white mb-2 flex items-center gap-2">
-                          <span className="text-stone-300 dark:text-slate-700 font-mono text-sm">
+                        <h3 className="text-sm font-bold text-stone-800 dark:text-white mb-1 flex items-center gap-2">
+                          <span className="text-stone-300 dark:text-slate-700 font-mono text-xs">
                              {section.id < 10 ? `0${section.id}` : section.id}.
                           </span> 
                           {section.title}
                         </h3>
-                        <p className="text-stone-600 dark:text-slate-400 leading-relaxed mb-3 text-sm md:text-base">
+                        <p className="text-stone-500 dark:text-slate-400 leading-relaxed mb-1.5 text-xs">
                             {section.content}
                         </p>
                         
                         {section.bullets && (
-                          <ul className="space-y-2 mt-2 mb-3">
+                          <ul className="space-y-1 mb-2">
                               {section.bullets.map((bullet, idx) => (
-                                  <li key={idx} className="flex items-start gap-2 text-stone-600 dark:text-slate-300 text-sm md:text-base">
-                                      <CheckCircle2 size={16} className={`mt-0.5 flex-shrink-0 ${section.color}`} />
+                                  <li key={idx} className="flex items-start gap-1.5 text-stone-500 dark:text-slate-400 text-xs">
+                                      <CheckCircle2 size={12} className={`mt-0.5 flex-shrink-0 ${section.color}`} />
                                       <span>{bullet}</span>
                                   </li>
                               ))}
@@ -214,8 +239,8 @@ export default function PrivacyPolicy() {
                         )}
 
                         {section.extra && (
-                            <div className="mt-4 p-4 bg-rose-50 dark:bg-rose-900/10 rounded-xl border border-rose-100 dark:border-rose-900/30">
-                                <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                            <div className="mt-2 p-2.5 bg-stone-50 dark:bg-slate-800/50 rounded-lg border border-stone-100 dark:border-slate-800/50">
+                                <p className="text-[11px] font-medium text-stone-500 dark:text-slate-400">
                                     {section.extra}
                                 </p>
                             </div>
@@ -225,15 +250,12 @@ export default function PrivacyPolicy() {
               ))}
           </div>
 
-          <div className="mt-12 max-w-3xl mx-auto bg-indigo-50 dark:bg-indigo-900/20 p-8 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/30 text-center flex flex-col items-center">
-              <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm mb-4">
-                  <MessageCircle size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-stone-800 dark:text-white mb-2">Still have questions?</h3>
-              <p className="text-stone-500 dark:text-slate-400 mb-6">If you need to exercise your data rights or contact our Grievance Officer, we're here to help.</p>
+          <div className="mt-10 max-w-3xl mx-auto bg-stone-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-stone-100 dark:border-slate-800 text-center flex flex-col items-center">
+              <h3 className="text-sm font-bold text-stone-800 dark:text-white mb-1">Still have questions?</h3>
+              <p className="text-xs text-stone-500 dark:text-slate-400 mb-4">Contact our Grievance Officer.</p>
               <Link 
                 to="/feedback" 
-                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
+                className="px-4 py-2 bg-stone-800 text-white dark:bg-white dark:text-stone-900 rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
               >
                 Contact Support
               </Link>
