@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
       content: "SideNote operates as a sole proprietorship and acts as the Data Fiduciary under applicable law.",
       bullets: [
         "Business Name: SideNote",
-        "Email: info@sidenote.in",
+        "Email: legal@sidenote.in",
         "Address: Noida, Uttar Pradesh, India"
       ]
     },
@@ -126,7 +126,7 @@ export default function PrivacyPolicy() {
       bg: "bg-orange-50 dark:bg-orange-900/20",
       content: "For complaints or concerns:",
       bullets: [
-        "Email: info@sidenote.in",
+        "Email: legal@sidenote.in",
         "Response time: within 48 hours",
         "Resolution time: within 30 days"
       ]
@@ -167,7 +167,7 @@ export default function PrivacyPolicy() {
       bg: "bg-stone-100 dark:bg-slate-800",
       content: "For any questions:",
       bullets: [
-        "Email: info@sidenote.in",
+        "Email: legal@sidenote.in",
         "Address: Noida, Uttar Pradesh, India"
       ]
     }

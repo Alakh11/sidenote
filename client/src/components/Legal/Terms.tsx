@@ -300,7 +300,7 @@ export default function TermsAndConditions() {
         <>
           For any queries:
           <ul className="list-disc pl-5 mt-2 space-y-1">
-            <li>Email: admin.sidenote@gmail.com</li>
+            <li>Email: legal@sidenote.in</li>
             <li>Address: Noida, Uttar Pradesh, India</li>
           </ul>
         </>
