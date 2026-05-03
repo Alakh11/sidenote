@@ -496,3 +496,35 @@ def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_curren
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@router.delete("/account/delete")
+def soft_delete_account(user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT mobile, email FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Append "deleted_[id]_" to free up the unique constraint for their next registration
+        new_mobile = f"deleted_{user_id}_{user['mobile']}" if user['mobile'] else None
+        new_email = f"deleted_{user_id}_{user['email']}" if user['email'] else None
+        
+        cursor.execute("""
+            UPDATE users 
+            SET account_status = 'inactive', 
+                mobile = %s, 
+                email = %s,
+                bot_state = 'DELETED'
+            WHERE id = %s
+        """, (new_mobile, new_email, user_id))
+        
+        conn.commit()
+        return {"message": "Account successfully deleted. Your data has been archived."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

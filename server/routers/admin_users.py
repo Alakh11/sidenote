@@ -57,7 +57,7 @@ def get_all_users(
         total_items = int(count_row['count']) if isinstance(count_row, dict) and count_row.get('count') else 0
 
         data_query = f"""
-            SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role 
+            SELECT id, name, email, mobile, is_verified, created_at, profile_pic, role, account_status 
             FROM users 
             WHERE {where_str}
             ORDER BY {sort_by} {sort_order}, id {sort_order} 

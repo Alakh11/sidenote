@@ -286,9 +286,22 @@ export default function AdminPanel() {
                                               />
                                           </td>
                                           <td className="p-5 flex items-center gap-3">
-                                              <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800 shrink-0">
-                                                  {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
+                                              <div className="relative shrink-0">
+                                                  <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center font-bold text-indigo-600 overflow-hidden text-lg border border-indigo-200 dark:border-indigo-800">
+                                                      {isUrl ? <img src={user.profile_pic} className="w-full h-full object-cover" /> : isEmoji ? <span>{user.profile_pic}</span> : user.name.charAt(0).toUpperCase()}
+                                                  </div>
+                                                  <div 
+                                                    className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-[2px] shadow-sm border border-stone-200 dark:border-slate-700" 
+                                                    title={user.is_verified ? "Verified User" : "Unverified User"}
+                                                  >
+                                                      {user.is_verified ? (
+                                                          <CheckCircle2 size={12} className="text-emerald-500" />
+                                                      ) : (
+                                                          <XCircle size={12} className="text-rose-500" />
+                                                      )}
+                                                  </div>
                                               </div>
+
                                               <div className="min-w-[100px]">
                                                   <div className="flex flex-wrap items-center gap-2">
                                                     <p className="font-bold text-stone-800 dark:text-white truncate max-w-[150px]">{user.name}</p>
@@ -317,8 +330,16 @@ export default function AdminPanel() {
                                                 )}
                                             </td>
         
-                                          <td className="p-5">
-                                                {user.is_verified ? <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full dark:bg-emerald-900/20 dark:text-emerald-400 whitespace-nowrap"><CheckCircle2 size={10} /> Verified</span> : <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full dark:bg-rose-900/20 dark:text-rose-400 whitespace-nowrap"><XCircle size={10} /> Unverified</span>}
+                                          <td className="p-5 whitespace-nowrap">
+                                            {user.account_status === 'inactive' ? (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-100 px-2.5 py-1 rounded-md dark:bg-rose-900/30 dark:text-rose-400">
+                                                    Inactive
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-md dark:bg-emerald-900/30 dark:text-emerald-400">
+                                                    Active
+                                                </span>
+                                            )}
                                           </td>
                                             
                                           <td className="p-5 flex justify-center gap-2">
