@@ -508,7 +508,6 @@ def soft_delete_account(user_id: int = Depends(get_current_user)):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
             
-        # Append "deleted_[id]_" to free up the unique constraint for their next registration
         new_mobile = f"deleted_{user_id}_{user['mobile']}" if user['mobile'] else None
         new_email = f"deleted_{user_id}_{user['email']}" if user['email'] else None
         

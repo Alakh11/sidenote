@@ -69,7 +69,15 @@ export default function AdminPanel() {
       try {
           const res = await axios.get(`${API_URL}/admin/users`, {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-              params: { page, limit, search: debouncedSearch, start_date: startDate, end_date: endDate, sort_by: sortBy, sort_order: sortOrder }
+              params: { 
+                  page, 
+                  limit, 
+                  search: debouncedSearch.trim(),
+                  start_date: startDate, 
+                  end_date: endDate, 
+                  sort_by: sortBy, 
+                  sort_order: sortOrder 
+              }
           });
           setServerUsers(res.data.data);
           setTotalPages(res.data.total_pages);

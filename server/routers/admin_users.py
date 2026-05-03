@@ -38,8 +38,8 @@ def get_all_users(
             where_clauses.append("role != 'superadmin'")
 
         if search:
-            search_term = f"%{search}%"
-            where_clauses.append("(name LIKE %s OR email LIKE %s OR mobile LIKE %s OR CAST(id AS CHAR) LIKE %s)")
+            search_term = f"%{search.lower()}%"
+            where_clauses.append("(LOWER(name) LIKE %s OR LOWER(email) LIKE %s OR mobile LIKE %s OR CAST(id AS CHAR) LIKE %s)")
             params.extend([search_term, search_term, search_term, search_term])
 
         if start_date:

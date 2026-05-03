@@ -31,7 +31,7 @@ def extract_transaction_details(text: str):
     text_lower = text.lower().strip()
     is_explicit_income = bool(re.search(r'^\s*\+\s*(?:rs\.?|₹|rupees|inr|rupee|paise|paisa|taka)?\s*\d+', text_lower))
     
-    payment_mode = "Cash"
+    payment_mode = "UPI"
     mode_mappings = [('upi', 'UPI'), ('card', 'Card'), ('net banking', 'Net Banking'), ('cash', 'Cash')]
     
     for mode, formatted_mode in mode_mappings:
