@@ -1,7 +1,7 @@
 import re, time, asyncio
 from typing import Any, Optional
 from database import get_db
-from whatsapp_service import send_whatsapp_text, send_whatsapp_template
+from whatsapp_service import send_whatsapp_text, send_whatsapp_template, send_policy_consent_prompt
 from constants import TEMPLATE_WELCOME
 
 # Global Semaphore to prevent DB connection exhaustion
@@ -110,7 +110,9 @@ async def ensure_user_exists(phone: str, sender_name: str = "WhatsApp User") -> 
             
     if is_new:
         await send_whatsapp_template(phone, TEMPLATE_WELCOME, [])
+        await send_policy_consent_prompt(phone)
         return True
+        
     return False
 
 def log_bot_command(phone: str, command: str):
