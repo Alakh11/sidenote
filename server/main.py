@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 ist_timezone = ZoneInfo('Asia/Kolkata')
 
 ENVIRONMENT = os.getenv("ENVIRONMENT")
-
+APP_VERSION = os.getenv("APP_VERSION")
 app = FastAPI(
     title="SideNote API",
     description="WhatsApp-first financial ledger system",
@@ -457,6 +457,7 @@ async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     process_time_ms = (time.time() - start_time) * 1000
+    response.headers["X-App-Version"] = APP_VERSION
     
     route = request.scope.get("route")
     endpoint_pattern = route.path if route else request.url.path

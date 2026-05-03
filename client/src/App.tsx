@@ -13,12 +13,25 @@ function App() {
   const [serverError, setServerError] = useState<number | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const CURRENT_FRONTEND_VERSION = "1.0.0";
 
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
-      response => response,
-      error => {
+      (response) => {
+        const serverVersion = response.headers['x-app-version'];
+        if (serverVersion && serverVersion !== CURRENT_FRONTEND_VERSION) {
+            console.warn("New version detected. Force reloading...");
+            window.location.reload(); 
+        }
+        return response;
+      },
+      (error) => {
         if (error.response) {
+            const serverVersion = error.response.headers['x-app-version'];
+            if (serverVersion && serverVersion !== CURRENT_FRONTEND_VERSION) {
+                window.location.reload();
+            }
+
             if (error.response.status === 503) setServerError(503);
             if (error.response.status === 410) setServerError(410);
         }
