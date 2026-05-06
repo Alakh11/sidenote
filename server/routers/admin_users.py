@@ -184,7 +184,7 @@ def get_user_full_data(user_id: int, admin_id: int = Depends(require_admin)):
         cursor.execute("SELECT * FROM goals WHERE user_id = %s", (user_id,))
         goals: list[Any] = cursor.fetchall()
 
-        cursor.execute("SELECT * FROM categories WHERE user_id = %s", (user_id,))
+        cursor.execute("SELECT * FROM categories WHERE user_id = %s OR user_id IS NULL", (user_id,))
         categories: list[Any] = cursor.fetchall()
 
         cursor.execute("SELECT * FROM loans WHERE user_id = %s", (user_id,))

@@ -18,16 +18,20 @@ def add_transaction(tx: TransactionCreate):
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute("SELECT id FROM categories WHERE name = %s AND user_id = %s AND type = %s", (tx.category, tx.user_id, tx.type))
+        cursor.execute(
+            "SELECT id FROM categories WHERE name = %s AND (user_id = %s OR user_id IS NULL) AND type = %s ORDER BY user_id DESC LIMIT 1", 
+            (tx.category, tx.user_id, tx.type)
+        )
         result: Any = cursor.fetchone()
+        
         if not result:
-             cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
+             cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
         
         cat_id = result['id'] if result else None
 
         query = "INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-        cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring)) # type: ignore
+        cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring))
         conn.commit()
         
         event_name = 'expense_logged' if tx.type == 'expense' else 'income_logged'
@@ -190,7 +194,7 @@ def delete_transaction(id: int):
 def get_categories(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM categories WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT * FROM categories WHERE user_id = %s OR user_id IS NULL", (user_id,))
     data = cursor.fetchall()
     conn.close()
     return data
@@ -201,7 +205,7 @@ def add_category(cat: CategoryCreate):
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
         cursor.execute(
-            "SELECT id FROM categories WHERE user_id = %s AND name = %s AND type = %s",
+            "SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND name = %s AND type = %s",
             (cat.user_id, cat.name, cat.type)
         )
         if cursor.fetchone():
@@ -382,10 +386,13 @@ def update_transaction(id: int, tx: TransactionCreate):
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute("SELECT id FROM categories WHERE name = %s AND user_id = %s AND type = %s", (tx.category, tx.user_id, tx.type))
+        cursor.execute(
+            "SELECT id FROM categories WHERE name = %s AND (user_id = %s OR user_id IS NULL) AND type = %s ORDER BY user_id DESC LIMIT 1", 
+            (tx.category, tx.user_id, tx.type)
+        )
         result: Any = cursor.fetchone()
         if not result:
-             cursor.execute("SELECT id FROM categories WHERE user_id = %s AND type = %s LIMIT 1", (tx.user_id, tx.type))
+             cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (tx.user_id, tx.type))
              result = cursor.fetchone()
              
         cat_id = result['id'] if result else None
@@ -396,7 +403,7 @@ def update_transaction(id: int, tx: TransactionCreate):
                 payment_mode = %s, date = %s, note = %s, is_recurring = %s 
             WHERE id = %s
         """
-        cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id)) # type: ignore
+        cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id))
         conn.commit()
 
         track_event(tx.user_id, 'transaction_updated', {
