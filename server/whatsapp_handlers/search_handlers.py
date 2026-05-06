@@ -9,27 +9,47 @@ from database import get_db
 from whatsapp_service import send_whatsapp_text, upload_whatsapp_media, send_whatsapp_interactive_buttons, send_whatsapp_media
 
 def create_expense_pie_chart(data: list[dict], month_name: str) -> bytes:
-    """Generates a pie chart image in memory and returns the bytes."""
-    labels = [str(row['category']).capitalize() if row['category'] else 'Other' for row in data]
-    sizes = [float(row['total']) for row in data]
+    """Generates a crisp, high-res donut chart image, grouping small slices."""
     
-    fig, ax = plt.subplots(figsize=(6, 6))
+    sorted_data = sorted(data, key=lambda x: float(x['total']), reverse=True)
     
-    colors = ['#10B981', '#3B82F6', '#EF4444', '#EC4899', '#8B5CF6', '#F97316', '#09D2EC', '#EAB308']
+    top_n = 5
+    if len(sorted_data) > top_n:
+        plot_data = sorted_data[:top_n]
+        other_total = sum(float(item['total']) for item in sorted_data[top_n:])
+        plot_data.append({'category': 'Other', 'total': other_total})
+    else:
+        plot_data = sorted_data
+
+    labels = [str(row['category']).capitalize() if row['category'] else 'Other' for row in plot_data]
+    sizes = [float(row['total']) for row in plot_data]
+    
+    fig, ax = plt.subplots(figsize=(8, 5), subplot_kw=dict(aspect="equal"))
+    
+    colors = ['#10B981', '#3B82F6', '#EF4444', '#EC4899', '#8B5CF6', '#F97316', '#94A3B8']
     
     wedges, texts, autotexts = ax.pie(
         sizes, 
         autopct='%1.1f%%', 
         startangle=140, 
         colors=colors[:len(labels)],
-        textprops=dict(color="w", weight="bold")
+        textprops=dict(color="w", weight="bold", fontsize=10),
+        wedgeprops=dict(width=0.4, edgecolor='w', linewidth=2)
     )
     
-    ax.legend(wedges, labels, title="Categories", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
-    ax.set_title(f"Expense Breakdown - {month_name.capitalize()}", fontweight="bold")
+    ax.legend(
+        wedges, labels, 
+        title="Categories", 
+        loc="center left", 
+        bbox_to_anchor=(1, 0, 0.5, 1),
+        fontsize=11,
+        title_fontsize=13
+    )
+    
+    ax.set_title(f"Expense Breakdown - {month_name.capitalize()}", fontweight="bold", fontsize=16, pad=20)
     
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', transparent=False, facecolor='white')
+    plt.savefig(buf, format='png', bbox_inches='tight', transparent=False, facecolor='white', dpi=300)
     buf.seek(0)
     plt.close(fig)
     
@@ -200,7 +220,14 @@ async def handle_search_command(phone: str, text: str):
                     caption = f"📊 *Full Analysis for {month_name.capitalize()}*\n\n"
                     caption += f"💸 Total Expense: ₹{exp:g}\n"
                     caption += f"💰 Total Income: ₹{inc:g}\n\n"
-                    caption += f"🏆 *Highest Spend:* {str(top_cat['category']).capitalize() or 'Other'} (₹{float(top_cat['total']):g})\n"
+                    
+                    caption += "📋 *Category Breakdown:*\n"
+                    for cat in cat_data:
+                        c_name = str(cat['category']).capitalize() if cat['category'] else 'Other'
+                        c_total = float(cat['total'])
+                        caption += f"• {c_name}: ₹{c_total:g}\n"
+                        
+                    caption += f"\n🏆 *Highest Spend:* {str(top_cat['category']).capitalize() or 'Other'} (₹{float(top_cat['total']):g})"
                     
                     if media_id:
                         await send_whatsapp_media(phone, media_type="image", media_id=media_id, caption=caption)
@@ -213,7 +240,7 @@ async def handle_search_command(phone: str, text: str):
                     msg = f"📊 *Overview for {month_name.capitalize()}*\n\n"
                     msg += f"💸 Total Expense: ₹{exp:g}\n"
                     msg += f"💰 Total Income: ₹{inc:g}\n\n"
-                    msg += f"💡 _Tip: Type `search {month_name} data` to see a full graphical breakdown!_"
+                    # msg += f"💡 _Tip: Type `search {month_name} data` to see a full graphical breakdown!_"
                     await send_whatsapp_text(phone, msg)
                     return
 
