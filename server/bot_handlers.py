@@ -1,10 +1,3 @@
-import io
-import re
-import matplotlib
-matplotlib.use('Agg') 
-import matplotlib.pyplot as plt
-from datetime import datetime
-from database import get_db
 from typing import Optional
 from whatsapp_service import send_whatsapp_text, get_whatsapp_media_url, download_whatsapp_media
 from ai_service import extract_receipt_data, extract_voice_data
@@ -156,29 +149,3 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
     else:
         await handle_dynamic_replies(phone, button_id)
     
-def create_expense_pie_chart(data: list[dict], month_name: str) -> bytes:
-    """Generates a pie chart image in memory and returns the bytes."""
-    labels = [str(row['category']).capitalize() if row['category'] else 'Other' for row in data]
-    sizes = [float(row['total']) for row in data]
-    
-    fig, ax = plt.subplots(figsize=(6, 6))
-    
-    colors = ['#10B981', '#3B82F6', '#EF4444', '#EC4899', '#8B5CF6', '#F97316', '#09D2EC', '#EAB308']
-    
-    wedges, texts, autotexts = ax.pie(
-        sizes, 
-        autopct='%1.1f%%', 
-        startangle=140, 
-        colors=colors[:len(labels)],
-        textprops=dict(color="w", weight="bold")
-    )
-    
-    ax.legend(wedges, labels, title="Categories", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
-    ax.set_title(f"Expense Breakdown - {month_name.capitalize()}", fontweight="bold")
-    
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', transparent=False, facecolor='white')
-    buf.seek(0)
-    plt.close(fig)
-    
-    return buf.read()

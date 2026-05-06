@@ -1,14 +1,46 @@
+import io
 import re
+import matplotlib
+matplotlib.use('Agg') 
+import matplotlib.pyplot as plt
 from datetime import datetime
 from database import get_db
-from server.bot_handlers import create_expense_pie_chart
+
 from whatsapp_service import send_whatsapp_text, upload_whatsapp_media, send_whatsapp_interactive_buttons, send_whatsapp_media
+
+def create_expense_pie_chart(data: list[dict], month_name: str) -> bytes:
+    """Generates a pie chart image in memory and returns the bytes."""
+    labels = [str(row['category']).capitalize() if row['category'] else 'Other' for row in data]
+    sizes = [float(row['total']) for row in data]
+    
+    fig, ax = plt.subplots(figsize=(6, 6))
+    
+    colors = ['#10B981', '#3B82F6', '#EF4444', '#EC4899', '#8B5CF6', '#F97316', '#09D2EC', '#EAB308']
+    
+    wedges, texts, autotexts = ax.pie(
+        sizes, 
+        autopct='%1.1f%%', 
+        startangle=140, 
+        colors=colors[:len(labels)],
+        textprops=dict(color="w", weight="bold")
+    )
+    
+    ax.legend(wedges, labels, title="Categories", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+    ax.set_title(f"Expense Breakdown - {month_name.capitalize()}", fontweight="bold")
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', transparent=False, facecolor='white')
+    buf.seek(0)
+    plt.close(fig)
+    
+    return buf.read()
 
 
 def get_user_id(cursor, phone: str) -> int | None:
     cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
     row = cursor.fetchone()
     return int(row['id']) if row else None
+
 
 def format_transaction_list(transactions, title):
     if not transactions:
@@ -36,6 +68,7 @@ def format_transaction_list(transactions, title):
         details.append(f"📉 *Total Expense in search: ₹{total:g}*")
         
     return "\n".join(details)
+
 
 async def handle_search_command(phone: str, text: str):
     """Parses the user's search query and routes to the correct database fetch."""
@@ -143,9 +176,8 @@ async def handle_search_command(phone: str, text: str):
                 exp = float(totals['total_exp'] or 0)
                 inc = float(totals['total_inc'] or 0)
                 
-                # --- NEW GRAPHIC FLOW ---
+                # --- GRAPHIC FLOW ---
                 if wants_graph:
-                    # Fetch category breakdown for the chart
                     cursor.execute("""
                         SELECT c.name as category, SUM(t.amount) as total
                         FROM transactions t
@@ -160,25 +192,19 @@ async def handle_search_command(phone: str, text: str):
                         await send_whatsapp_text(phone, f"📊 I couldn't find any expenses in {month_name.capitalize()} to build a chart.")
                         return
                     
-                    # 1. Generate the image
                     chart_bytes = create_expense_pie_chart(cat_data, month_name)
-                    
-                    # 2. Upload to Meta to get the media_id
                     media_id = await upload_whatsapp_media(chart_bytes, "image/png", f"{month_name}_analysis.png")
                     
-                    # 3. Build the analysis caption
-                    top_cat = cat_data[0] # Ordered by total DESC, so first is highest
+                    top_cat = cat_data[0] 
                     
                     caption = f"📊 *Full Analysis for {month_name.capitalize()}*\n\n"
                     caption += f"💸 Total Expense: ₹{exp:g}\n"
                     caption += f"💰 Total Income: ₹{inc:g}\n\n"
                     caption += f"🏆 *Highest Spend:* {str(top_cat['category']).capitalize() or 'Other'} (₹{float(top_cat['total']):g})\n"
                     
-                    # 4. Send Image + Caption
                     if media_id:
                         await send_whatsapp_media(phone, media_type="image", media_id=media_id, caption=caption)
                     else:
-                        # Fallback if Meta upload fails
                         await send_whatsapp_text(phone, caption + "\n\n_(⚠️ Could not generate the chart image at this time)_")
                     return
                 
