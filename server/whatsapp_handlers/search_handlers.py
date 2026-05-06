@@ -25,9 +25,12 @@ def create_expense_pie_chart(data: list[dict], month_name: str) -> bytes:
     ]
     colors = [base_colors[i % len(base_colors)] for i in range(len(labels))]
     
+    def custom_autopct(pct):
+        return ('%1.1f%%' % pct) if pct > 5 else ''
+    
     pie_results = ax.pie(
         sizes, 
-        autopct='%1.1f%%', 
+        autopct=custom_autopct,
         startangle=140, 
         colors=colors,
         pctdistance=0.75,
