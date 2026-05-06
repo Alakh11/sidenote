@@ -1,7 +1,9 @@
 import re
 from datetime import datetime
 from database import get_db
-from whatsapp_service import send_whatsapp_text, send_whatsapp_interactive_buttons
+from server.bot_handlers import create_expense_pie_chart
+from whatsapp_service import send_whatsapp_text, upload_whatsapp_media, send_whatsapp_interactive_buttons, send_whatsapp_media
+
 
 def get_user_id(cursor, phone: str) -> int | None:
     cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
@@ -123,8 +125,12 @@ async def handle_search_command(phone: str, text: str):
             await send_whatsapp_text(phone, format_transaction_list(transactions, f"Recent Activity on {query.capitalize()}"))
             return
 
+        # 6. MONTH OVERVIEW (e.g., "may" or "may data")
         for month_name, month_num in months.items():
             if month_name in query.split():
+                # Check if user appended "data" or "chart"
+                wants_graph = "data" in query.split() or "chart" in query.split()
+                
                 cursor.execute("""
                     SELECT 
                         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as total_exp,
@@ -137,12 +143,53 @@ async def handle_search_command(phone: str, text: str):
                 exp = float(totals['total_exp'] or 0)
                 inc = float(totals['total_inc'] or 0)
                 
-                msg = f"📊 *Overview for {month_name.capitalize()}*\n\n"
-                msg += f"💸 Total Expense: ₹{exp:g}\n"
-                msg += f"💰 Total Income: ₹{inc:g}\n\n"
-                msg += "Type `summary` for your current month charts."
-                await send_whatsapp_text(phone, msg)
-                return
+                # --- NEW GRAPHIC FLOW ---
+                if wants_graph:
+                    # Fetch category breakdown for the chart
+                    cursor.execute("""
+                        SELECT c.name as category, SUM(t.amount) as total
+                        FROM transactions t
+                        LEFT JOIN categories c ON t.category_id = c.id
+                        WHERE t.user_id = %s AND MONTH(t.date) = %s AND YEAR(t.date) = YEAR(CURDATE()) AND t.type = 'expense'
+                        GROUP BY c.id, c.name
+                        ORDER BY total DESC
+                    """, (user_id, month_num))
+                    cat_data = cursor.fetchall()
+                    
+                    if not cat_data:
+                        await send_whatsapp_text(phone, f"📊 I couldn't find any expenses in {month_name.capitalize()} to build a chart.")
+                        return
+                    
+                    # 1. Generate the image
+                    chart_bytes = create_expense_pie_chart(cat_data, month_name)
+                    
+                    # 2. Upload to Meta to get the media_id
+                    media_id = await upload_whatsapp_media(chart_bytes, "image/png", f"{month_name}_analysis.png")
+                    
+                    # 3. Build the analysis caption
+                    top_cat = cat_data[0] # Ordered by total DESC, so first is highest
+                    
+                    caption = f"📊 *Full Analysis for {month_name.capitalize()}*\n\n"
+                    caption += f"💸 Total Expense: ₹{exp:g}\n"
+                    caption += f"💰 Total Income: ₹{inc:g}\n\n"
+                    caption += f"🏆 *Highest Spend:* {str(top_cat['category']).capitalize() or 'Other'} (₹{float(top_cat['total']):g})\n"
+                    
+                    # 4. Send Image + Caption
+                    if media_id:
+                        await send_whatsapp_media(phone, media_type="image", media_id=media_id, caption=caption)
+                    else:
+                        # Fallback if Meta upload fails
+                        await send_whatsapp_text(phone, caption + "\n\n_(⚠️ Could not generate the chart image at this time)_")
+                    return
+                
+                # --- STANDARD TEXT FLOW ---
+                else:
+                    msg = f"📊 *Overview for {month_name.capitalize()}*\n\n"
+                    msg += f"💸 Total Expense: ₹{exp:g}\n"
+                    msg += f"💰 Total Income: ₹{inc:g}\n\n"
+                    msg += f"💡 _Tip: Type `search {month_name} data` to see a full graphical breakdown!_"
+                    await send_whatsapp_text(phone, msg)
+                    return
 
         # 7. RANGE DATE
         date_match = re.search(r'between (\d{1,2})\s*(?:and|-|to)\s*(\d{1,2})', query)
