@@ -9,32 +9,30 @@ from database import get_db
 from whatsapp_service import send_whatsapp_text, upload_whatsapp_media, send_whatsapp_interactive_buttons, send_whatsapp_media
 
 def create_expense_pie_chart(data: list[dict], month_name: str) -> bytes:
-    """Generates a crisp, high-res donut chart image, grouping small slices."""
+    """Generates a crisp, high-res donut chart showing all categories with vibrant colors."""
     
-    sorted_data = sorted(data, key=lambda x: float(x['total']), reverse=True)
+    plot_data = sorted(data, key=lambda x: float(x['total']), reverse=True)
     
-    top_n = 5
-    if len(sorted_data) > top_n:
-        plot_data = sorted_data[:top_n]
-        other_total = sum(float(item['total']) for item in sorted_data[top_n:])
-        plot_data.append({'category': 'Other', 'total': other_total})
-    else:
-        plot_data = sorted_data
-
-    labels = [str(row['category']).capitalize() if row['category'] else 'Other' for row in plot_data]
+    labels = [str(row['category']).capitalize() if row.get('category') else 'Other' for row in plot_data]
     sizes = [float(row['total']) for row in plot_data]
     
     fig, ax = plt.subplots(figsize=(8, 5), subplot_kw=dict(aspect="equal"))
     
-    colors = ['#10B981', '#3B82F6', '#EF4444', '#EC4899', '#8B5CF6', '#F97316', '#94A3B8']
+    base_colors = [
+        '#FF3B30', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+        '#FF9F40', '#00CC96', '#FF6384', '#845EC2', '#F9F871',
+        '#D65DB1', '#FF9671', '#FFC75F'
+    ]
+    colors = [base_colors[i % len(base_colors)] for i in range(len(labels))]
     
     wedges, texts, autotexts = ax.pie(
         sizes, 
         autopct='%1.1f%%', 
         startangle=140, 
-        colors=colors[:len(labels)],
+        colors=colors,
+        pctdistance=0.75,
         textprops=dict(color="w", weight="bold", fontsize=10),
-        wedgeprops=dict(width=0.4, edgecolor='w', linewidth=2)
+        wedgeprops=dict(width=0.5, edgecolor='w', linewidth=2)
     )
     
     ax.legend(
@@ -209,38 +207,38 @@ async def handle_search_command(phone: str, text: str):
                     cat_data = cursor.fetchall()
                     
                     if not cat_data:
-                        await send_whatsapp_text(phone, f"📊 I couldn't find any expenses in {month_name.capitalize()} to build a chart.")
+                        await send_whatsapp_text(phone, f"I couldn't find any expenses in {month_name.capitalize()} to build a chart.")
                         return
                     
                     chart_bytes = create_expense_pie_chart(cat_data, month_name)
                     media_id = await upload_whatsapp_media(chart_bytes, "image/png", f"{month_name}_analysis.png")
                     
                     top_cat = cat_data[0] 
+                    top_cat_name = str(top_cat['category']).capitalize() if top_cat.get('category') else 'Other'
                     
-                    caption = f"📊 *Full Analysis for {month_name.capitalize()}*\n\n"
-                    caption += f"💸 Total Expense: ₹{exp:g}\n"
-                    caption += f"💰 Total Income: ₹{inc:g}\n\n"
+                    caption = f"*Full Analysis for {month_name.capitalize()}*\n\n"
+                    caption += f"Total Expense: ₹{exp:g}\n"
+                    caption += f"Total Income: ₹{inc:g}\n\n"
                     
-                    caption += "📋 *Category Breakdown:*\n"
+                    caption += "*Category Breakdown:*\n"
                     for cat in cat_data:
-                        c_name = str(cat['category']).capitalize() if cat['category'] else 'Other'
+                        c_name = str(cat['category']).capitalize() if cat.get('category') else 'Other'
                         c_total = float(cat['total'])
                         caption += f"• {c_name}: ₹{c_total:g}\n"
                         
-                    caption += f"\n🏆 *Highest Spend:* {str(top_cat['category']).capitalize() or 'Other'} (₹{float(top_cat['total']):g})"
+                    caption += f"\n*Highest Spend:* {top_cat_name} (₹{float(top_cat['total']):g})"
                     
                     if media_id:
                         await send_whatsapp_media(phone, media_type="image", media_id=media_id, caption=caption)
                     else:
-                        await send_whatsapp_text(phone, caption + "\n\n_(⚠️ Could not generate the chart image at this time)_")
+                        await send_whatsapp_text(phone, caption + "\n\n_(Could not generate the chart image at this time)_")
                     return
                 
                 # --- STANDARD TEXT FLOW ---
                 else:
-                    msg = f"📊 *Overview for {month_name.capitalize()}*\n\n"
-                    msg += f"💸 Total Expense: ₹{exp:g}\n"
-                    msg += f"💰 Total Income: ₹{inc:g}\n\n"
-                    # msg += f"💡 _Tip: Type `search {month_name} data` to see a full graphical breakdown!_"
+                    msg = f"*Overview for {month_name.capitalize()}*\n\n"
+                    msg += f"Total Expense: ₹{exp:g}\n"
+                    msg += f"Total Income: ₹{inc:g}"
                     await send_whatsapp_text(phone, msg)
                     return
 
