@@ -50,7 +50,18 @@ async def handle_search_command(phone: str, text: str):
         user_id = get_user_id(cursor, phone)
         if not user_id: return
 
-        # 1. YESTERDAY
+        # 1. TODAY
+        if "today" in query:
+            cursor.execute("""
+                SELECT amount, note, type, date FROM transactions 
+                WHERE user_id = %s AND DATE(date) = CURDATE()
+                ORDER BY id DESC
+            """, (user_id,))
+            transactions = cursor.fetchall()
+            await send_whatsapp_text(phone, format_transaction_list(transactions, "Today's Activity"))
+            return
+
+        # 2. YESTERDAY
         if "yesterday" in query:
             cursor.execute("""
                 SELECT amount, note, type, date FROM transactions 
@@ -59,6 +70,34 @@ async def handle_search_command(phone: str, text: str):
             """, (user_id,))
             transactions = cursor.fetchall()
             await send_whatsapp_text(phone, format_transaction_list(transactions, "Yesterday's Activity"))
+            return
+
+        months = {
+            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+        }
+
+        # 3. SPECIFIC MONTH & DAY
+        month_names_pattern = "|".join(months.keys())
+        month_day_match = re.search(rf'\b({month_names_pattern})\s+(\d{{1,2}})\b|\b(\d{{1,2}})\s+({month_names_pattern})\b', query)
+        
+        if month_day_match:
+            if month_day_match.group(1):
+                m_name = month_day_match.group(1)
+                day_num = int(month_day_match.group(2))
+            else:
+                day_num = int(month_day_match.group(3))
+                m_name = month_day_match.group(4)
+                
+            month_num = months[m_name]
+            
+            cursor.execute("""
+                SELECT amount, note, type, date FROM transactions 
+                WHERE user_id = %s AND MONTH(date) = %s AND YEAR(date) = YEAR(CURDATE()) AND DAY(date) = %s
+                ORDER BY id DESC
+            """, (user_id, month_num, day_num))
+            transactions = cursor.fetchall()
+            await send_whatsapp_text(phone, format_transaction_list(transactions, f"Transactions on {m_name.capitalize()} {day_num}"))
             return
 
         if query.isdigit() and 1 <= int(query) <= 31:
@@ -84,12 +123,8 @@ async def handle_search_command(phone: str, text: str):
             await send_whatsapp_text(phone, format_transaction_list(transactions, f"Recent Activity on {query.capitalize()}"))
             return
 
-        months = {
-            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
-            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
-        }
         for month_name, month_num in months.items():
-            if month_name in query:
+            if month_name in query.split():
                 cursor.execute("""
                     SELECT 
                         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as total_exp,
@@ -109,13 +144,14 @@ async def handle_search_command(phone: str, text: str):
                 await send_whatsapp_text(phone, msg)
                 return
 
+        # 7. RANGE DATE
         date_match = re.search(r'between (\d{1,2})\s*(?:and|-|to)\s*(\d{1,2})', query)
         if date_match:
             start_day, end_day = int(date_match.group(1)), int(date_match.group(2))
             await handle_range_pagination(phone, user_id, start_day, end_day, offset=0)
             return
 
-        # 6. AMOUNT RANGE
+        # 8. AMOUNT RANGE
         amount_match = re.search(r'(?:amount|range).*?(\d+).*?(?:and|-|to).*?(\d+)', query)
         if amount_match:
             min_amt, max_amt = float(amount_match.group(1)), float(amount_match.group(2))
@@ -128,6 +164,7 @@ async def handle_search_command(phone: str, text: str):
             await send_whatsapp_text(phone, format_transaction_list(transactions, f"Transactions between ₹{min_amt:g} & ₹{max_amt:g}"))
             return
 
+        # 9. CATEGORY MATCH
         cursor.execute("""
             SELECT id, name FROM categories 
             WHERE user_id = %s AND LOWER(name) LIKE %s LIMIT 1
@@ -140,6 +177,7 @@ async def handle_search_command(phone: str, text: str):
             await handle_category_pagination(phone, user_id, cat_id, cat_name, offset=0)
             return
         
+        # 10. TEXT  SEARCH
         cursor.execute("""
             SELECT amount, note, type, date 
             FROM transactions 
