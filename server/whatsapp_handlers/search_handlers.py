@@ -25,7 +25,7 @@ def create_expense_pie_chart(data: list[dict], month_name: str) -> bytes:
     ]
     colors = [base_colors[i % len(base_colors)] for i in range(len(labels))]
     
-    wedges, texts, autotexts = ax.pie(
+    pie_results = ax.pie(
         sizes, 
         autopct='%1.1f%%', 
         startangle=140, 
@@ -34,6 +34,8 @@ def create_expense_pie_chart(data: list[dict], month_name: str) -> bytes:
         textprops=dict(color="w", weight="bold", fontsize=10),
         wedgeprops=dict(width=0.5, edgecolor='w', linewidth=2)
     )
+    
+    wedges = pie_results[0]
     
     ax.legend(
         wedges, labels, 
