@@ -274,22 +274,79 @@ async def handle_undo_action(phone: str, tx_id: int):
         await send_whatsapp_text(phone, "⚠️ Could not delete. You can only undo transactions made today, or it may have already been removed.")
 
 async def handle_budget_set(phone: str, text: str):
+    """
+    Handles both Global Budgets ("budget 20000") 
+    and Category Budgets ("budget food 5000")
+    """
     match = re.search(r'\d+(?:\.\d+)?', text)
     if not match:
-        await send_whatsapp_text(phone, "❌ Please provide an amount. Example: *budget 20000*")
+        await send_whatsapp_text(phone, "❌ Please provide an amount.\n\nExamples:\n- `budget 20000` (Overall Limit)\n- `budget food 5000` (Category Limit)")
         return
 
     new_budget = float(match.group(0))
+    cat_str = re.sub(r'\d+(?:\.\d+)?', '', text.lower())
+    for word in ['budget', 'set', 'for', 'limit']:
+        cat_str = cat_str.replace(word, '')
+    cat_str = cat_str.strip()
+
     conn = None
     cursor = None
     async with db_semaphore:
         try:
             conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET monthly_budget = %s WHERE mobile = %s", (new_budget, phone))
-            conn.commit()
+            cursor = conn.cursor(dictionary=True)
+            
+            user_id = get_user_id(cursor, phone)
+            if not user_id: return
+
+            if not cat_str:
+                cursor.execute("UPDATE users SET monthly_budget = %s WHERE id = %s", (new_budget, user_id))
+                conn.commit()
+                if new_budget > 0:
+                    await send_whatsapp_text(phone, f"✅ Global Budget Set!\nYour overall monthly limit is now *₹{new_budget:g}*.\n\nSideNote will notify you as you approach this limit.\n\n_(To remove it, type `budget 0`)_")
+                else:
+                    await send_whatsapp_text(phone, "🗑️ Global budget limit removed.")
+            else:
+                cursor.execute("""
+                    SELECT id, name FROM categories 
+                    WHERE (user_id = %s OR user_id IS NULL) AND type = 'expense'
+                """, (user_id,))
+                categories = cursor.fetchall()
+                
+                matched_cat_id = None
+                matched_cat_name = None
+                
+                for c in categories:
+                    c_name = str(c['name']).lower()
+                    aliases = [c_name]
+                    if "&" in c_name:
+                        aliases.extend([a.strip() for a in c_name.split("&")])
+                    
+                    if cat_str in aliases or any(a in cat_str for a in aliases) or any(cat_str in a and len(cat_str) > 2 for a in aliases):
+                        matched_cat_id = c['id']
+                        matched_cat_name = c['name']
+                        break
+                        
+                if not matched_cat_id:
+                    await send_whatsapp_text(phone, f"❌ I couldn't find a category matching '{cat_str.capitalize()}'.\nPlease use an existing category name like 'Food', 'Travel', or 'Shopping'.")
+                    return
+
+                if new_budget > 0:
+                    cursor.execute("""
+                        INSERT INTO budgets (user_id, category_id, amount)
+                        VALUES (%s, %s, %s)
+                        ON DUPLICATE KEY UPDATE amount = %s
+                    """, (user_id, matched_cat_id, new_budget, new_budget))
+                    conn.commit()
+                    await send_whatsapp_text(phone, f"✅ Limit Set!\nYour monthly budget for *{matched_cat_name}* is now *₹{new_budget:g}*.\n\n_(To remove it, type `budget {cat_str} 0`)_")
+                else:
+                    cursor.execute("DELETE FROM budgets WHERE user_id = %s AND category_id = %s", (user_id, matched_cat_id))
+                    conn.commit()
+                    await send_whatsapp_text(phone, f"🗑️ Budget limit for *{matched_cat_name}* has been removed.")
+
         except Exception as e:
             print(f"Budget Set Error: {e}")
+            await send_whatsapp_text(phone, "⚠️ Sorry, something went wrong while setting your budget.")
             return
         finally:
             if cursor: 
@@ -298,8 +355,6 @@ async def handle_budget_set(phone: str, text: str):
             if conn: 
                 try: conn.close()
                 except: pass
-            
-    await send_whatsapp_text(phone, f"✅ Budget Set! Your monthly limit is now *₹{new_budget:g}*.\n\nSideNote will now notify you as you approach this limit.\n\n_(To change it, just send a new budget. To remove it, type *budget 0*)_")
 
 async def handle_dynamic_replies(phone: str, incoming_text: str):
     incoming_text = incoming_text.lower().strip()
