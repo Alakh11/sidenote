@@ -80,10 +80,13 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                         cat_icon = str(gc[2]) if isinstance(gc, tuple) else gc['icon']
                         cat_color = str(gc[3]) if isinstance(gc, tuple) else gc['color']
                         explicit_category_found = True
-                        
+                        original_text = clean_item 
                         clean_item = re.sub(r'\b' + re.escape(matched_word) + r'\b', '', clean_item, count=1, flags=re.IGNORECASE)
                         clean_item = clean_item.strip("- =:, +").strip()
-                        if not clean_item: clean_item = gc_name 
+                        
+                        if not clean_item: 
+                            clean_item = original_text 
+                        
                         break
                 
                 if not explicit_category_found:
