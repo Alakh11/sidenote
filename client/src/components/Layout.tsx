@@ -212,7 +212,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main Content Area */}
       <main className="flex flex-col min-h-screen flex-1 md:ml-80 pt-4 md:pt-8 mt-20 md:mt-0 transition-all duration-300 w-full overflow-x-hidden dark:text-slate-200 relative">
-        <div className="max-w-6xl mx-auto w-full px-4 md:px-8 flex-1">
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-8 flex-1 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out fill-mode-both">
           {children}
         </div>
         <Footer />

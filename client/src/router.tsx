@@ -362,6 +362,9 @@ export const router = createRouter({
     handleLogout: undefined!
   },
   notFoundRoute,
+  defaultPendingComponent: GlobalLoader,
+  defaultPendingMs: 0,
+  defaultPendingMinMs: 500
 });
 
 declare module '@tanstack/react-router' {
