@@ -5,7 +5,6 @@ import {
    ChevronRight, Trophy, Sun, Moon, UserPen, Repeat, Settings, ReceiptIndianRupee, HandCoins
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { usePreferences } from '../context/PreferencesContext';
 import Logo from './Logo';
 import WhatsAppButton from './WhatsAppButton';
 import Footer from './Footer/Footer';
@@ -38,7 +37,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const { user, handleLogout } = router.options.context as any;
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
-  const { viewMode, setViewMode } = usePreferences();
 
   const menuItems = [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -214,24 +212,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main Content Area */}
       <main className="flex flex-col min-h-screen flex-1 md:ml-80 pt-4 md:pt-8 mt-20 md:mt-0 transition-all duration-300 w-full overflow-x-hidden dark:text-slate-200 relative">
-        <div className="max-w-6xl mx-auto w-full px-4 md:px-8 mb-6 flex justify-center z-10 relative">
-            <div className="flex bg-slate-200/70 dark:bg-slate-800/80 p-1.5 rounded-xl md:rounded-2xl w-full sm:w-[500px] shadow-inner">
-                {['day', 'week', 'month', 'year'].map((mode) => (
-                    <button
-                        key={mode}
-                        onClick={() => setViewMode(mode as any)}
-                        className={`flex-1 py-2.5 rounded-lg md:rounded-xl text-xs md:text-sm font-bold capitalize transition-all ${
-                            viewMode === mode 
-                            ? 'bg-white dark:bg-slate-700 text-[#25D366] shadow-sm ring-1 ring-black/5 dark:ring-white/5' 
-                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-                        }`}
-                    >
-                        {mode}
-                    </button>
-                ))}
-            </div>
-        </div>
-
         <div className="max-w-6xl mx-auto w-full px-4 md:px-8 flex-1">
           {children}
         </div>

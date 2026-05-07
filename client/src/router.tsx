@@ -76,11 +76,10 @@ const dashboardRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/dashboard',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month';
     const userId = context.user!.id;
     
     const [dashboard, categories, prediction, insights] = await Promise.all([
-        axios.get(`${API_URL}/dashboard/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/dashboard/${userId}?view_by=month`),
         axios.get(`${API_URL}/categories/${userId}`),
         axios.get(`${API_URL}/predict/${userId}`),
         axios.get(`${API_URL}/insights/${userId}`)
@@ -101,10 +100,9 @@ const transactionsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/transactions',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month';
     const userId = context.user!.id;
     const [transactions, categories] = await Promise.all([
-        axios.get(`${API_URL}/transactions/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/transactions/${userId}?view_by=month`),
         axios.get(`${API_URL}/categories/${userId}`)
     ]);
     return { 
@@ -120,10 +118,9 @@ const budgetRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/budget',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month'; 
     const userId = context.user!.id;
     const [status, categories, history] = await Promise.all([
-        axios.get(`${API_URL}/budgets/${userId}?view_by=${viewMode}`), 
+        axios.get(`${API_URL}/budgets/${userId}?view_by=month`), 
         axios.get(`${API_URL}/categories/${userId}`),
         axios.get(`${API_URL}/budgets/history/${userId}`)
     ]);
@@ -166,10 +163,9 @@ const analyticsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/analytics',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month';
     const userId = context.user!.id;
     const [analytics, dailyIncome, monthlyIncome, categoryMonthly, goals] = await Promise.all([
-        axios.get(`${API_URL}/analytics/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/analytics/${userId}?view_by=month`),
         axios.get(`${API_URL}/income/daily/${userId}`),
         axios.get(`${API_URL}/income/monthly/${userId}`),
         axios.get(`${API_URL}/analytics/category-monthly/${userId}`),

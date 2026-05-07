@@ -6,25 +6,50 @@ import { useTheme } from '../../../context/ThemeContext';
 import { Loader2 } from 'lucide-react';
 
 export default function TrendChart({ userId }: { userId: number }) {
-    const { viewMode, currency } = usePreferences();
+    const { currency } = usePreferences();
     const { theme } = useTheme();
     const isDark = theme === 'dark';
+    
+    const [trendView, setTrendView] = useState('month'); 
     
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         setLoading(true);
-        axios.get(`https://api.sidenote.in/trends/${userId}?view_by=${viewMode}`)
+        axios.get(`https://api.sidenote.in/trends/${userId}?view_by=${trendView}`)
              .then(res => setData(res.data))
              .finally(() => setLoading(false));
-    }, [viewMode, userId]);
+    }, [trendView, userId]);
 
     if (loading) return <div className="h-80 flex items-center justify-center bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800"><Loader2 className="animate-spin text-blue-500" /></div>;
 
     return (
         <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-colors duration-300">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 capitalize">{viewMode}ly Trends: Income vs Expense</h3>
+            
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-white capitalize">
+                        {trendView}ly Trends: Income vs Expense
+                    </h3>
+                </div>
+                
+                <div className="relative">
+                    <select 
+                        value={trendView} 
+                        onChange={(e) => setTrendView(e.target.value)}
+                        className="bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-300 text-sm font-bold rounded-xl pl-4 pr-10 py-2 outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer appearance-none"
+                    >
+                        <option value="day">Daily</option>
+                        <option value="week">Weekly</option>
+                        <option value="month">Monthly</option>
+                        <option value="year">Yearly</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-stone-500">
+                        <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                    </div>
+                </div>
+            </div>
             
             <div className="h-80 w-full">
                 <ResponsiveContainer width="100%" height="100%">
