@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
-import { X, Save, RefreshCw } from 'lucide-react';
+import { X, Save, RefreshCw, AlertCircle } from 'lucide-react';
 
-export default function EditCategoryModal({ category, onClose }: { category: any, onClose: () => void }) {
+interface Props {
+  category: any;
+  onClose: () => void;
+  onMessage: (text: string, type: 'success' | 'error') => void;
+}
+
+export default function EditCategoryModal({ category, onClose, onMessage }: Props) {
   const router = useRouter();
   const user = router.options.context?.user!;
   const API_URL = "https://api.sidenote.in";
@@ -13,9 +19,11 @@ export default function EditCategoryModal({ category, onClose }: { category: any
   
   const [budgetLimit, setBudgetLimit] = useState(category.budget_limit > 0 ? category.budget_limit.toString() : '');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleUpdate = async () => {
     setLoading(true);
+    setErrorMsg('');
     try {
       await axios.put(`${API_URL}/categories/${category.category_id}`, {
         name,
@@ -36,9 +44,10 @@ export default function EditCategoryModal({ category, onClose }: { category: any
       }
 
       router.invalidate();
+      onMessage("Category and budget limits updated successfully.", "success");
       onClose();
     } catch (err) { 
-        alert("Failed to save changes"); 
+        setErrorMsg("Failed to save changes. Please try again.");
     } finally {
         setLoading(false);
     }
@@ -85,6 +94,13 @@ export default function EditCategoryModal({ category, onClose }: { category: any
                     />
                 </div>
             </div>
+
+            {errorMsg && (
+                <div className="flex items-center gap-2 text-rose-500 text-xs font-bold bg-rose-50 dark:bg-rose-900/30 p-3 rounded-xl border border-rose-100 dark:border-rose-800">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{errorMsg}</span>
+                </div>
+            )}
 
             <button 
                 onClick={handleUpdate}
