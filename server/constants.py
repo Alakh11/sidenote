@@ -24,7 +24,7 @@ CMD_MORE = "more"
 # ==========================================
 # BUDGET SETTINGS
 # ==========================================
-CMD_SET_BUDGET = "budget"
+CMD_SET_BUDGET = "set budget"
 BUDGET_THRESHOLD_WARNING = 0.80
 
 # ==========================================
