@@ -107,7 +107,9 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                             break
             
             cursor.execute("""
-                SELECT id FROM categories WHERE user_id = %s AND name = %s AND type = %s LIMIT 1
+                SELECT id FROM categories 
+                WHERE (user_id = %s OR user_id IS NULL) AND name = %s AND type = %s 
+                ORDER BY user_id DESC LIMIT 1
             """, (user_id, target_category_name, tx_type))
             cat_row = cursor.fetchone()
             
