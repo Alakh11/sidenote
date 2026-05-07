@@ -36,14 +36,14 @@ export default function BudgetPlanner() {
 
       <BudgetOverview budgets={budgets} />
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="flex flex-col gap-8">
+          <BudgetChart history={history} />
+          
           <BudgetList 
             budgets={budgets} 
             onDelete={handleRemoveBudget} 
             onEdit={(cat) => setEditingCategory(cat)}
           />
-          <BudgetChart history={history} />
       </div>
 
       {editingCategory && (

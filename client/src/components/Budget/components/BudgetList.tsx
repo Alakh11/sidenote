@@ -11,7 +11,7 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
     const { currency } = usePreferences();
     
     return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-stone-50 dark:border-slate-800 shadow-sm space-y-10 transition-colors duration-300">
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-stone-50 dark:border-slate-800 shadow-sm flex flex-col gap-8 transition-colors duration-300">
         <div className="flex items-center justify-between">
             <h3 className="font-bold text-stone-700 dark:text-white text-lg">Category Breakdown</h3>
             <span className="text-xs font-bold text-stone-400 dark:text-slate-500 bg-stone-50 dark:bg-slate-800 px-3 py-1 rounded-full">
@@ -24,7 +24,7 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                 No categories available yet. Add a transaction to get started!
             </div>
         ) : (
-            <div className="space-y-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
                 {budgets.map((b: any) => {
                     const hasBudget = b.budget_limit > 0;
                     const excess = b.spent - b.budget_limit;
@@ -73,7 +73,6 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                                 </div>
                             </div>
 
-                            {/* Status Icon */}
                             <div className="group-hover:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 {hasBudget && (
                                     b.is_over ? (
@@ -125,7 +124,7 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                                 </div>
                             </>
                         ) : (
-                            <div className="flex justify-between items-center text-xs font-medium pt-2">
+                            <div className="flex justify-between items-center text-xs font-medium pt-2 border-t border-dashed border-stone-100 dark:border-slate-800 mt-2">
                                 <span className="text-stone-500 dark:text-slate-400">
                                     Spent: <span className="text-stone-900 dark:text-white font-bold">{currency}{b.spent.toLocaleString()}</span>
                                 </span>

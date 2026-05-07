@@ -16,7 +16,7 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
       const isOver = diff < 0;
   
       return (
-        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-xl border border-stone-100 dark:border-slate-700 text-xs">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-xl border border-stone-100 dark:border-slate-700 text-xs z-50">
           <p className="font-bold text-stone-800 dark:text-white text-sm mb-2">{label}</p>
           <div className="space-y-1">
               <p className="flex justify-between gap-4 text-stone-500 dark:text-slate-400">
@@ -42,11 +42,11 @@ export default function BudgetChart({ history }: Props) {
   const isDark = theme === 'dark';
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-stone-50 dark:border-slate-800 shadow-sm h-full flex flex-col transition-colors duration-300">
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-stone-50 dark:border-slate-800 shadow-sm transition-colors duration-300">
         <h3 className="font-bold text-stone-700 dark:text-white text-lg mb-2">Spending Trends</h3>
         <p className="text-stone-400 dark:text-slate-500 text-xs mb-6">Comparison of your monthly budget vs actual spending</p>
         
-        <div className="flex-1 w-full min-h-[300px]">
+        <div className="w-full h-[350px]">
             {history && history.length > 0 ? (
                  <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -56,7 +56,6 @@ export default function BudgetChart({ history }: Props) {
                                 <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.2}/>
                             </linearGradient>
                         </defs>
-                        {/* Dynamic Grid Color */}
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#f3f4f6'} />
                         
                         <XAxis 
@@ -74,7 +73,6 @@ export default function BudgetChart({ history }: Props) {
                         />
                         <Tooltip cursor={{fill: isDark ? '#1e293b' : '#f9fafb'}} content={<CustomTooltip currency={currency} />} />
                         
-                        {/* Budget Limit Line */}
                         <Line 
                             type="monotone" 
                             dataKey="budget_limit" 
@@ -85,7 +83,6 @@ export default function BudgetChart({ history }: Props) {
                             name="Budget Limit"
                         />
                         
-                        {/* Actual Spending Bar */}
                         <Bar 
                             dataKey="total_spent" 
                             name="Actual Spent" 
