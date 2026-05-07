@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useLoaderData, useRouter } from '@tanstack/react-router';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 // Import Components
 import StatCards from './components/StatCards';
@@ -25,12 +26,15 @@ export default function Dashboard() {
   stats.balance = stats.income - stats.expense;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  
   const API_URL = "https://api.sidenote.in";
 
   // Handle Logic
   const handleAddTransaction = async (txData: any) => {
     if (!txData.amount || !txData.category) {
-        alert("Please fill in amount and category");
+        setToast({ message: "Please fill in all required fields", type: "error" });
+        setTimeout(() => setToast(null), 3000);
         return;
     }
 
@@ -47,18 +51,30 @@ export default function Dashboard() {
         is_recurring: txData.is_recurring
       });
       
-      // Refresh Data
+      setToast({ message: "Transaction added successfully! 🎉", type: "success" });
       router.invalidate(); 
     } catch (err) {
-      alert("Error adding transaction.");
+      setToast({ message: "Failed to add transaction. Please try again.", type: "error" });
     } finally {
       setIsSubmitting(false);
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-8 animate-fade-in pb-20 relative">
       
+      {toast && (
+        <div className={`fixed bottom-8 right-8 flex items-center gap-3 px-5 py-4 rounded-2xl shadow-xl border animate-in slide-in-from-bottom-5 fade-in duration-300 z-50 ${
+          toast.type === 'success' 
+            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/90 dark:text-emerald-300 dark:border-emerald-800' 
+            : 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/90 dark:text-rose-300 dark:border-rose-800'
+        }`}>
+          {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          <span className="font-bold text-sm tracking-wide">{toast.message}</span>
+        </div>
+      )}
+
       {/* 1. Top Stats */}
       <StatCards stats={stats} />
 
