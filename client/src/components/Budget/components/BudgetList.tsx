@@ -32,7 +32,18 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                     return (
                     <div key={b.category_id} className="group relative">
                         
-                        <div className="absolute -top-8 -right-1 flex gap-1 z-10">
+                        <div className="absolute -top-8 -right-1 flex gap-1.5 z-10 items-center justify-end">
+                            
+                            {hasBudget && (
+                                <button 
+                                    onClick={() => onDelete(b.category_id, b.name)}
+                                    className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-rose-500 hover:border-rose-200 transition-all duration-300 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto -translate-x-2 group-hover:translate-x-0"
+                                    title="Remove Budget Limit"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            )}
+
                             <button 
                                 onClick={() => onEdit(b)}
                                 className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-blue-500 hover:border-blue-200 transition-colors"
@@ -40,15 +51,7 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                             >
                                 <Edit2 size={12} />
                             </button>
-                            {hasBudget && (
-                                <button 
-                                    onClick={() => onDelete(b.category_id, b.name)}
-                                    className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-rose-500 hover:border-rose-200 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                    title="Remove Budget Limit"
-                                >
-                                    <Trash2 size={12} />
-                                </button>
-                            )}
+
                         </div>
 
                         {/* Top Row: Icon | Name | Limit Badge */}
@@ -73,6 +76,7 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                                 </div>
                             </div>
 
+                            {/* Status Icon  */}
                             <div className="group-hover:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 {hasBudget && (
                                     b.is_over ? (
