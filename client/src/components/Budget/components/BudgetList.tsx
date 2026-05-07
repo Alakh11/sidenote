@@ -21,12 +21,14 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
 
         {budgets.length === 0 ? (
             <div className="text-center text-stone-400 dark:text-slate-600 py-10 italic">
-                No budgets set. Click the "+" button to start planning.
+                No categories available yet. Add a transaction to get started!
             </div>
         ) : (
             <div className="space-y-10">
                 {budgets.map((b: any) => {
+                    const hasBudget = b.budget_limit > 0;
                     const excess = b.spent - b.budget_limit;
+                    
                     return (
                     <div key={b.category_id} className="group relative">
                         
@@ -34,17 +36,19 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                             <button 
                                 onClick={() => onEdit(b)}
                                 className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-blue-500 hover:border-blue-200 transition-colors"
-                                title="Edit Category"
+                                title="Edit Category & Limit"
                             >
                                 <Edit2 size={12} />
                             </button>
-                            <button 
-                                onClick={() => onDelete(b.category_id, b.name)}
-                                className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-rose-500 hover:border-rose-200 transition-colors"
-                                title="Delete Category"
-                            >
-                                <Trash2 size={12} />
-                            </button>
+                            {hasBudget && (
+                                <button 
+                                    onClick={() => onDelete(b.category_id, b.name)}
+                                    className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-rose-500 hover:border-rose-200 transition-colors"
+                                    title="Remove Budget Limit"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            )}
                         </div>
 
                         {/* Top Row: Icon | Name | Limit Badge */}
@@ -56,59 +60,80 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                                 <div>
                                     <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
                                         <p className="font-bold text-stone-800 dark:text-white leading-tight">{b.name}</p>
-                                        <span className="text-[10px] font-bold text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-md w-fit">
-                                            Limit: {currency}{b.budget_limit.toLocaleString()}
-                                        </span>
+                                        {hasBudget ? (
+                                            <span className="text-[10px] font-bold text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-md w-fit">
+                                                Limit: {currency}{b.budget_limit.toLocaleString()}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] font-bold text-stone-400 dark:text-slate-500 bg-stone-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md w-fit">
+                                                No Limit Set
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Status Icon */}
                             <div className="group-hover:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                {b.is_over ? (
-                                    <div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-3 py-1.5 rounded-xl text-xs font-bold animate-pulse">
-                                        <AlertTriangle className="w-3.5 h-3.5" />
-                                        <span className="hidden md:inline">Over Budget</span>
-                                        <span className="md:hidden">Over</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-xl text-xs font-bold">
-                                        <CheckCircle className="w-3.5 h-3.5" />
-                                        <span className="hidden md:inline">On Track</span>
-                                        <span className="md:hidden">Good</span>
-                                    </div>
+                                {hasBudget && (
+                                    b.is_over ? (
+                                        <div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-3 py-1.5 rounded-xl text-xs font-bold animate-pulse">
+                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                            <span className="hidden md:inline">Over Budget</span>
+                                            <span className="md:hidden">Over</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-xl text-xs font-bold">
+                                            <CheckCircle className="w-3.5 h-3.5" />
+                                            <span className="hidden md:inline">On Track</span>
+                                            <span className="md:hidden">Good</span>
+                                        </div>
+                                    )
                                 )}
                             </div>
                         </div>
                         
-                        {/* Progress Bar */}
-                        <div className="h-3 w-full bg-stone-100 dark:bg-slate-800 rounded-full overflow-hidden mb-2 border border-stone-50 dark:border-slate-800">
-                            <div 
-                                className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                                    b.is_over ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 
-                                    b.percentage > 85 ? 'bg-gradient-to-r from-amber-300 to-amber-500' : 
-                                    'bg-gradient-to-r from-emerald-300 to-emerald-500'
-                                }`}
-                                style={{ width: `${Math.min(b.percentage, 100)}%` }}
-                            ></div>
-                        </div>
+                        {hasBudget ? (
+                            <>
+                                {/* Progress Bar */}
+                                <div className="h-3 w-full bg-stone-100 dark:bg-slate-800 rounded-full overflow-hidden mb-2 border border-stone-50 dark:border-slate-800">
+                                    <div 
+                                        className={`h-full rounded-full transition-all duration-1000 ease-out ${
+                                            b.is_over ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 
+                                            b.percentage > 85 ? 'bg-gradient-to-r from-amber-300 to-amber-500' : 
+                                            'bg-gradient-to-r from-emerald-300 to-emerald-500'
+                                        }`}
+                                        style={{ width: `${Math.min(b.percentage, 100)}%` }}
+                                    ></div>
+                                </div>
 
-                        {/* Bottom Row: Spent vs Excess Message */}
-                        <div className="flex justify-between items-center text-xs font-medium">
-                            <span className="text-stone-500 dark:text-slate-400">
-                                Spent: <span className="text-stone-900 dark:text-white font-bold">{currency}{b.spent.toLocaleString()}</span>
-                            </span>
-                            
-                            {b.is_over ? (
-                                <span className="text-rose-600 dark:text-rose-400 font-bold">
-                                    Exceeded by {currency}{excess.toLocaleString()}!
+                                {/* Bottom Row: Spent vs Excess Message */}
+                                <div className="flex justify-between items-center text-xs font-medium">
+                                    <span className="text-stone-500 dark:text-slate-400">
+                                        Spent: <span className="text-stone-900 dark:text-white font-bold">{currency}{b.spent.toLocaleString()}</span>
+                                    </span>
+                                    
+                                    {b.is_over ? (
+                                        <span className="text-rose-600 dark:text-rose-400 font-bold">
+                                            Exceeded by {currency}{excess.toLocaleString()}!
+                                        </span>
+                                    ) : (
+                                        <span className="text-stone-400 dark:text-slate-500">
+                                            {Math.round(100 - b.percentage)}% remaining
+                                        </span>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex justify-between items-center text-xs font-medium pt-2">
+                                <span className="text-stone-500 dark:text-slate-400">
+                                    Spent: <span className="text-stone-900 dark:text-white font-bold">{currency}{b.spent.toLocaleString()}</span>
                                 </span>
-                            ) : (
-                                <span className="text-stone-400 dark:text-slate-500">
-                                    {Math.round(100 - b.percentage)}% remaining
+                                <span className="text-stone-400 dark:text-slate-500 italic">
+                                    Click edit to set a budget
                                 </span>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 )})}
             </div>

@@ -381,6 +381,20 @@ def get_budget_history(user_id: int):
         print(f"HISTORY ERROR: {e}") 
         raise HTTPException(status_code=500, detail=str(e))
     
+@router.delete("/budgets/{category_id}")
+def remove_budget(category_id: int, user_id: int = Query(...)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM budgets WHERE category_id = %s AND user_id = %s", (category_id, user_id))
+        conn.commit()
+        return {"message": "Budget limit removed successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+    
 @router.put("/transactions/{id}")
 def update_transaction(id: int, tx: TransactionCreate):
     conn = get_db()
