@@ -26,7 +26,7 @@ export default function BudgetPlanner() {
   }, [statusMessage]);
 
   const handleRemoveBudget = async (categoryId: number, name: string) => {
-    if (!window.confirm(`Remove the budget limit for "${name}"? Your transactions and category will NOT be deleted.`)) {
+    if (!window.confirm(`Remove the budget limit for "${name}"?`)) {
       return;
     }
 

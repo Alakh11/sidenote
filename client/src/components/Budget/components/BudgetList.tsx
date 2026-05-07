@@ -37,7 +37,7 @@ export default function BudgetList({ budgets, onEdit, onDelete }: Props) {
                             {hasBudget && (
                                 <button 
                                     onClick={() => onDelete(b.category_id, b.name)}
-                                    className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-rose-500 hover:border-rose-200 transition-all duration-300 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto -translate-x-2 group-hover:translate-x-0"
+                                    className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-stone-100 dark:border-slate-700 rounded-lg text-stone-400 hover:text-rose-500 hover:border-rose-200 transition-colors"
                                     title="Remove Budget Limit"
                                 >
                                     <Trash2 size={12} />
