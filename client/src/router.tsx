@@ -29,6 +29,7 @@ import FAQ from './components/Support/FAQ';
 import TermsAndConditions from './components/Legal/Terms';
 import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 import ResetPassword from './components/Auth/ResetPassword';
+import GlobalLoader from './components/GlobalLoader';
 
 interface UserWithRole extends User {
   id: number;
@@ -47,6 +48,7 @@ const API_URL = "https://api.sidenote.in";
 // --- 1. Root Route ---
 const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => <Outlet />,
+  pendingComponent: GlobalLoader,
   errorComponent: ({ error }) => {
     return <ErrorPage code={500} customMessage={error.message} />;
   },
@@ -236,6 +238,8 @@ const indexRoute = createRoute({
   path: '/',
   component: Home,
 });
+
+
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
