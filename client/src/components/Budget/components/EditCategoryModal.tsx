@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
 import { X, Save, RefreshCw, AlertCircle } from 'lucide-react';
@@ -43,9 +44,9 @@ export default function EditCategoryModal({ category, onClose, onMessage }: Prop
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] p-8 shadow-2xl">
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="flex justify-between items-start mb-6">
             <div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">Set Limit</h3>
@@ -91,4 +92,10 @@ export default function EditCategoryModal({ category, onClose, onMessage }: Prop
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return null;
 }
