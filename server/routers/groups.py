@@ -13,19 +13,23 @@ def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 @router.post("/groups/create")
-def create_group(name: str, user_id: int):
+def create_group(name: str, user_id: int, type: str = "split", max_members: int = 20):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         invite_code = generate_invite_code()
         
-        cursor.execute("INSERT INTO expense_groups (name, invite_code) VALUES (%s, %s)", (name, invite_code))
+        cursor.execute("INSERT INTO expense_groups (type, name, created_by, max_members, status) VALUES (%s, %s, %s, %s, 'pending')", (type, name, user_id, max_members))
         group_id = cursor.lastrowid
         
-        # Add creator as a member
-        cursor.execute("INSERT INTO group_members (group_id, user_id) VALUES (%s, %s)", (group_id, user_id))
-        conn.commit()
+        cursor.execute("INSERT INTO group_members (group_id, user_id, role) VALUES (%s, %s, 'admin')", (group_id, user_id))
         
+        cursor.execute("""
+            INSERT INTO invite_codes (group_id, code, created_by, expires_at) 
+            VALUES (%s, %s, %s, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
+        """, (group_id, invite_code, user_id))
+        
+        conn.commit()
         return {"message": "Group created", "group_id": group_id, "invite_code": invite_code}
     except Exception as e:
         conn.rollback()
@@ -38,14 +42,33 @@ def join_group(invite_code: str, user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id, name FROM expense_groups WHERE invite_code = %s", (invite_code,))
-        group = cursor.fetchone()
-        if not group:
-            raise HTTPException(status_code=404, detail="Invalid invite code")
+        cursor.execute("""
+            SELECT ic.*, g.name, g.max_members, 
+                   (SELECT COUNT(*) FROM group_members WHERE group_id = ic.group_id) as current_members
+            FROM invite_codes ic
+            JOIN expense_groups g ON g.id = ic.group_id
+            WHERE ic.code = %s AND ic.expires_at > NOW() AND ic.used = FALSE
+        """, (invite_code,))
+        invite = cursor.fetchone()
+        
+        if not invite:
+            raise HTTPException(status_code=404, detail="Invalid, expired, or used invite code")
             
-        cursor.execute("INSERT IGNORE INTO group_members (group_id, user_id) VALUES (%s, %s)", (group['id'], user_id))
+        if invite['current_members'] >= invite['max_members']:
+            raise HTTPException(status_code=400, detail="Group is full")
+            
+        if invite['created_by'] == user_id:
+            raise HTTPException(status_code=400, detail="Cannot join own group")
+            
+        cursor.execute("INSERT IGNORE INTO group_members (group_id, user_id, role) VALUES (%s, %s, 'member')", (invite['group_id'], user_id))
+        cursor.execute("UPDATE invite_codes SET used = TRUE WHERE id = %s", (invite['id'],))
+        cursor.execute("UPDATE expense_groups SET status = 'active' WHERE id = %s", (invite['group_id'],))
         conn.commit()
-        return {"message": f"Joined {group['name']} successfully"}
+        
+        return {"message": f"Joined {invite['name']} successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
 
@@ -64,8 +87,8 @@ def calculate_settlements(group_id: int):
         if not members: return {"settlements": []}
         
         cursor.execute("""
-            SELECT paid_by_user_id, SUM(amount) as total_paid 
-            FROM group_transactions WHERE group_id = %s GROUP BY paid_by_user_id
+            SELECT logged_by, SUM(amount) as total_paid 
+            FROM group_transactions WHERE group_id = %s GROUP BY logged_by
         """, (group_id,))
         payments = cursor.fetchall()
         
@@ -74,7 +97,10 @@ def calculate_settlements(group_id: int):
         
         balances = {}
         for m in members: balances[m['id']] = {"name": m['display_name'], "balance": -split_share}
-        for p in payments: balances[p['paid_by_user_id']]['balance'] += float(p['total_paid'])
+        
+        for p in payments: 
+            if p['logged_by'] in balances:
+                balances[p['logged_by']]['balance'] += float(p['total_paid'])
             
         debtors = [{"id": k, "name": v["name"], "amount": abs(v["balance"])} for k, v in balances.items() if v["balance"] < -0.01]
         creditors = [{"id": k, "name": v["name"], "amount": v["balance"]} for k, v in balances.items() if v["balance"] > 0.01]
@@ -139,11 +165,11 @@ def get_group_transactions(group_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT t.id, t.amount, t.description, t.date, u.name as paid_by, t.logged_by as paid_by_user_id
+            SELECT t.id, t.amount, t.description, t.logged_at as date, u.name as paid_by, t.logged_by as paid_by_user_id
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
             WHERE t.group_id = %s
-            ORDER BY t.date DESC
+            ORDER BY t.logged_at DESC
         """, (group_id,))
         return cursor.fetchall()
     finally:

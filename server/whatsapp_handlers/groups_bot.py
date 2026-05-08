@@ -171,6 +171,44 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
+    if text_lower == "group undo":
+        async with db_semaphore:
+            conn = get_db()
+            std_cursor = conn.cursor()
+            user_id = get_user_id(std_cursor, phone)
+            std_cursor.close()
+            
+            if not user_id: return True
+
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("""
+                    SELECT gt.id, gt.description, gt.amount, g.name as group_name
+                    FROM group_transactions gt
+                    JOIN expense_groups g ON g.id = gt.group_id
+                    WHERE gt.logged_by = %s
+                    ORDER BY gt.logged_at DESC LIMIT 1
+                """, (user_id,))
+                last_txn = cursor.fetchone()
+
+                if not last_txn:
+                    await send_whatsapp_text(phone, "❌ You don't have any recent group transactions to undo.")
+                    return True
+
+                # Delete it
+                cursor.execute("DELETE FROM group_transactions WHERE id = %s", (last_txn['id'],))
+                conn.commit()
+                
+                await send_whatsapp_text(phone, f"🗑️ Successfully deleted your last group transaction:\n*{last_txn['description']}* (₹{last_txn['amount']:g}) from *{last_txn['group_name']}*")
+            except Exception as e:
+                conn.rollback()
+                print(f"Group Undo Error: {e}")
+                await send_whatsapp_text(phone, "⚠️ Failed to undo group transaction.")
+            finally:
+                cursor.close()
+                conn.close()
+        return True
+
 
     if text_lower == "group history":
         async with db_semaphore:
