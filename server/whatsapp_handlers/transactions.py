@@ -56,9 +56,14 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             cursor.execute("SELECT name, keywords, icon, color FROM global_categories WHERE type = %s", (tx_type,))
             global_cats = cursor.fetchall()
             
-            target_category_name = "Others"
-            cat_icon = "📝"
-            cat_color = "#94A3B8" if tx_type == "expense" else "#10B981"
+            if tx_type == "expense":
+                target_category_name = "Misc Expenses"
+                cat_icon = "🧾"
+                cat_color = "#94A3B8"
+            else:
+                target_category_name = "Misc Income"
+                cat_icon = "💵"
+                cat_color = "#10B981"
             
             explicit_category_found = False
             words = clean_item.split(' ') if clean_item else []
