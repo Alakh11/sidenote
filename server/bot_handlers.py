@@ -7,6 +7,7 @@ from whatsapp_handlers.search_handlers import handle_search_command, handle_sear
 from whatsapp_handlers.bot_utils import is_duplicate, extract_transaction_details, log_bot_command, ensure_user_exists
 from whatsapp_handlers.reports import handle_summary_request, handle_weekly_request, handle_monthly_request, handle_today_request, handle_menu_request, handle_more_request, handle_dashboard_request
 from whatsapp_handlers.transactions import handle_transaction_entry, handle_undo_request, handle_undo_action, handle_budget_set, handle_dynamic_replies, handle_fallback, handle_set_profile
+from whatsapp_handlers.groups_bot import handle_group_commands
 
 async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
@@ -15,6 +16,8 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
     text = text.strip().lower()
     
     if is_new and text in ['hi', 'hello', 'hey', 'start', 'begin', 'good morning', 'good evening', 'good afternoon', 'good night', 'good day', 'morning', 'evening', 'afternoon', 'night', 'day']:
+        return
+    if await handle_group_commands(phone, text):
         return
         
     if text == CMD_MENU: log_bot_command(phone, 'menu'); await handle_menu_request(phone)
