@@ -8,6 +8,9 @@ import ErrorPage from './components/Error/ErrorPage';
 import { ThemeProvider } from './context/ThemeContext';
 import { PreferencesProvider } from './context/PreferencesContext';
 import posthog from 'posthog-js';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 
 function App() {
   const [serverError, setServerError] = useState<number | null>(null);
@@ -82,15 +85,17 @@ function App() {
 
   return (
     <ThemeProvider>
-      <GoogleOAuthProvider clientId="577129960094-8u7ef3ijs82pkmdou8goofcqatku3c70.apps.googleusercontent.com">
-        {user ? (
-          <PreferencesProvider user={user}>
-            <RouterProvider router={router} context={{ user, handleLogout }} />
-          </PreferencesProvider>
-        ) : (
-          <RouterProvider router={router} context={{ user: null, handleLogout }} />
-        )}
-      </GoogleOAuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <GoogleOAuthProvider clientId="577129960094-8u7ef3ijs82pkmdou8goofcqatku3c70.apps.googleusercontent.com">
+          {user ? (
+            <PreferencesProvider user={user}>
+              <RouterProvider router={router} context={{ user, handleLogout }} />
+            </PreferencesProvider>
+          ) : (
+            <RouterProvider router={router} context={{ user: null, handleLogout }} />
+          )}
+        </GoogleOAuthProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }
