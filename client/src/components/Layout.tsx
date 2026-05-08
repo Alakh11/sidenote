@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
 import { 
   LayoutDashboard, PieChart, Wallet, LogOut, Menu, X, Target, Shield, 
-   ChevronRight, Trophy, Sun, Moon, UserPen, Repeat, Settings, ReceiptIndianRupee, HandCoins
+   ChevronRight, Trophy, Sun, Moon, UserPen, Repeat, Settings, ReceiptIndianRupee, HandCoins, Users 
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import Logo from './Logo';
@@ -43,6 +43,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     ...(isAdmin ? [{ to: '/admin', label: 'Admin Panel', icon: Shield }] : []),
     { to: '/transactions', label: 'Transactions', icon: Wallet },
     { to: '/budget', label: 'Budgets', icon: Target },
+    { to: '/groups', label: 'Groups', icon: Users },
     { to: '/analytics', label: 'Analytics', icon: PieChart },
     { to: '/goals', label: 'Savings Goals', icon: Trophy },
     { to: '/debts', label: 'Debts Tracker', icon: HandCoins, comingSoon: true },

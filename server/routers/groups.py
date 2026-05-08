@@ -108,7 +108,7 @@ def get_user_groups(user_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT g.id, g.name, g.invite_code, g.created_at 
+            SELECT g.id, g.name, g.invite_code, g.created_at, g.type, g.max_members 
             FROM expense_groups g
             JOIN group_members gm ON g.id = gm.group_id
             WHERE gm.user_id = %s

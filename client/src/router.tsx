@@ -30,6 +30,7 @@ import TermsAndConditions from './components/Legal/Terms';
 import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 import ResetPassword from './components/Auth/ResetPassword';
 import GlobalLoader from './components/GlobalLoader';
+import GroupsTab from './components/Groups/GroupsTab';
 
 interface UserWithRole extends User {
   id: number;
@@ -238,7 +239,13 @@ const indexRoute = createRoute({
   path: '/',
   component: Home,
 });
-
+ 
+// --- Groups Route ---
+const groupsRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/groups',
+  component: GroupsTab,
+});
 
 
 const loginRoute = createRoute({
@@ -351,6 +358,7 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     settingsRoute,
     feedbackRoute,
+    groupsRoute,
   ])
 ]);
 
