@@ -16,7 +16,6 @@ async def handle_group_commands(phone: str, text: str) -> bool:
     text_lower = text.lower().strip()
     
     match_create = re.match(r'create\s+(couple|family|split)\s+group(?:\s+(.+))?', text_lower, re.IGNORECASE)
-    
     if match_create:
         g_type = match_create.group(1).lower()
         custom_name = match_create.group(2)
@@ -127,6 +126,45 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
+    if text_lower.startswith("new code "):
+        group_alias = text_lower[9:].strip()
+        async with db_semaphore:
+            conn = get_db()
+            std_cursor = conn.cursor()
+            user_id = get_user_id(std_cursor, phone)
+            std_cursor.close()
+            
+            if not user_id: return True
+
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("""
+                    SELECT g.id, g.name FROM expense_groups g
+                    JOIN group_members gm ON g.id = gm.group_id
+                    WHERE gm.user_id = %s AND LOWER(g.name) LIKE %s LIMIT 1
+                """, (user_id, f"%{group_alias}%"))
+                group = cursor.fetchone()
+
+                if not group:
+                    await send_whatsapp_text(phone, f"❌ You don't belong to any group matching '{group_alias}'.")
+                    return True
+
+                new_code = generate_invite_code()
+                expires_at = datetime.now() + timedelta(minutes=30)
+
+                cursor.execute("UPDATE invite_codes SET expires_at = NOW() WHERE group_id = %s", (group['id'],))
+                cursor.execute("INSERT INTO invite_codes (group_id, code, created_by, expires_at) VALUES (%s, %s, %s, %s)", (group['id'], new_code, user_id, expires_at))
+                conn.commit()
+                
+                await send_whatsapp_text(phone, f"🔄 New code generated for *{group['name']}*:\n👉 *join {new_code}*\n\n_(Expires in 30 minutes)_")
+            except Exception as e:
+                conn.rollback()
+                print(f"Refresh Code Error: {e}")
+                await send_whatsapp_text(phone, "⚠️ Failed to generate new code.")
+            finally:
+                cursor.close()
+                conn.close()
+        return True
 
     match_log = re.match(r'^@(\w+)\s+(\d+(?:\.\d+)?)\s+(.+)$', text, re.IGNORECASE)
     if match_log:
@@ -171,7 +209,9 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
-    if text_lower == "group undo":
+    match_rm = re.match(r'^group\s+rm\s+(\d+)$', text_lower)
+    if match_rm:
+        tx_id = int(match_rm.group(1))
         async with db_semaphore:
             conn = get_db()
             std_cursor = conn.cursor()
@@ -186,31 +226,33 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                     SELECT gt.id, gt.description, gt.amount, g.name as group_name
                     FROM group_transactions gt
                     JOIN expense_groups g ON g.id = gt.group_id
-                    WHERE gt.logged_by = %s
-                    ORDER BY gt.logged_at DESC LIMIT 1
-                """, (user_id,))
-                last_txn = cursor.fetchone()
+                    WHERE gt.id = %s AND gt.logged_by = %s AND DATE(gt.logged_at) = CURDATE()
+                """, (tx_id, user_id))
+                txn = cursor.fetchone()
 
-                if not last_txn:
-                    await send_whatsapp_text(phone, "❌ You don't have any recent group transactions to undo.")
+                if not txn:
+                    await send_whatsapp_text(phone, "❌ No Transaction found.")
                     return True
 
-                # Delete it
-                cursor.execute("DELETE FROM group_transactions WHERE id = %s", (last_txn['id'],))
+                cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
                 conn.commit()
                 
-                await send_whatsapp_text(phone, f"🗑️ Successfully deleted your last group transaction:\n*{last_txn['description']}* (₹{last_txn['amount']:g}) from *{last_txn['group_name']}*")
+                await send_whatsapp_text(phone, f"🗑️ Successfully deleted: *{txn['description']}* (₹{txn['amount']:g}) from *{txn['group_name']}*")
             except Exception as e:
                 conn.rollback()
-                print(f"Group Undo Error: {e}")
-                await send_whatsapp_text(phone, "⚠️ Failed to undo group transaction.")
+                print(f"Group RM Error: {e}")
+                await send_whatsapp_text(phone, "⚠️ Failed to delete transaction.")
             finally:
                 cursor.close()
                 conn.close()
         return True
 
 
-    if text_lower == "group history":
+    match_query = re.match(r'^group\s+@(\w+)\s+(undo|history|today|yesterday|week|month)$', text_lower)
+    if match_query:
+        group_alias = match_query.group(1).lower()
+        cmd = match_query.group(2).lower()
+        
         async with db_semaphore:
             conn = get_db()
             std_cursor = conn.cursor()
@@ -221,70 +263,83 @@ async def handle_group_commands(phone: str, text: str) -> bool:
 
             cursor = conn.cursor(dictionary=True)
             try:
-                cursor.execute("""
-                    SELECT gt.amount, gt.description, u.name as logged_by_name, g.name as group_name
-                    FROM group_transactions gt
-                    JOIN expense_groups g ON g.id = gt.group_id
-                    JOIN group_members gm ON gm.group_id = gt.group_id
-                    JOIN users u ON u.id = gt.logged_by
-                    WHERE gm.user_id = %s 
-                    ORDER BY gt.logged_at DESC LIMIT 20
-                """, (user_id,))
-                rows = cursor.fetchall()
-                
-                if not rows:
-                    await send_whatsapp_text(phone, "📭 No group transactions yet.")
-                    return True
-                
-                msg_lines = ["📜 *Recent Group Transactions*"]
-                for r in rows:
-                    msg_lines.append(f"• [*{r['group_name']}*] ₹{float(r['amount']):g} {r['description']} (by {r['logged_by_name']})")
-                
-                await send_whatsapp_text(phone, "\n".join(msg_lines))
-            except Exception as e:
-                print(f"View History Error: {e}")
-                await send_whatsapp_text(phone, "⚠️ Failed to fetch history.")
-            finally:
-                cursor.close()
-                conn.close()
-        return True
-    
-    if text_lower.startswith("new code "):
-        group_alias = text_lower[9:].strip()
-        async with db_semaphore:
-            conn = get_db()
-            std_cursor = conn.cursor()
-            user_id = get_user_id(std_cursor, phone)
-            std_cursor.close()
-            
-            if not user_id: return True
-
-            cursor = conn.cursor(dictionary=True)
-            try:
-                # Find group
+                # Verify Group
                 cursor.execute("""
                     SELECT g.id, g.name FROM expense_groups g
                     JOIN group_members gm ON g.id = gm.group_id
-                    WHERE gm.user_id = %s AND LOWER(g.name) LIKE %s LIMIT 1
+                    WHERE gm.user_id = %s AND g.status = 'active' AND LOWER(g.name) LIKE %s LIMIT 1
                 """, (user_id, f"%{group_alias}%"))
                 group = cursor.fetchone()
 
                 if not group:
-                    await send_whatsapp_text(phone, f"❌ You don't belong to any group matching '{group_alias}'.")
+                    await send_whatsapp_text(phone, f"❌ You are not in an active group matching '{group_alias}'.")
                     return True
 
-                new_code = generate_invite_code()
-                expires_at = datetime.now() + timedelta(minutes=30)
+                if cmd == "undo":
+                    cursor.execute("""
+                        SELECT id, amount, description
+                        FROM group_transactions
+                        WHERE group_id = %s AND logged_by = %s AND DATE(logged_at) = CURDATE()
+                        ORDER BY logged_at DESC LIMIT 2
+                    """, (group['id'], user_id))
+                    txns = cursor.fetchall()
+                    
+                    if not txns:
+                        await send_whatsapp_text(phone, f"❌ You haven't logged any transactions to *{group['name']}* today to undo.")
+                        return True
+                        
+                    msg_lines = [f"↩️ *Undo in {group['name']}*"]
+                    msg_lines.append("Copy and send the command below to delete an entry:\n")
+                    for t in txns:
+                        msg_lines.append(f"👉 *group rm {t['id']}*")
+                        msg_lines.append(f"     (₹{t['amount']:g} for {t['description']})\n")
+                        
+                    await send_whatsapp_text(phone, "\n".join(msg_lines))
+                    return True
 
-                cursor.execute("UPDATE invite_codes SET expires_at = NOW() WHERE group_id = %s", (group['id'],))
-                cursor.execute("INSERT INTO invite_codes (group_id, code, created_by, expires_at) VALUES (%s, %s, %s, %s)", (group['id'], new_code, user_id, expires_at))
-                conn.commit()
-                
-                await send_whatsapp_text(phone, f"🔄 New code generated for *{group['name']}*:\n👉 *join {new_code}*\n\n_(Expires in 30 minutes)_")
+                else:
+                    date_filter = ""
+                    if cmd == "today":
+                        date_filter = "AND DATE(gt.logged_at) = CURDATE()"
+                        title = f"Today's expenses in {group['name']}"
+                    elif cmd == "yesterday":
+                        date_filter = "AND DATE(gt.logged_at) = CURDATE() - INTERVAL 1 DAY"
+                        title = f"Yesterday's expenses in {group['name']}"
+                    elif cmd == "week":
+                        date_filter = "AND gt.logged_at >= CURDATE() - INTERVAL 7 DAY"
+                        title = f"Last 7 days in {group['name']}"
+                    elif cmd == "month":
+                        date_filter = "AND MONTH(gt.logged_at) = MONTH(CURDATE()) AND YEAR(gt.logged_at) = YEAR(CURDATE())"
+                        title = f"This month's expenses in {group['name']}"
+                    else: # "history" defaults to recent
+                        title = f"Recent expenses in {group['name']}"
+
+                    query = f"""
+                        SELECT gt.amount, gt.description, u.name as logged_by_name, gt.logged_at
+                        FROM group_transactions gt
+                        JOIN users u ON u.id = gt.logged_by
+                        WHERE gt.group_id = %s {date_filter}
+                        ORDER BY gt.logged_at DESC LIMIT 20
+                    """
+                    cursor.execute(query, (group['id'],))
+                    rows = cursor.fetchall()
+
+                    if not rows:
+                        await send_whatsapp_text(phone, f"📭 No transactions found for {cmd} in *{group['name']}*.")
+                        return True
+
+                    total = sum(float(r['amount']) for r in rows)
+                    msg_lines = [f"📜 *{title}*"]
+                    for r in rows:
+                        msg_lines.append(f"• ₹{float(r['amount']):g} {r['description']} (by {r['logged_by_name']})")
+                    msg_lines.append(f"\n*Total:* ₹{total:g}")
+
+                    await send_whatsapp_text(phone, "\n".join(msg_lines))
+                    return True
+
             except Exception as e:
-                conn.rollback()
-                print(f"Refresh Code Error: {e}")
-                await send_whatsapp_text(phone, "⚠️ Failed to generate new code.")
+                print(f"Group Query Error: {e}")
+                await send_whatsapp_text(phone, "⚠️ Failed to fetch group data.")
             finally:
                 cursor.close()
                 conn.close()
