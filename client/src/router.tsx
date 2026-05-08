@@ -152,7 +152,9 @@ const goalsRoute = createRoute({
 const recurringRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/recurring',
-  beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/recurring/${userId}`);
@@ -189,7 +191,9 @@ const analyticsRoute = createRoute({
 const categoriesRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/categories',
-  beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/categories/${userId}`);
@@ -202,7 +206,9 @@ const categoriesRoute = createRoute({
 const loansRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/loans',
-  beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/loans/${userId}`);
@@ -215,7 +221,9 @@ const loansRoute = createRoute({
 const debtsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/debts',
-  beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
 
@@ -244,7 +252,9 @@ const indexRoute = createRoute({
 const groupsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/groups',
-  beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   component: GroupDashboard,
 });
 

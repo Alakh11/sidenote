@@ -36,7 +36,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   
   const router = useRouter();
   const { user, handleLogout } = router.options.context as any;
+  
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const isSuperAdmin = user?.role === 'superadmin';
 
   const menuItems = [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -45,11 +47,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/budget', label: 'Budgets', icon: Target },
     { to: '/analytics', label: 'Analytics', icon: PieChart },
     { to: '/goals', label: 'Savings Goals', icon: Trophy },
-    { to: '/groups', label: 'Groups', icon: Users, comingSoon: true },
-    { to: '/debts', label: 'Debts Tracker', icon: HandCoins, comingSoon: true },
-    { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee, comingSoon: true },
-    { to: '/recurring', label: 'Recurring Bills', icon: Repeat, comingSoon: true },
-    { to: '/categories', label: 'Categories', icon: Settings, comingSoon: true },
+    { to: '/groups', label: 'Groups', icon: Users, comingSoon: !isSuperAdmin },
+    { to: '/debts', label: 'Debts Tracker', icon: HandCoins, comingSoon: !isSuperAdmin },
+    { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee, comingSoon: !isSuperAdmin },
+    { to: '/recurring', label: 'Recurring Bills', icon: Repeat, comingSoon: !isSuperAdmin },
+    { to: '/categories', label: 'Categories', icon: Settings, comingSoon: !isSuperAdmin },
   ];
 
   const NavItem = ({ item, onClick }: any) => {
