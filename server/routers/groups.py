@@ -238,3 +238,19 @@ def delete_group_transaction(tx_id: int, user_id: int):
         return {"message": "Transaction deleted"}
     finally:
         conn.close()
+        
+@router.get("/groups/{group_id}/members")
+def get_group_members(group_id: int):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT u.id, u.name, u.email, gm.role, gm.joined_at 
+            FROM group_members gm 
+            JOIN users u ON gm.user_id = u.id 
+            WHERE gm.group_id = %s
+            ORDER BY gm.role ASC, u.name ASC
+        """, (group_id,))
+        return cursor.fetchall()
+    finally:
+        conn.close()
