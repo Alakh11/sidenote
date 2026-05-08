@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from typing import Any
 from database import get_db
 import random, string
@@ -8,6 +8,11 @@ router = APIRouter(tags=["Groups & Splitting"])
 
 class GroupUpdate(BaseModel):
     name: str
+
+class GroupTransactionCreate(BaseModel):
+    amount: float
+    description: str
+    user_id: int
 
 def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -165,13 +170,30 @@ def get_group_transactions(group_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT t.id, t.amount, t.description, t.logged_at as date, u.name as paid_by, t.logged_by as paid_by_user_id
+            SELECT t.id, t.amount, t.description, t.logged_at as date, u.name as paid_by, t.logged_by as paid_by_user_id, t.split_type
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
             WHERE t.group_id = %s
             ORDER BY t.logged_at DESC
         """, (group_id,))
         return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.post("/groups/{group_id}/transactions")
+def create_group_transaction(group_id: int, payload: GroupTransactionCreate):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type)
+            VALUES (%s, %s, %s, %s, 'equal')
+        """, (group_id, payload.amount, payload.description, payload.user_id))
+        conn.commit()
+        return {"message": "Transaction logged successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
 
@@ -187,13 +209,48 @@ def update_group(group_id: int, payload: GroupUpdate):
         conn.close()
 
 @router.delete("/groups/{group_id}")
-def delete_group(group_id: int):
+def leave_or_delete_group(group_id: int, user_id: int):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("DELETE FROM expense_groups WHERE id = %s", (group_id,))
+        cursor.execute("SELECT type FROM expense_groups WHERE id = %s", (group_id,))
+        group = cursor.fetchone()
+        
+        if group and group['type'] == 'split':
+            cursor.execute("SELECT u.name FROM users u WHERE id = %s", (user_id,))
+            user_data = cursor.fetchone()
+            
+            if user_data:
+
+                cursor.execute("SELECT COUNT(*) as member_count FROM group_members WHERE group_id = %s", (group_id,))
+                m_count = cursor.fetchone()['member_count']
+                
+                cursor.execute("SELECT SUM(amount) as total FROM group_transactions WHERE group_id = %s", (group_id,))
+                t_spend = cursor.fetchone()['total'] or 0
+                
+                cursor.execute("SELECT SUM(amount) as paid FROM group_transactions WHERE group_id = %s AND logged_by = %s", (group_id, user_id))
+                u_paid = cursor.fetchone()['paid'] or 0
+                
+                share = float(t_spend) / m_count if m_count > 0 else 0
+                balance = float(u_paid) - share
+                
+                if abs(balance) > 0.05:
+                    raise HTTPException(status_code=400, detail=f"Cannot leave group. Please settle your balance first.")
+
+        cursor.execute("DELETE FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
+        
+        cursor.execute("SELECT COUNT(*) as count FROM group_members WHERE group_id = %s", (group_id,))
+        remaining = cursor.fetchone()['count']
+        if remaining == 0:
+            cursor.execute("DELETE FROM expense_groups WHERE id = %s", (group_id,))
+            
         conn.commit()
-        return {"message": "Group deleted"}
+        return {"message": "Successfully left the group"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
         
@@ -205,17 +262,10 @@ def refresh_invite_code(group_id: int, user_id: int):
         cursor.execute("SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
         if not cursor.fetchone():
             raise HTTPException(status_code=403, detail="Not authorized")
-
         new_code = generate_invite_code()
-        
         cursor.execute("UPDATE invite_codes SET expires_at = NOW() WHERE group_id = %s", (group_id,))
-        
-        cursor.execute("""
-            INSERT INTO invite_codes (group_id, code, created_by, expires_at) 
-            VALUES (%s, %s, %s, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
-        """, (group_id, new_code, user_id))
+        cursor.execute("INSERT INTO invite_codes (group_id, code, created_by, expires_at) VALUES (%s, %s, %s, DATE_ADD(NOW(), INTERVAL 30 MINUTE))", (group_id, new_code, user_id))
         conn.commit()
-        
         return {"message": "Code refreshed", "code": new_code}
     finally:
         conn.close()
@@ -227,12 +277,8 @@ def delete_group_transaction(tx_id: int, user_id: int):
     try:
         cursor.execute("SELECT logged_by FROM group_transactions WHERE id = %s", (tx_id,))
         txn = cursor.fetchone()
-        
-        if not txn:
-            raise HTTPException(status_code=404, detail="Transaction not found")
-        if txn['logged_by'] != user_id:
-            raise HTTPException(status_code=403, detail="You can only delete transactions you logged.")
-            
+        if not txn: raise HTTPException(status_code=404, detail="Transaction not found")
+        if txn['logged_by'] != user_id: raise HTTPException(status_code=403, detail="You can only delete transactions you logged.")
         cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
         conn.commit()
         return {"message": "Transaction deleted"}
@@ -246,10 +292,8 @@ def get_group_members(group_id: int):
     try:
         cursor.execute("""
             SELECT u.id, u.name, u.email, gm.role, gm.joined_at 
-            FROM group_members gm 
-            JOIN users u ON gm.user_id = u.id 
-            WHERE gm.group_id = %s
-            ORDER BY gm.role ASC, u.name ASC
+            FROM group_members gm JOIN users u ON gm.user_id = u.id 
+            WHERE gm.group_id = %s ORDER BY gm.role ASC, u.name ASC
         """, (group_id,))
         return cursor.fetchall()
     finally:

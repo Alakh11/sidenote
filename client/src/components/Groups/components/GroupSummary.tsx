@@ -3,10 +3,16 @@ import { usePreferences } from '../../../context/PreferencesContext';
 export default function GroupSummary({ transactions }: any) {
   const { currency } = usePreferences();
 
-  // Simple aggregation for the demo
+  if (!transactions || transactions.length === 0) {
+    return (
+      <div className="text-center text-slate-500 mt-10 animate-in fade-in">
+        No data available to summarize yet.
+      </div>
+    );
+  }
+
   const categories: Record<string, number> = {};
   transactions.forEach((t: any) => {
-    // Assuming the first word of description is the category based on your screenshots
     const cat = t.description.split(' ')[0];
     const categoryName = cat.charAt(0).toUpperCase() + cat.slice(1);
     categories[categoryName] = (categories[categoryName] || 0) + parseFloat(t.amount);
