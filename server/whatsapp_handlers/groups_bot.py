@@ -7,6 +7,7 @@ from database import get_db
 from whatsapp_service import send_whatsapp_text
 from whatsapp_handlers.bot_utils import get_user_id, db_semaphore
 import json
+from whatsapp_handlers.groups_search import handle_group_search_command
 
 def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -343,6 +344,14 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             finally:
                 cursor.close()
                 conn.close()
+        return True
+    
+    match_search = re.match(r'^group\s+@(\w+)\s+(?:search|find)\s+(.+)$', text_lower)
+    if match_search:
+        group_alias = match_search.group(1).lower()
+        query = match_search.group(2).strip()
+        
+        await handle_group_search_command(phone, group_alias, query)
         return True
 
     return False
