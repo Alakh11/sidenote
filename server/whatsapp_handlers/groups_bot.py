@@ -25,9 +25,9 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             max_m = 2
             g_name = custom_name.strip().title() if custom_name else "Couple Group"
         elif g_type == 'family':
-            max_m = 20 
+            max_m = 20
             g_name = custom_name.strip().title() if custom_name else "Family Group"
-        else: 
+        else:
             max_m = 20
             g_name = custom_name.strip().title() if custom_name else "Split Group"
 
@@ -42,34 +42,24 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             cursor = conn.cursor(dictionary=True)
             try:
                 cursor.execute("""
-                    SELECT COUNT(*) as count FROM expense_groups g
+                    SELECT g.name FROM expense_groups g
                     JOIN group_members gm ON gm.group_id = g.id
-                    WHERE gm.user_id = %s AND g.status = 'active'
-                """, (user_id,))
-                if cursor.fetchone()['count'] >= 5:
-                    await send_whatsapp_text(phone, "❌ You have reached the maximum limit of 5 active groups.")
+                    WHERE gm.user_id = %s AND LOWER(g.name) = %s
+                """, (user_id, g_name.lower()))
+                
+                if cursor.fetchone():
+                    await send_whatsapp_text(phone, f"❌ You are already a member of a group named '{g_name}'. Please choose a different name.")
                     return True
 
                 code = generate_invite_code()
                 expires_at = datetime.now() + timedelta(minutes=30)
-
-                cursor.execute("""
-                    INSERT INTO expense_groups (type, name, created_by, max_members, status) 
-                    VALUES (%s, %s, %s, %s, 'pending')
-                """, (g_type, g_name, user_id, max_m))
-                group_id = cursor.lastrowid
-
-                cursor.execute("""
-                    INSERT INTO group_members (group_id, user_id, role) 
-                    VALUES (%s, %s, 'admin')
-                """, (group_id, user_id))
-
-                cursor.execute("""
-                    INSERT INTO invite_codes (group_id, code, created_by, expires_at) 
-                    VALUES (%s, %s, %s, %s)
-                """, (group_id, code, user_id, expires_at))
                 
+                cursor.execute("INSERT INTO expense_groups (type, name, created_by, max_members, status) VALUES (%s, %s, %s, %s, 'pending')", (g_type, g_name, user_id, max_m))
+                group_id = cursor.lastrowid
+                cursor.execute("INSERT INTO group_members (group_id, user_id, role) VALUES (%s, %s, 'admin')", (group_id, user_id))
+                cursor.execute("INSERT INTO invite_codes (group_id, code, created_by, expires_at) VALUES (%s, %s, %s, %s)", (group_id, code, user_id, expires_at))
                 conn.commit()
+                
                 msg = f" {g_type.title()} Group *'{g_name}'* created!\n\nShare this code with your members:\n👉 *join {code}*\n\n_(Code expires in 30 minutes. Max members: {max_m})_"
                 await send_whatsapp_text(phone, msg)
             except Exception as e:
@@ -216,6 +206,47 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             except Exception as e:
                 print(f"View History Error: {e}")
                 await send_whatsapp_text(phone, "⚠️ Failed to fetch history.")
+            finally:
+                cursor.close()
+                conn.close()
+        return True
+    
+    if text_lower.startswith("new code "):
+        group_alias = text_lower[9:].strip()
+        async with db_semaphore:
+            conn = get_db()
+            std_cursor = conn.cursor()
+            user_id = get_user_id(std_cursor, phone)
+            std_cursor.close()
+            
+            if not user_id: return True
+
+            cursor = conn.cursor(dictionary=True)
+            try:
+                # Find group
+                cursor.execute("""
+                    SELECT g.id, g.name FROM expense_groups g
+                    JOIN group_members gm ON g.id = gm.group_id
+                    WHERE gm.user_id = %s AND LOWER(g.name) LIKE %s LIMIT 1
+                """, (user_id, f"%{group_alias}%"))
+                group = cursor.fetchone()
+
+                if not group:
+                    await send_whatsapp_text(phone, f"❌ You don't belong to any group matching '{group_alias}'.")
+                    return True
+
+                new_code = generate_invite_code()
+                expires_at = datetime.now() + timedelta(minutes=30)
+
+                cursor.execute("UPDATE invite_codes SET expires_at = NOW() WHERE group_id = %s", (group['id'],))
+                cursor.execute("INSERT INTO invite_codes (group_id, code, created_by, expires_at) VALUES (%s, %s, %s, %s)", (group['id'], new_code, user_id, expires_at))
+                conn.commit()
+                
+                await send_whatsapp_text(phone, f"🔄 New code generated for *{group['name']}*:\n👉 *join {new_code}*\n\n_(Expires in 30 minutes)_")
+            except Exception as e:
+                conn.rollback()
+                print(f"Refresh Code Error: {e}")
+                await send_whatsapp_text(phone, "⚠️ Failed to generate new code.")
             finally:
                 cursor.close()
                 conn.close()

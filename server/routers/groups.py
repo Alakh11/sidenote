@@ -139,9 +139,9 @@ def get_group_transactions(group_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT t.id, t.amount, t.description, t.date, u.name as paid_by
+            SELECT t.id, t.amount, t.description, t.date, u.name as paid_by, t.logged_by as paid_by_user_id
             FROM group_transactions t
-            JOIN users u ON t.paid_by_user_id = u.id
+            JOIN users u ON t.logged_by = u.id
             WHERE t.group_id = %s
             ORDER BY t.date DESC
         """, (group_id,))
@@ -168,5 +168,47 @@ def delete_group(group_id: int):
         cursor.execute("DELETE FROM expense_groups WHERE id = %s", (group_id,))
         conn.commit()
         return {"message": "Group deleted"}
+    finally:
+        conn.close()
+        
+@router.post("/groups/{group_id}/refresh-code")
+def refresh_invite_code(group_id: int, user_id: int):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        new_code = generate_invite_code()
+        
+        cursor.execute("UPDATE invite_codes SET expires_at = NOW() WHERE group_id = %s", (group_id,))
+        
+        cursor.execute("""
+            INSERT INTO invite_codes (group_id, code, created_by, expires_at) 
+            VALUES (%s, %s, %s, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
+        """, (group_id, new_code, user_id))
+        conn.commit()
+        
+        return {"message": "Code refreshed", "code": new_code}
+    finally:
+        conn.close()
+        
+@router.delete("/groups/transactions/{tx_id}")
+def delete_group_transaction(tx_id: int, user_id: int):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT logged_by FROM group_transactions WHERE id = %s", (tx_id,))
+        txn = cursor.fetchone()
+        
+        if not txn:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        if txn['logged_by'] != user_id:
+            raise HTTPException(status_code=403, detail="You can only delete transactions you logged.")
+            
+        cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
+        conn.commit()
+        return {"message": "Transaction deleted"}
     finally:
         conn.close()

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
-import { Users, Copy, Trash2, Edit2, ArrowRightLeft, Receipt, Clock, Info } from 'lucide-react';
+import { Users, Copy, Trash2, Edit2, ArrowRightLeft, Receipt, Clock, Info, RefreshCw } from 'lucide-react';
 import { usePreferences } from '../../context/PreferencesContext';
 
 const API_URL = "https://api.sidenote.in";
@@ -57,6 +57,16 @@ export default function GroupsTab() {
     alert(`Copied: "join ${code}"\nSend this to a friend so they can text it to the bot!`);
   };
 
+  const handleRefreshCode = async () => {
+    try {
+      const res = await axios.post(`${API_URL}/groups/${selectedGroup.id}/refresh-code?user_id=${user.id}`);
+      setSelectedGroup({ ...selectedGroup, invite_code: res.data.code });
+      fetchGroups();
+    } catch (err) {
+      alert("Failed to generate a new code.");
+    }
+  };
+
   const handleEditGroup = async () => {
     const newName = prompt("Enter new group name:", selectedGroup.name);
     if (!newName || newName === selectedGroup.name) return;
@@ -79,6 +89,17 @@ export default function GroupsTab() {
       fetchGroups();
     } catch (err) {
       alert("Failed to delete group.");
+    }
+  };
+
+  const handleDeleteTransaction = async (txId: number) => {
+    if (!window.confirm("Are you sure you want to delete this transaction? It will recalculate settlements for everyone.")) return;
+
+    try {
+      await axios.delete(`${API_URL}/groups/transactions/${txId}?user_id=${user.id}`);
+      handleSelectGroup(selectedGroup);
+    } catch (err) {
+      alert("Failed to delete transaction. You can only delete transactions you logged.");
     }
   };
 
@@ -123,7 +144,9 @@ export default function GroupsTab() {
                  )}
               </div>
               <div className="text-xs text-slate-500 mt-1 flex justify-between items-center">
-                <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">Code: {g.invite_code}</span>
+                <span className={`font-mono px-1.5 py-0.5 rounded ${g.invite_code === 'Expired' ? 'text-rose-500 bg-rose-50 dark:bg-rose-900/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                  Code: {g.invite_code}
+                </span>
                 {selectedGroup?.id === g.id && <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>}
               </div>
             </button>
@@ -148,15 +171,26 @@ export default function GroupsTab() {
               </div>
               
               <div className="flex items-center gap-3 mt-3">
-                  <button 
-                    onClick={() => copyInviteCode(selectedGroup.invite_code)}
-                    className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition border border-blue-100 dark:border-blue-800/50"
-                  >
-                    <Copy size={12} /> Invite Code: {selectedGroup.invite_code}
-                  </button>
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                     <Clock size={10} /> Valid 30m after creation
-                  </span>
+                  {selectedGroup.invite_code === 'Expired' ? (
+                     <button 
+                       onClick={handleRefreshCode}
+                       className="text-xs font-bold text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition border border-amber-200 dark:border-amber-800/50"
+                     >
+                       <RefreshCw size={12} /> Generate New Code
+                     </button>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => copyInviteCode(selectedGroup.invite_code)}
+                        className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition border border-blue-100 dark:border-blue-800/50"
+                      >
+                        <Copy size={12} /> Invite Code: {selectedGroup.invite_code}
+                      </button>
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Clock size={10} /> Valid 30m after creation
+                      </span>
+                    </>
+                  )}
               </div>
             </div>
             
@@ -202,15 +236,28 @@ export default function GroupsTab() {
               ) : (
                 <div className="space-y-3">
                   {transactions.map(t => (
-                    <div key={t.id} className="flex justify-between items-center p-4 rounded-2xl bg-white dark:bg-slate-800/80 border border-stone-100 dark:border-slate-700/50 shadow-sm hover:border-blue-100 dark:hover:border-blue-900/50 transition">
+                    <div key={t.id} className="group flex justify-between items-center p-4 rounded-2xl bg-white dark:bg-slate-800/80 border border-stone-100 dark:border-slate-700/50 shadow-sm hover:border-blue-100 dark:hover:border-blue-900/50 transition">
                       <div>
                         <div className="font-bold text-slate-800 dark:text-white capitalize">{t.description}</div>
                         <div className="text-xs text-slate-500 mt-1">
                            Paid by <span className="font-bold text-slate-700 dark:text-slate-300">{t.paid_by}</span>
                         </div>
                       </div>
-                      <div className="font-bold text-slate-800 dark:text-white text-lg bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-stone-100 dark:border-slate-800">
-                        {currency}{t.amount.toLocaleString()}
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="font-bold text-slate-800 dark:text-white text-lg bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-stone-100 dark:border-slate-800">
+                          {currency}{t.amount.toLocaleString()}
+                        </div>
+                        
+                        {t.paid_by_user_id === user.id && (
+                          <button 
+                            onClick={() => handleDeleteTransaction(t.id)}
+                            className="p-2 text-stone-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            title="Delete Transaction"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
