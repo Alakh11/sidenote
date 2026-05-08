@@ -407,3 +407,64 @@ async def handle_fallback(phone: str, text: str = ""):
         fallback_message = f"I didn't quite catch that.\n\nJust send what you want to note.\n\nExamples:\n*200 chai* \n*+5000 salary* (Income)\n\nType *menu* for options or *undo* to delete a mistake."
         
     await send_whatsapp_text(phone, fallback_message)
+    
+async def handle_set_profile(phone: str, text: str):
+    """
+    Handles setting the user's full name or nickname.
+    Examples: "set name Alakh Chaturvedi" or "set nickname Alakh"
+    """
+    text_lower = text.lower()
+    
+    is_nickname = text_lower.startswith("set nickname")
+    is_name = text_lower.startswith("set name")
+    
+    if not (is_name or is_nickname):
+        return False
+        
+    if is_nickname:
+        value = text[12:].strip()
+        column_label = "Nickname"
+    else:
+        value = text[8:].strip()
+        column_label = "Full name"
+        
+    if not value:
+        example = "set name Alakh Chaturvedi" if is_name else "set nickname Alakh"
+        await send_whatsapp_text(phone, f"❌ Please provide a value. \nExample: `{example}`")
+        return True
+
+    conn = None
+    cursor = None
+    async with db_semaphore:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            
+            user_id = get_user_id(cursor, phone)
+            
+            if not user_id:
+                initial_name = value if is_name else "WhatsApp User"
+                cursor.execute("INSERT INTO users (mobile, name, is_verified) VALUES (%s, %s, TRUE)", (phone, initial_name))
+                conn.commit()
+                user_id = cursor.lastrowid
+                
+            if is_nickname:
+                cursor.execute("UPDATE users SET nickname = %s WHERE id = %s", (value, user_id))
+            else:
+                cursor.execute("UPDATE users SET name = %s WHERE id = %s", (value, user_id))
+                
+            conn.commit()
+            await send_whatsapp_text(phone, f"✅ {column_label} successfully updated to *{value}*!")
+            
+        except Exception as e:
+            print(f"Profile Set Error: {e}")
+            await send_whatsapp_text(phone, "⚠️ Sorry, something went wrong while updating your profile.")
+        finally:
+            if cursor: 
+                try: cursor.close()
+                except: pass
+            if conn: 
+                try: conn.close()
+                except: pass
+                
+    return True

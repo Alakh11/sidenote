@@ -1,12 +1,12 @@
 from typing import Optional
 from whatsapp_service import send_whatsapp_text, get_whatsapp_media_url, download_whatsapp_media
 from ai_service import extract_receipt_data, extract_voice_data
-from constants import CMD_MENU, CMD_UNDO, CMD_SUMMARY, CMD_WEEK, CMD_MONTH, CMD_TODAY, CMD_MORE, CMD_HELP, CMD_SET_BUDGET, INCOME_KEYWORDS
+from constants import CMD_MENU, CMD_UNDO, CMD_SUMMARY, CMD_WEEK, CMD_MONTH, CMD_TODAY, CMD_MORE, CMD_HELP, CMD_SET_BUDGET, INCOME_KEYWORDS, CMD_SET_NAME, CMD_SET_NICKNAME
 from whatsapp_handlers.search_handlers import handle_search_command, handle_search_interactive
 
 from whatsapp_handlers.bot_utils import is_duplicate, extract_transaction_details, log_bot_command, ensure_user_exists
 from whatsapp_handlers.reports import handle_summary_request, handle_weekly_request, handle_monthly_request, handle_today_request, handle_menu_request, handle_more_request, handle_dashboard_request
-from whatsapp_handlers.transactions import handle_transaction_entry, handle_undo_request, handle_undo_action, handle_budget_set, handle_dynamic_replies, handle_fallback
+from whatsapp_handlers.transactions import handle_transaction_entry, handle_undo_request, handle_undo_action, handle_budget_set, handle_dynamic_replies, handle_fallback, handle_set_profile
 
 async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
     if is_duplicate(message_id): return
@@ -33,6 +33,9 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
     elif text.startswith(CMD_SET_BUDGET): 
         log_bot_command(phone, 'set_budget')
         await handle_budget_set(phone, text)
+    elif text.startswith(CMD_SET_NAME) or text.startswith(CMD_SET_NICKNAME):
+        log_bot_command(phone, 'set_profile')
+        await handle_set_profile(phone, text)
     else:
         if '\n' in text:
             lines = text.split('\n')
@@ -148,4 +151,3 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
         await handle_search_interactive(phone, button_id)
     else:
         await handle_dynamic_replies(phone, button_id)
-    

@@ -25,6 +25,8 @@ CMD_MORE = "more"
 # BUDGET SETTINGS
 # ==========================================
 CMD_SET_BUDGET = "set budget"
+CMD_SET_NAME = "set name"
+CMD_SET_NICKNAME = "set nickname"
 BUDGET_THRESHOLD_WARNING = 0.80
 
 # ==========================================
@@ -44,16 +46,16 @@ CATEGORY_MAP = {
         'bakery', 'sandwich', 'biryani', 'noodles', 'pasta', 'soup', 'salad'
     ],
     'Groceries': [
-    'blinkit', 'zepto', 'instamart', 'milk', 'vegetables', 'grocery',
-    'ration', 'fruits', 'supermarket', 'mart', 'grocer', 'shop', 'market',
-    'store', 'bazar', 'bazaar',
-    'Amazon Pantry', 'BigBasket', 'Grofers', 'Nature Basket', 'Spencers',
-    'More', 'Easyday', 'Reliance Fresh', 'D-Mart', 'Foodhall', 'HyperCity',
-    'Vishal Mega Mart', 'Spar', 'Star Bazaar', 'Metro Cash & Carry', '24Seven',
-    'AaramShop', 'Gully', 'ZopNow', 'Supermart', 'Farmizen', 'Natures Supermarket',
-    'Amazon Now', 'JioMart', 'Paytm Mall', 'ShopClues', 'Licious', 'FreshToHome',
-    'Meatigo', 'Udaan', 'Flipkart Minute', 'Dunzo', 'Zomato Market',
-    'Swiggy Instamart'
+        'blinkit', 'zepto', 'instamart', 'milk', 'vegetables', 'grocery',
+        'ration', 'fruits', 'supermarket', 'mart', 'grocer', 'shop', 'market',
+        'store', 'bazar', 'bazaar',
+        'Amazon Pantry', 'BigBasket', 'Grofers', 'Nature Basket', 'Spencers',
+        'More', 'Easyday', 'Reliance Fresh', 'D-Mart', 'Foodhall', 'HyperCity',
+        'Vishal Mega Mart', 'Spar', 'Star Bazaar', 'Metro Cash & Carry', '24Seven',
+        'AaramShop', 'Gully', 'ZopNow', 'Supermart', 'Farmizen', 'Natures Supermarket',
+        'Amazon Now', 'JioMart', 'Paytm Mall', 'ShopClues', 'Licious', 'FreshToHome',
+        'Meatigo', 'Udaan', 'Flipkart Minute', 'Dunzo', 'Zomato Market',
+        'Swiggy Instamart'
     ],
     'Travel & Transport': [
         'uber', 'ola', 'rapido', 'indrive', 'auto', 'cab', 'taxi', 'metro', 
