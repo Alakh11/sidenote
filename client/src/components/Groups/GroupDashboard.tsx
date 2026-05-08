@@ -122,6 +122,16 @@ export default function GroupDashboard() {
     }
   };
 
+  const handleRefreshCode = async () => {
+    try {
+      await axios.post(`${API_URL}/groups/${selectedGroupId}/refresh-code?user_id=${user.id}`);
+      queryClient.invalidateQueries({ queryKey: ['groups', user.id] });
+    } catch (err) {
+      alert("Failed to generate a new code.");
+    }
+  };
+
+
   if (groupsLoading) return <div className="p-8 text-center text-slate-500 animate-pulse">Loading groups...</div>;
 
   if (!groups || groups.length === 0) {
@@ -187,7 +197,7 @@ export default function GroupDashboard() {
           <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
             {activeTab === 'feed' && (txLoading ? <FeedSkeleton /> : <GroupFeed transactions={txData} group={selectedGroup} currentUserId={user.id} page={page} setPage={setPage} hasMore={txData?.length === limit} onLogTransaction={() => setIsLogModalOpen(true)} onDeleteTransaction={handleDeleteTransaction} />)}
             {activeTab === 'balances' && (settlementsLoading ? <BalancesSkeleton /> : <GroupBalances settlements={settlements} currentUserName={user.name} />)}
-            {activeTab === 'members' && (membersLoading ? <BalancesSkeleton /> : <GroupMembers members={members} currentUserId={user.id} />)}
+            {activeTab === 'members' && (membersLoading ? <BalancesSkeleton /> : <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />)}
             {activeTab === 'summary' && !txLoading && <GroupSummary transactions={txData} />}
           </div>
 

@@ -150,7 +150,10 @@ def get_user_groups(user_id: int):
                      WHERE ic.group_id = g.id AND ic.expires_at > NOW() 
                      ORDER BY ic.id DESC LIMIT 1),
                     'Expired'
-                ) as invite_code
+                ) as invite_code,
+                (SELECT expires_at FROM invite_codes ic 
+                 WHERE ic.group_id = g.id AND ic.expires_at > NOW() 
+                 ORDER BY ic.id DESC LIMIT 1) as invite_expires_at
             FROM expense_groups g
             JOIN group_members gm ON g.id = gm.group_id
             WHERE gm.user_id = %s
