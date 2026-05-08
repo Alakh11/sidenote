@@ -30,7 +30,7 @@ import TermsAndConditions from './components/Legal/Terms';
 import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 import ResetPassword from './components/Auth/ResetPassword';
 import GlobalLoader from './components/GlobalLoader';
-import GroupsTab from './components/Groups/GroupsTab';
+import GroupDashboard from './components/Groups/GroupDashboard';
 
 interface UserWithRole extends User {
   id: number;
@@ -245,7 +245,7 @@ const groupsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/groups',
   beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
-  component: GroupsTab,
+  component: GroupDashboard,
 });
 
 
