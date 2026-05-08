@@ -108,14 +108,29 @@ def get_user_groups(user_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT g.id, g.name, g.invite_code, g.created_at, g.type, g.max_members 
+            SELECT 
+                g.id, 
+                g.name, 
+                g.created_at, 
+                g.type, 
+                g.max_members,
+                COALESCE(
+                    (SELECT code FROM invite_codes ic 
+                     WHERE ic.group_id = g.id AND ic.expires_at > NOW() 
+                     ORDER BY ic.id DESC LIMIT 1),
+                    'Expired'
+                ) as invite_code
             FROM expense_groups g
             JOIN group_members gm ON g.id = gm.group_id
             WHERE gm.user_id = %s
             ORDER BY g.created_at DESC
         """, (user_id,))
         return cursor.fetchall()
+    except Exception as e:
+        print(f"Error fetching groups: {e}")
+        return []
     finally:
+        cursor.close()
         conn.close()
 
 @router.get("/groups/{group_id}/transactions")
