@@ -244,6 +244,7 @@ const indexRoute = createRoute({
 const groupsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/groups',
+  beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
   component: GroupsTab,
 });
 
