@@ -30,6 +30,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 msg = f"🎉 Group *{group_name}* created!\n\nTell your friends to send this message to the bot to join:\n👉 *join {code}*"
                 await send_whatsapp_text(phone, msg)
             finally:
+                cursor.close()
                 conn.close()
         return True
 
@@ -38,9 +39,13 @@ async def handle_group_commands(phone: str, text: str) -> bool:
         code = text[5:].strip().upper()
         async with db_semaphore:
             conn = get_db()
+            
+            std_cursor = conn.cursor()
+            user_id = get_user_id(std_cursor, phone)
+            std_cursor.close()
+
             cursor = conn.cursor(dictionary=True)
             try:
-                user_id = get_user_id(cursor, phone)
                 cursor.execute("SELECT id, name FROM expense_groups WHERE invite_code = %s", (code,))
                 group = cursor.fetchone()
                 
@@ -51,10 +56,11 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 else:
                     await send_whatsapp_text(phone, "❌ Invalid invite code.")
             finally:
+                cursor.close()
                 conn.close()
         return True
 
-    # 3. Log Group Transaction (e.g., "@goa 2000 dinner")
+    # 3. Log Group Transaction
     if text.startswith("@"):
         match = re.match(r'@(\w+)\s+(\d+(?:\.\d+)?)\s+(.+)', text)
         if match:
@@ -64,10 +70,13 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             
             async with db_semaphore:
                 conn = get_db()
+                
+                std_cursor = conn.cursor()
+                user_id = get_user_id(std_cursor, phone)
+                std_cursor.close()
+
                 cursor = conn.cursor(dictionary=True)
                 try:
-                    user_id = get_user_id(cursor, phone)
-                    
                     cursor.execute("""
                         SELECT g.id, g.name FROM expense_groups g
                         JOIN group_members gm ON g.id = gm.group_id
@@ -83,6 +92,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                     else:
                         await send_whatsapp_text(phone, f"❌ You don't belong to any group matching '{group_alias}'.")
                 finally:
+                    cursor.close()
                     conn.close()
             return True
 

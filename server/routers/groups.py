@@ -2,8 +2,12 @@ from fastapi import APIRouter, HTTPException
 from typing import Any
 from database import get_db
 import random, string
+from pydantic import BaseModel
 
 router = APIRouter(tags=["Groups & Splitting"])
+
+class GroupUpdate(BaseModel):
+    name: str
 
 def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -95,5 +99,59 @@ def calculate_settlements(group_id: int):
             if creditor['amount'] < 0.01: j += 1
             
         return {"total_spend": total_group_spend, "per_person": round(split_share, 2), "settlements": settlements}
+    finally:
+        conn.close()
+
+@router.get("/users/{user_id}/groups")
+def get_user_groups(user_id: int):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT g.id, g.name, g.invite_code, g.created_at 
+            FROM expense_groups g
+            JOIN group_members gm ON g.id = gm.group_id
+            WHERE gm.user_id = %s
+            ORDER BY g.created_at DESC
+        """, (user_id,))
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.get("/groups/{group_id}/transactions")
+def get_group_transactions(group_id: int):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT t.id, t.amount, t.description, t.date, u.name as paid_by
+            FROM group_transactions t
+            JOIN users u ON t.paid_by_user_id = u.id
+            WHERE t.group_id = %s
+            ORDER BY t.date DESC
+        """, (group_id,))
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.put("/groups/{group_id}")
+def update_group(group_id: int, payload: GroupUpdate):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE expense_groups SET name = %s WHERE id = %s", (payload.name, group_id))
+        conn.commit()
+        return {"message": "Group updated"}
+    finally:
+        conn.close()
+
+@router.delete("/groups/{group_id}")
+def delete_group(group_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM expense_groups WHERE id = %s", (group_id,))
+        conn.commit()
+        return {"message": "Group deleted"}
     finally:
         conn.close()
