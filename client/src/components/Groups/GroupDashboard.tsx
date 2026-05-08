@@ -31,9 +31,10 @@ export default function GroupDashboard() {
   // Form State
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('general');
-  const [paymentMode, setPaymentMode] = useState('upi');
+  const [category, setCategory] = useState('');
+  const [paymentMode, setPaymentMode] = useState('UPI');
   const [splitType, setSplitType] = useState('equal');
+  const [splitDetails, setSplitDetails] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 1. Fetch All Groups
@@ -48,7 +49,12 @@ export default function GroupDashboard() {
 
   const selectedGroup = groups?.find((g: any) => g.id === selectedGroupId);
 
-  // 2. Tab Data
+  const { data: globalCategories } = useQuery({
+    queryKey: ['categories', user.id],
+    queryFn: async () => (await axios.get(`${API_URL}/categories/${user.id}`)).data
+  });
+
+  // 3. Tab Data
   const limit = 15;
   const { data: txData, isLoading: txLoading } = useQuery({
     queryKey: ['group-transactions', selectedGroupId, page],
@@ -82,7 +88,28 @@ export default function GroupDashboard() {
 
   const handleLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !description) return;
+    if (!amount || !description || !category) return alert("Please fill all required fields.");
+    
+    let parsedSplitDetails: Record<string, GLfloat> = {};
+    if (selectedGroup?.type === 'split' && splitType !== 'equal') {
+      let totalSplit = 0;
+      Object.keys(splitDetails).forEach(memberId => {
+        const val = parseFloat(splitDetails[memberId]) || 0;
+        parsedSplitDetails[memberId] = val;
+        totalSplit += val;
+      });
+
+      if (splitType === 'percentage' && Math.abs(totalSplit - 100) > 0.01) {
+        return alert(`Percentages must add up to 100%. Currently at ${totalSplit}%.`);
+      }
+      if (splitType === 'exact' && Math.abs(totalSplit - parseFloat(amount)) > 0.01) {
+        return alert(`Exact amounts must add up to ${currency}${amount}. Currently at ${currency}${totalSplit}.`);
+      }
+      if (splitType === 'ratio' && totalSplit <= 0) {
+        return alert("Total ratio shares must be greater than 0.");
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await axios.post(`${API_URL}/groups/${selectedGroupId}/transactions`, {
@@ -92,13 +119,16 @@ export default function GroupDashboard() {
         category,
         payment_mode: paymentMode,
         split_type: splitType,
-        split_details: {} 
+        split_details: splitType === 'equal' ? null : parsedSplitDetails
       });
+      
       setAmount('');
       setDescription('');
-      setCategory('general');
+      setCategory('');
       setSplitType('equal');
+      setSplitDetails({});
       setIsLogModalOpen(false);
+      
       queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
       queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
     } catch (err) {
@@ -241,7 +271,7 @@ export default function GroupDashboard() {
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Amount</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">{currency}</span>
-                          <input type="number" required value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-7 pr-3 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" placeholder="0.00" />
+                          <input type="number" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-7 pr-3 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" placeholder="0.00" />
                         </div>
                       </div>
                       <div className="w-2/3">
@@ -250,51 +280,71 @@ export default function GroupDashboard() {
                       </div>
                     </div>
 
-                    {/* Category & Payment Mode */}
+                    {/* Category & Payment Mode  */}
                     <div className="flex gap-3">
                       <div className="flex-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Category</label>
-                        <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white font-medium outline-none focus:border-blue-500 appearance-none">
-                          <option value="general">General</option>
-                          <option value="food">🍽️ Food & Dining</option>
-                          <option value="groceries">🛒 Groceries</option>
-                          <option value="travel">✈️ Travel & Cabs</option>
-                          <option value="hotel">🏨 Hotel</option>
-                          <option value="utilities">⚡ Utilities</option>
+                        <select required value={category} onChange={(e) => setCategory(e.target.value)} className={`w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm font-medium outline-none focus:border-blue-500 appearance-none ${!category ? 'text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+                          <option value="" disabled>Select category</option>
+                          {globalCategories?.filter((c: any) => c.type === 'expense').map((c: any) => (
+                              <option key={c.id} value={c.name} className="text-slate-900 dark:text-white">{c.icon} {c.name}</option>
+                          ))}
                         </select>
                       </div>
                       <div className="flex-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Paid Via</label>
                         <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white font-medium outline-none focus:border-blue-500 appearance-none">
-                          <option value="upi">UPI</option>
-                          <option value="card">Credit Card</option>
-                          <option value="cash">Cash</option>
+                          <option value="UPI">UPI</option>
+                          <option value="Card">Card</option>
+                          <option value="Cash">Cash</option>
+                          <option value="Net Banking">Net Banking</option>
                         </select>
                       </div>
                     </div>
 
-                    {/* Split Type Selector (Only for Split Groups) */}
+                    {/* Split Type Selector & Inputs (Only for Split Groups) */}
                     {selectedGroup.type === 'split' && (
-                      <div>
+                      <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">Split Options</label>
-                        <div className="grid grid-cols-4 gap-2 bg-slate-50 dark:bg-black/20 p-1.5 rounded-xl border border-slate-100 dark:border-white/5">
+                        <div className="grid grid-cols-4 gap-2 bg-white dark:bg-black/20 p-1.5 rounded-xl border border-slate-100 dark:border-white/5 mb-3">
                           {['equal', 'exact', 'percentage', 'ratio'].map(type => (
                             <button
                               key={type} type="button"
-                              onClick={() => setSplitType(type)}
-                              className={`py-1.5 text-xs font-bold rounded-lg capitalize transition-all ${splitType === type ? 'bg-white dark:bg-[#2a2a2a] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                              onClick={() => { setSplitType(type); setSplitDetails({}); }}
+                              className={`py-1.5 text-xs font-bold rounded-lg capitalize transition-all ${splitType === type ? 'bg-slate-100 dark:bg-[#2a2a2a] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                             >
                               {type === 'percentage' ? '%' : type}
                             </button>
                           ))}
                         </div>
                         
-                        <div className="mt-3 p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 text-sm text-slate-600 dark:text-slate-300">
-                          {splitType === 'equal' && `Splitting equally among all ${members?.length || 1} members.`}
-                          {splitType === 'exact' && 'Specify exactly how much each person owes.'}
-                          {splitType === 'percentage' && 'Split the bill by percentages (must equal 100%).'}
-                          {splitType === 'ratio' && 'Split by shares (e.g., 2 shares for you, 1 for them).'}
-                        </div>
+                        {splitType === 'equal' ? (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-2">
+                             Splitting equally among {members?.length || 1} members.
+                          </p>
+                        ) : (
+                          <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                            {members?.map((m: any) => (
+                              <div key={m.id} className="flex justify-between items-center">
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{m.name}</span>
+                                <div className="flex items-center gap-2 w-28">
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    min="0"
+                                    className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg p-1.5 text-xs text-right dark:text-white outline-none focus:border-blue-500"
+                                    value={splitDetails[m.id] || ''}
+                                    onChange={e => setSplitDetails({...splitDetails, [m.id]: e.target.value})}
+                                    placeholder="0"
+                                  />
+                                  <span className="text-xs text-slate-400 font-bold w-4">
+                                    {splitType === 'percentage' ? '%' : splitType === 'exact' ? currency : 'x'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
