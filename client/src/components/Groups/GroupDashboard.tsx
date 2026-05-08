@@ -31,6 +31,9 @@ export default function GroupDashboard() {
   // Form State
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('general');
+  const [paymentMode, setPaymentMode] = useState('upi');
+  const [splitType, setSplitType] = useState('equal');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 1. Fetch All Groups
@@ -85,10 +88,16 @@ export default function GroupDashboard() {
       await axios.post(`${API_URL}/groups/${selectedGroupId}/transactions`, {
         amount: parseFloat(amount),
         description,
-        user_id: user.id
+        user_id: user.id,
+        category,
+        payment_mode: paymentMode,
+        split_type: splitType,
+        split_details: {} 
       });
       setAmount('');
       setDescription('');
+      setCategory('general');
+      setSplitType('equal');
       setIsLogModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
       queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
@@ -130,7 +139,6 @@ export default function GroupDashboard() {
       alert("Failed to generate a new code.");
     }
   };
-
 
   if (groupsLoading) return <div className="p-8 text-center text-slate-500 animate-pulse">Loading groups...</div>;
 
@@ -195,25 +203,39 @@ export default function GroupDashboard() {
           <GroupTabs activeTab={activeTab} setActiveTab={setActiveTab} isSplit={selectedGroup.type === 'split'} />
 
           <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-            {activeTab === 'feed' && (txLoading ? <FeedSkeleton /> : <GroupFeed transactions={txData} group={selectedGroup} currentUserId={user.id} page={page} setPage={setPage} hasMore={txData?.length === limit} onLogTransaction={() => setIsLogModalOpen(true)} onDeleteTransaction={handleDeleteTransaction} />)}
+            {activeTab === 'feed' && (
+              txLoading ? <FeedSkeleton /> : 
+              <GroupFeed 
+                transactions={txData} 
+                group={selectedGroup} 
+                currentUserId={user.id} 
+                page={page} 
+                setPage={setPage} 
+                hasMore={txData?.length === limit} 
+                onLogTransaction={() => setIsLogModalOpen(true)} 
+                onDeleteTransaction={handleDeleteTransaction}
+                actualMemberCount={members?.length || 1} 
+              />
+            )}
             {activeTab === 'balances' && (settlementsLoading ? <BalancesSkeleton /> : <GroupBalances settlements={settlements} currentUserName={user.name} />)}
             {activeTab === 'members' && (membersLoading ? <BalancesSkeleton /> : <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />)}
             {activeTab === 'summary' && !txLoading && <GroupSummary transactions={txData} />}
           </div>
 
-          {/* Web Logging Form Modal (Redesigned) */}
           {isLogModalOpen && (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-[#1a1a1a] rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 flex justify-between items-center border-b border-stone-100 dark:border-white/5">
-                  <h3 className="font-bold text-lg text-slate-800 dark:text-white">Log Expense</h3>
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                <div className="px-6 py-4 flex justify-between items-center border-b border-stone-100 dark:border-white/5 shrink-0">
+                  <h3 className="font-bold text-lg text-slate-800 dark:text-white">Add Expense</h3>
                   <button onClick={() => setIsLogModalOpen(false)} className="p-2 bg-slate-50 dark:bg-white/5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
                     <X size={16} />
                   </button>
                 </div>
                 
-                <div className="p-6">
-                  <form onSubmit={handleLogSubmit} className="space-y-4 mb-6">
+                <div className="p-6 overflow-y-auto custom-scrollbar">
+                  <form onSubmit={handleLogSubmit} className="space-y-5 mb-6">
+                    
+                    {/* Amount & Description */}
                     <div className="flex gap-3">
                       <div className="w-1/3">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Amount</label>
@@ -227,8 +249,57 @@ export default function GroupDashboard() {
                         <input type="text" required value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-slate-900 dark:text-white font-medium outline-none focus:border-blue-500 transition-colors" placeholder="e.g., dinner" />
                       </div>
                     </div>
-                    <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
-                      {isSubmitting ? 'Saving...' : 'Save Transaction'}
+
+                    {/* Category & Payment Mode */}
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Category</label>
+                        <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white font-medium outline-none focus:border-blue-500 appearance-none">
+                          <option value="general">General</option>
+                          <option value="food">🍽️ Food & Dining</option>
+                          <option value="groceries">🛒 Groceries</option>
+                          <option value="travel">✈️ Travel & Cabs</option>
+                          <option value="hotel">🏨 Hotel</option>
+                          <option value="utilities">⚡ Utilities</option>
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Paid Via</label>
+                        <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white font-medium outline-none focus:border-blue-500 appearance-none">
+                          <option value="upi">UPI</option>
+                          <option value="card">Credit Card</option>
+                          <option value="cash">Cash</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Split Type Selector (Only for Split Groups) */}
+                    {selectedGroup.type === 'split' && (
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">Split Options</label>
+                        <div className="grid grid-cols-4 gap-2 bg-slate-50 dark:bg-black/20 p-1.5 rounded-xl border border-slate-100 dark:border-white/5">
+                          {['equal', 'exact', 'percentage', 'ratio'].map(type => (
+                            <button
+                              key={type} type="button"
+                              onClick={() => setSplitType(type)}
+                              className={`py-1.5 text-xs font-bold rounded-lg capitalize transition-all ${splitType === type ? 'bg-white dark:bg-[#2a2a2a] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            >
+                              {type === 'percentage' ? '%' : type}
+                            </button>
+                          ))}
+                        </div>
+                        
+                        <div className="mt-3 p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 text-sm text-slate-600 dark:text-slate-300">
+                          {splitType === 'equal' && `Splitting equally among all ${members?.length || 1} members.`}
+                          {splitType === 'exact' && 'Specify exactly how much each person owes.'}
+                          {splitType === 'percentage' && 'Split the bill by percentages (must equal 100%).'}
+                          {splitType === 'ratio' && 'Split by shares (e.g., 2 shares for you, 1 for them).'}
+                        </div>
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors shadow-md">
+                      {isSubmitting ? 'Saving...' : `Save ${currency}${amount || '0.00'}`}
                     </button>
                   </form>
 

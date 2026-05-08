@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import Any
+from typing import Dict, Optional, Any
 from database import get_db
-import random, string
+import random, string, json
 from pydantic import BaseModel
 
 router = APIRouter(tags=["Groups & Splitting"])
@@ -13,6 +13,10 @@ class GroupTransactionCreate(BaseModel):
     amount: float
     description: str
     user_id: int
+    category: str = "general"
+    payment_mode: str = "upi"
+    split_type: str = "equal"
+    split_details: Optional[Dict[str, float]] = None
 
 def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -188,10 +192,12 @@ def create_group_transaction(group_id: int, payload: GroupTransactionCreate):
     conn = get_db()
     cursor = conn.cursor()
     try:
+        details_json = json.dumps(payload.split_details) if payload.split_details else None
+        
         cursor.execute("""
-            INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type)
-            VALUES (%s, %s, %s, %s, 'equal')
-        """, (group_id, payload.amount, payload.description, payload.user_id))
+            INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, category, payment_mode, split_details)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (group_id, payload.amount, payload.description, payload.user_id, payload.split_type, payload.category, payload.payment_mode, details_json))
         conn.commit()
         return {"message": "Transaction logged successfully"}
     except Exception as e:

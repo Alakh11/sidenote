@@ -1,4 +1,4 @@
-import { Divide, Percent, UserMinus, ArrowUpRight, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Divide, Percent, ArrowUpRight, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { usePreferences } from '../../../context/PreferencesContext';
 
 // Helper to group transactions by date
@@ -33,7 +33,8 @@ export default function GroupFeed({
   setPage, 
   hasMore, 
   onLogTransaction,
-  onDeleteTransaction // Make sure to pass this prop from GroupDashboard!
+  onDeleteTransaction,
+  actualMemberCount
 }: any) {
   const { currency } = usePreferences();
   const groupedTxns = groupTransactionsByDate(transactions || []);
@@ -72,8 +73,8 @@ export default function GroupFeed({
                     <div>
                       <div className="text-sm text-slate-800 dark:text-slate-200">
                         <span className="font-bold text-slate-900 dark:text-white">{t.paid_by}</span> {isSplit ? 'split' : 'logged'}
-                        <span className="ml-2 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                          {t.description.split(' ')[0]} {/* Simple category badge extraction */}
+                        <span className="ml-2 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-[10px] font-medium text-slate-600 dark:text-slate-300 capitalize">
+                          {t.category || t.description.split(' ')[0]}
                         </span>
                       </div>
                       <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 capitalize">
@@ -103,27 +104,30 @@ export default function GroupFeed({
                   </div>
                 </div>
 
-                {/* Google Pay Style Split Badges (Only shown in Split Groups) */}
+                {/* Google Pay Style Split Badges */}
                 {isSplit && (
                   <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-stone-100 dark:border-white/5">
                     {t.split_type === 'percentage' ? (
-                       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full">
-                          <Percent size={12} /> Custom %
-                       </div>
-                    ) : t.split_type === 'subset' ? (
-                       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full">
-                          <UserMinus size={12} /> Excluded self
-                       </div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full">
+                          <Percent size={12} /> Percentage
+                      </div>
+                    ) : t.split_type === 'exact' ? (
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full">
+                          Exact Amounts
+                      </div>
+                    ) : t.split_type === 'ratio' ? (
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full">
+                          Custom Ratio
+                      </div>
                     ) : (
                       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full">
-                        <Divide size={12} /> Equal · {group.max_members} members
+                        <Divide size={12} /> Equal · {actualMemberCount} members
                       </div>
                     )}
                     
-                    {/* Simulated debt logic based on current user */}
-                    {t.paid_by_user_id !== currentUserId && (
+                    {t.paid_by_user_id !== currentUserId && t.split_type === 'equal' && (
                       <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 dark:text-rose-400 dark:bg-rose-900/10 dark:border-rose-900/30 px-3 py-1 rounded-full">
-                        You owe {currency}{Math.round(t.amount / group.max_members).toLocaleString()}
+                        You owe {currency}{Math.round(t.amount / (actualMemberCount || 1)).toLocaleString()}
                       </div>
                     )}
                   </div>
