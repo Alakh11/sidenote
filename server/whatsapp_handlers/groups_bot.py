@@ -66,6 +66,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             except Exception as e:
                 conn.rollback()
                 print(f"Create Group Error: {e}")
+                traceback.print_exc()
                 await send_whatsapp_text(phone, "⚠️ Failed to create group.")
             finally:
                 cursor.close()
@@ -122,6 +123,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             except Exception as e:
                 conn.rollback()
                 print(f"Join Group Error: {e}")
+                traceback.print_exc()
                 await send_whatsapp_text(phone, "⚠️ Failed to join group.")
             finally:
                 cursor.close()
@@ -207,6 +209,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             except Exception as e:
                 conn.rollback()
                 print(f"Log Group Txn Error: {e}")
+                traceback.print_exc()
                 await send_whatsapp_text(phone, "⚠️ Failed to log group transaction.")
             finally:
                 cursor.close()
@@ -217,6 +220,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
     match_rm = re.search(r'group\s+rm\s+(\d+)', text_lower)
     if match_rm:
         tx_id = int(match_rm.group(1))
+        print(f"Executing Deletion: Attempting to remove Tx ID {tx_id} for user {phone}")
         async with db_semaphore:
             conn = get_db()
             std_cursor = conn.cursor()
@@ -236,16 +240,22 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 txn = cursor.fetchone()
 
                 if not txn:
+                    print(f"Deletion Failed: Tx {tx_id} not found or permission denied.")
                     await send_whatsapp_text(phone, "❌ Transaction not found or you don't have permission to delete it.")
                     return True
 
                 cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
                 conn.commit()
                 
-                await send_whatsapp_text(phone, f"🗑️ Successfully deleted: *{txn['description']}* (₹{txn['amount']:g}) from *{txn['group_name']}*")
+                if cursor.rowcount > 0:
+                    desc_text = txn['description'] or "Transaction"
+                    await send_whatsapp_text(phone, f"🗑️ Successfully deleted: *{desc_text}* (₹{txn['amount']:g}) from *{txn['group_name']}*")
+                else:
+                    await send_whatsapp_text(phone, "⚠️ Error: Could not verify deletion from database.")
             except Exception as e:
                 conn.rollback()
                 print(f"Group RM Error: {e}")
+                traceback.print_exc()
                 await send_whatsapp_text(phone, "⚠️ Failed to delete transaction.")
             finally:
                 cursor.close()
@@ -256,6 +266,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
     match_alias_cmd = re.search(r'group\s+@(\w+)\s+(.+)', text_lower)
     if match_alias_cmd:
         group_alias = match_alias_cmd.group(1).lower()
+        
         cmd_text = re.sub(r'\s+', ' ', match_alias_cmd.group(2).strip())
         parts = cmd_text.split()
         base_cmd = parts[0]
@@ -315,6 +326,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
 
 
 async def process_group_query(phone: str, group_alias: str, cmd: str, page: int = 1):
+    print(f"Executing Process Query: Alias={group_alias}, Cmd={cmd}, Page={page}")
     is_all = "all" in cmd
     limit = 50 if is_all else 10
     offset = (page - 1) * limit
@@ -354,8 +366,9 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
                 
                 btns = []
                 for t in txns:
-                    title = f"❌ {float(t['amount']):g} {t['description'][:10]}"
-                    btns.append({"id": f"group rm {t['id']}", "title": title[:20]})
+                    desc_text = (t['description'] or '')[:10]
+                    title = f"❌ {float(t['amount']):g} {desc_text}"
+                    btns.append({"id": f"group rm {t['id']}", "title": title[:20]}) 
                     
                 await send_whatsapp_interactive_buttons(phone, f"Which entry in *{group['name']}* do you want to delete?", btns)
                 return
@@ -382,12 +395,13 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
 
             page_total = sum(float(r['amount']) for r in rows)
 
-            title = f"Recent expanses in {group['name']}"
+            title = f"Recent expenses in {group['name']}"
             if is_all: title = f"Full history in {group['name']}"
 
             msg_lines = [f"📜 *{title}* (Page {page})"]
             for r in rows:
-                msg_lines.append(f"• {r['logged_at'].strftime('%d %b')}: ₹{float(r['amount']):g} {r['description']} ({r['logged_by_name']})")
+                desc = r['description'] or ""
+                msg_lines.append(f"• {r['logged_at'].strftime('%d %b')}: ₹{float(r['amount']):g} {desc} ({r['logged_by_name']})")
             
             msg_lines.append(f"\n*Total:* ₹{page_total:g}")
 
@@ -402,6 +416,7 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
 
         except Exception as e:
             print(f"Group Query Error: {e}")
+            traceback.print_exc()
             await send_whatsapp_text(phone, "⚠️ Failed to fetch group data.")
         finally:
             cursor.close()
