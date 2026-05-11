@@ -4,7 +4,7 @@ import random
 import traceback
 from datetime import datetime, timedelta
 from database import get_db
-from whatsapp_service import send_whatsapp_text
+from whatsapp_service import send_whatsapp_text, send_whatsapp_interactive_buttons
 from whatsapp_handlers.bot_utils import get_user_id, db_semaphore
 import json
 from whatsapp_handlers.groups_search import handle_group_search_command
@@ -16,6 +16,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
     """Returns True if it handled a group command, False otherwise."""
     text_lower = text.lower().strip()
     
+    # 1. CREATE GROUP
     match_create = re.match(r'create\s+(couple|family|split)\s+group(?:\s+(.+))?', text_lower, re.IGNORECASE)
     if match_create:
         g_type = match_create.group(1).lower()
@@ -71,7 +72,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
-
+    # 2. JOIN GROUP
     if text_lower.startswith("join "):
         code = text[5:].strip().upper()
         async with db_semaphore:
@@ -127,6 +128,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
+    # 3. REFRESH CODE
     if text_lower.startswith("new code "):
         group_alias = text_lower[9:].strip()
         async with db_semaphore:
@@ -167,6 +169,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
+    # 4. LOG TRANSACTION
     match_log = re.match(r'^@(\w+)\s+(\d+(?:\.\d+)?)\s+(.+)$', text, re.IGNORECASE)
     if match_log:
         group_alias = match_log.group(1).lower()
@@ -210,6 +213,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
+    # 5. EXECUTE DELETE (RM)
     match_rm = re.match(r'^group\s+rm\s+(\d+)$', text_lower)
     if match_rm:
         tx_id = int(match_rm.group(1))
@@ -237,123 +241,17 @@ async def handle_group_commands(phone: str, text: str) -> bool:
 
                 cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
                 conn.commit()
-                
                 await send_whatsapp_text(phone, f"🗑️ Successfully deleted: *{txn['description']}* (₹{txn['amount']:g}) from *{txn['group_name']}*")
             except Exception as e:
                 conn.rollback()
                 print(f"Group RM Error: {e}")
-                await send_whatsapp_text(phone, "⚠️ Failed to delete transaction.")
+                await send_whatsapp_text(phone, "⚠️ Failed to delete.")
             finally:
                 cursor.close()
                 conn.close()
         return True
 
-
-    match_query = re.match(r'^group\s+@(\w+)\s+(undo|history|today|yesterday|week|month)$', text_lower)
-    if match_query:
-        group_alias = match_query.group(1).lower()
-        cmd = match_query.group(2).lower()
-        
-        async with db_semaphore:
-            conn = get_db()
-            std_cursor = conn.cursor()
-            user_id = get_user_id(std_cursor, phone)
-            std_cursor.close()
-            
-            if not user_id: return True
-
-            cursor = conn.cursor(dictionary=True)
-            try:
-                # Verify Group
-                cursor.execute("""
-                    SELECT g.id, g.name FROM expense_groups g
-                    JOIN group_members gm ON g.id = gm.group_id
-                    WHERE gm.user_id = %s AND g.status = 'active' AND LOWER(g.name) LIKE %s LIMIT 1
-                """, (user_id, f"%{group_alias}%"))
-                group = cursor.fetchone()
-
-                if not group:
-                    await send_whatsapp_text(phone, f"❌ You are not in an active group matching '{group_alias}'.")
-                    return True
-
-                if cmd == "undo":
-                    cursor.execute("""
-                        SELECT id, amount, description
-                        FROM group_transactions
-                        WHERE group_id = %s AND logged_by = %s AND DATE(logged_at) = CURDATE()
-                        ORDER BY logged_at DESC LIMIT 2
-                    """, (group['id'], user_id))
-                    txns = cursor.fetchall()
-                    
-                    if not txns:
-                        await send_whatsapp_text(phone, f"❌ You haven't logged any transactions to *{group['name']}* today to undo.")
-                        return True
-                        
-                    msg_lines = [f"↩️ *Undo in {group['name']}*"]
-                    msg_lines.append("Copy and send the command below to delete an entry:\n")
-                    for t in txns:
-                        msg_lines.append(f"👉 *group rm {t['id']}*")
-                        msg_lines.append(f"     (₹{t['amount']:g} for {t['description']})\n")
-                        
-                    await send_whatsapp_text(phone, "\n".join(msg_lines))
-                    return True
-
-                else:
-                    date_filter = ""
-                    if cmd == "today":
-                        date_filter = "AND DATE(gt.logged_at) = CURDATE()"
-                        title = f"Today's expenses in {group['name']}"
-                    elif cmd == "yesterday":
-                        date_filter = "AND DATE(gt.logged_at) = CURDATE() - INTERVAL 1 DAY"
-                        title = f"Yesterday's expenses in {group['name']}"
-                    elif cmd == "week":
-                        date_filter = "AND gt.logged_at >= CURDATE() - INTERVAL 7 DAY"
-                        title = f"Last 7 days in {group['name']}"
-                    elif cmd == "month":
-                        date_filter = "AND MONTH(gt.logged_at) = MONTH(CURDATE()) AND YEAR(gt.logged_at) = YEAR(CURDATE())"
-                        title = f"This month's expenses in {group['name']}"
-                    else: # "history" defaults to recent
-                        title = f"Recent expenses in {group['name']}"
-
-                    query = f"""
-                        SELECT gt.amount, gt.description, u.name as logged_by_name, gt.logged_at
-                        FROM group_transactions gt
-                        JOIN users u ON u.id = gt.logged_by
-                        WHERE gt.group_id = %s {date_filter}
-                        ORDER BY gt.logged_at DESC LIMIT 20
-                    """
-                    cursor.execute(query, (group['id'],))
-                    rows = cursor.fetchall()
-
-                    if not rows:
-                        await send_whatsapp_text(phone, f"📭 No transactions found for {cmd} in *{group['name']}*.")
-                        return True
-
-                    total = sum(float(r['amount']) for r in rows)
-                    msg_lines = [f"📜 *{title}*"]
-                    for r in rows:
-                        msg_lines.append(f"• ₹{float(r['amount']):g} {r['description']} (by {r['logged_by_name']})")
-                    msg_lines.append(f"\n*Total:* ₹{total:g}")
-
-                    await send_whatsapp_text(phone, "\n".join(msg_lines))
-                    return True
-
-            except Exception as e:
-                print(f"Group Query Error: {e}")
-                await send_whatsapp_text(phone, "⚠️ Failed to fetch group data.")
-            finally:
-                cursor.close()
-                conn.close()
-        return True
-    
-    match_search = re.match(r'^group\s+@(\w+)\s+(?:search|find)\s+(.+)$', text_lower)
-    if match_search:
-        group_alias = match_search.group(1).lower()
-        query = match_search.group(2).strip()
-        
-        await handle_group_search_command(phone, group_alias, query)
-        return True
-    
+    # 6. TOTAL COMMAND
     match_total = re.match(r'^group\s+@(\w+)\s+total$', text_lower)
     if match_total:
         group_alias = match_total.group(1).lower()
@@ -362,7 +260,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             cursor = conn.cursor(dictionary=True)
             try:
                 cursor.execute("""
-                    SELECT g.id, g.name, SUM(gt.amount) as total_spend
+                    SELECT g.name, SUM(gt.amount) as total_spend
                     FROM expense_groups g
                     JOIN group_members gm ON g.id = gm.group_id
                     LEFT JOIN group_transactions gt ON g.id = gt.group_id
@@ -374,84 +272,112 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 if not res:
                     await send_whatsapp_text(phone, f"❌ Group matching '{group_alias}' not found.")
                 else:
-                    total = res['total_spend'] or 0
-                    await send_whatsapp_text(phone, f"💰 *Total Spends for {res['name']}*\n\nTotal: ₹{float(total):g}")
+                    await send_whatsapp_text(phone, f"💰 *Total Spends for {res['name']}*\n\nTotal: ₹{float(res['total_spend'] or 0):g}")
             finally:
                 cursor.close()
                 conn.close()
         return True
+
+    # 7. SEARCH COMMAND
+    match_search = re.match(r'^group\s+@(\w+)\s+(?:search|find)\s+(.+)$', text_lower)
+    if match_search:
+        group_alias = match_search.group(1).lower()
+        query = match_search.group(2).strip()
+        await handle_group_search_command(phone, group_alias, query)
+        return True
+
+    # 8. QUERIES (Undo, Today, Week, Month, History)
+    match_query = re.match(r'^group\s+@(\w+)\s+(undo|history|today|yesterday|week|month|all)$', text_lower)
+    if match_query:
+        group_alias = match_query.group(1).lower()
+        cmd = match_query.group(2).lower()
+        await process_group_query(phone, group_alias, cmd, page=1)
+        return True
     
-    match_history = re.match(r'^group\s+@(\w+)\s+history(?:\s+(all))?(?:\s+(\d+))?$', text_lower)
-    if match_history:
-        group_alias = match_history.group(1).lower()
-        is_all = match_history.group(2) == "all"
-        page = int(match_history.group(3)) if match_history.group(3) else 1
-        
-        limit = 50 if is_all else 10
-        offset = (page - 1) * limit
-
-        async with db_semaphore:
-            conn = get_db()
-            std_cursor = conn.cursor()
-            user_id = get_user_id(std_cursor, phone)
-            std_cursor.close()
-            
-            if not user_id: return True
-
-            cursor = conn.cursor(dictionary=True)
-            try:
-                cursor.execute("""
-                    SELECT g.id, g.name FROM expense_groups g
-                    JOIN group_members gm ON g.id = gm.group_id
-                    WHERE gm.user_id = %s AND g.status = 'active' AND LOWER(g.name) LIKE %s LIMIT 1
-                """, (user_id, f"%{group_alias}%"))
-                group = cursor.fetchone()
-
-                if not group:
-                    await send_whatsapp_text(phone, f"❌ Group matching '{group_alias}' not found.")
-                    return True
-
-                cursor.execute(f"""
-                    SELECT gt.amount, gt.description, u.name as logged_by_name, gt.logged_at
-                    FROM group_transactions gt
-                    JOIN users u ON u.id = gt.logged_by
-                    WHERE gt.group_id = %s
-                    ORDER BY gt.logged_at DESC
-                    LIMIT %s OFFSET %s
-                """, (group['id'], limit, offset))
-                rows = cursor.fetchall()
-
-                if not rows:
-                    msg = "🏁 No more transactions to show." if page > 1 else f"📭 No history found for *{group['name']}*."
-                    await send_whatsapp_text(phone, msg)
-                    return True
-
-                chunk_total = sum(float(r['amount']) for r in rows)
-                
-                title = f"Recent expenses in {group['name']}"
-                msg_lines = [f"📜 *{title}*"]
-                if is_all: msg_lines[0] = f"📜 *Full history in {group['name']}*"
-                
-                for r in rows:
-                    date_str = r['logged_at'].strftime('%d %b')
-                    msg_lines.append(f"• {date_str}: ₹{float(r['amount']):g} {r['description']} (by {r['logged_by_name']})")
-                
-                msg_lines.append(f"\n*Total for this list:* ₹{chunk_total:g}")
-
-                cursor.execute("SELECT COUNT(*) as total FROM group_transactions WHERE group_id = %s", (group['id'],))
-                total_count = cursor.fetchone()['total']
-                
-                if total_count > (offset + limit):
-                    next_page_cmd = f"group @{group_alias} history {'all ' if is_all else ''}{page + 1}"
-                    msg_lines.append(f"\n👇 *Show More*\n👉 {next_page_cmd}")
-
-                await send_whatsapp_text(phone, "\n".join(msg_lines))
-            except Exception as e:
-                print(f"History Error: {e}")
-                await send_whatsapp_text(phone, "⚠️ Failed to fetch history.")
-            finally:
-                cursor.close()
-                conn.close()
+    # 9. PAGINATED HISTORY
+    match_history_page = re.match(r'^group\s+@(\w+)\s+history(?:\s+(all))?\s+(\d+)$', text_lower)
+    if match_history_page:
+        group_alias = match_history_page.group(1).lower()
+        is_all = match_history_page.group(2) == "all"
+        page = int(match_history_page.group(3))
+        await process_group_query(phone, group_alias, "all" if is_all else "history", page)
         return True
 
     return False
+
+async def process_group_query(phone: str, group_alias: str, cmd: str, page: int = 1):
+    limit = 50 if cmd == "all" else 10
+    offset = (page - 1) * limit
+    
+    async with db_semaphore:
+        conn = get_db()
+        std_cursor = conn.cursor()
+        user_id = get_user_id(std_cursor, phone)
+        std_cursor.close()
+        if not user_id: return
+
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT g.id, g.name FROM expense_groups g
+                JOIN group_members gm ON g.id = gm.group_id
+                WHERE gm.user_id = %s AND g.status = 'active' AND LOWER(g.name) LIKE %s LIMIT 1
+            """, (user_id, f"%{group_alias}%"))
+            group = cursor.fetchone()
+            if not group:
+                await send_whatsapp_text(phone, f"❌ You are not in a group matching '{group_alias}'.")
+                return
+
+            if cmd == "undo":
+                cursor.execute("""
+                    SELECT id, amount, description FROM group_transactions
+                    WHERE group_id = %s AND logged_by = %s AND DATE(logged_at) = CURDATE()
+                    ORDER BY logged_at DESC LIMIT 2
+                """, (group['id'], user_id))
+                txns = cursor.fetchall()
+                if not txns:
+                    await send_whatsapp_text(phone, f"❌ No group transactions logged today to undo.")
+                    return
+                
+                btns = [{"id": f"group rm {t['id']}", "title": f"❌ {float(t['amount']):g} {t['description'][:10]}"} for t in txns]
+                await send_whatsapp_interactive_buttons(phone, f"Which entry in *{group['name']}* do you want to delete?", btns)
+                return
+
+            # History / Timeframes
+            date_filter = ""
+            if cmd == "today": date_filter = "AND DATE(gt.logged_at) = CURDATE()"
+            elif cmd == "yesterday": date_filter = "AND DATE(gt.logged_at) = CURDATE() - INTERVAL 1 DAY"
+            elif cmd == "week": date_filter = "AND gt.logged_at >= CURDATE() - INTERVAL 7 DAY"
+            elif cmd == "month": date_filter = "AND MONTH(gt.logged_at) = MONTH(CURDATE()) AND YEAR(gt.logged_at) = YEAR(CURDATE())"
+
+            cursor.execute(f"""
+                SELECT gt.amount, gt.description, u.name as logged_by_name, gt.logged_at
+                FROM group_transactions gt
+                JOIN users u ON u.id = gt.logged_by
+                WHERE gt.group_id = %s {date_filter}
+                ORDER BY gt.logged_at DESC LIMIT %s OFFSET %s
+            """, (group['id'], limit, offset))
+            rows = cursor.fetchall()
+
+            if not rows:
+                await send_whatsapp_text(phone, f"📭 No transactions found.")
+                return
+
+            total = sum(float(r['amount']) for r in rows)
+            msg = [f"📜 *Recent expenses in {group['name']}*"]
+            for r in rows:
+                msg.append(f"• {r['logged_at'].strftime('%d %b')}: ₹{float(r['amount']):g} {r['description']} ({r['logged_by_name']})")
+            msg.append(f"\n*Total:* ₹{total:g}")
+
+            # Pagination Button
+            cursor.execute("SELECT COUNT(*) as total FROM group_transactions WHERE group_id = %s", (group['id'],))
+            count = cursor.fetchone()['total']
+            if count > (offset + limit):
+                btn_cmd = f"group @{group_alias} {'all' if cmd == 'all' else 'history'} {page + 1}"
+                await send_whatsapp_interactive_buttons(phone, "\n".join(msg), [{"id": btn_cmd, "title": "Show More"}])
+            else:
+                await send_whatsapp_text(phone, "\n".join(msg))
+
+        finally:
+            cursor.close()
+            conn.close()
