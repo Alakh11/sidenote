@@ -51,7 +51,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                 if not line.strip(): continue
                 amount, item, explicit_inc, p_mode = extract_transaction_details(line)
                 
-                if amount is not None:
+                if amount is not None and item and any(c.isalnum() for c in item):
                     is_saved = await handle_transaction_entry(phone, amount, item, silent=True, sender_name=sender_name, explicit_income=explicit_inc, payment_mode=p_mode)
                     if is_saved:
                         if explicit_inc or any(keyword in item.lower() for keyword in INCOME_KEYWORDS):
@@ -62,7 +62,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                     else:
                         failed_lines.append(line)
                 else:
-                    failed_lines.append(line)
+                    if any(c.isdigit() for c in line): failed_lines.append(line)
                     
             if added_count > 0 or failed_lines:
                 summary_msg = ""
@@ -72,7 +72,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                     if total_income > 0: summary_msg += f"\n💰 Total Income: ₹{total_income:g}"
                 
                 if failed_lines:
-                    summary_msg += "\n\n❌ *Failed to log these lines:* \n" + "\n".join([f"- {fl}" for fl in failed_lines]) + "\n\n_(Make sure they contain a valid number!)_"
+                    summary_msg += "\n\n❌ *Failed to log these lines:* \n" + "\n".join([f"- {fl}" for fl in failed_lines]) + "\n\n_(Make sure they contain both an amount and a description, e.g. '50 tea')_"
                     
                 await send_whatsapp_text(phone, summary_msg.strip())
             else:
@@ -82,7 +82,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
         else:
             amount, item, explicit_inc, p_mode = extract_transaction_details(text)
             
-            if amount is not None:
+            if amount is not None and item and any(c.isalnum() for c in item):
                 await handle_transaction_entry(phone, amount, item, sender_name=sender_name, explicit_income=explicit_inc, payment_mode=p_mode)
             else:
                 if not await handle_dynamic_replies(phone, text):

@@ -375,7 +375,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                     await send_whatsapp_text(phone, f"❌ Group matching '{group_alias}' not found.")
                 else:
                     total = res['total_spend'] or 0
-                    await send_whatsapp_text(phone, f"💰 *Lifetime Spend for {res['name']}*\n\nTotal: ₹{float(total):g}")
+                    await send_whatsapp_text(phone, f"💰 *Total Spends for {res['name']}*\n\nTotal: ₹{float(total):g}")
             finally:
                 cursor.close()
                 conn.close()
@@ -421,26 +421,29 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 """, (group['id'], limit, offset))
                 rows = cursor.fetchall()
 
-                if not rows and page == 1:
-                    await send_whatsapp_text(phone, f"📭 No history found for *{group['name']}*.")
-                    return True
-                elif not rows:
-                    await send_whatsapp_text(phone, f"🏁 No more transactions to show.")
+                if not rows:
+                    msg = "🏁 No more transactions to show." if page > 1 else f"📭 No history found for *{group['name']}*."
+                    await send_whatsapp_text(phone, msg)
                     return True
 
-                title = f"Master History: {group['name']}" if is_all else f"Recent History: {group['name']}"
-                msg_lines = [f"📜 *{title} (Page {page})*"]
+                chunk_total = sum(float(r['amount']) for r in rows)
+                
+                title = f"Recent expenses in {group['name']}"
+                msg_lines = [f"📜 *{title}*"]
+                if is_all: msg_lines[0] = f"📜 *Full history in {group['name']}*"
                 
                 for r in rows:
                     date_str = r['logged_at'].strftime('%d %b')
                     msg_lines.append(f"• {date_str}: ₹{float(r['amount']):g} {r['description']} (by {r['logged_by_name']})")
                 
+                msg_lines.append(f"\n*Total for this list:* ₹{chunk_total:g}")
+
                 cursor.execute("SELECT COUNT(*) as total FROM group_transactions WHERE group_id = %s", (group['id'],))
                 total_count = cursor.fetchone()['total']
                 
                 if total_count > (offset + limit):
-                    next_cmd = f"group @{group_alias} history {'all ' if is_all else ''}{page + 1}"
-                    msg_lines.append(f"\n👇 *Show More*\n👉 {next_cmd}")
+                    next_page_cmd = f"group @{group_alias} history {'all ' if is_all else ''}{page + 1}"
+                    msg_lines.append(f"\n👇 *Show More*\n👉 {next_page_cmd}")
 
                 await send_whatsapp_text(phone, "\n".join(msg_lines))
             except Exception as e:
