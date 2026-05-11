@@ -136,6 +136,11 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
     if is_duplicate(message_id): return
     
     await ensure_user_exists(phone, sender_name)
+
+    if button_id.startswith("group "):
+        await handle_group_commands(phone, button_id)
+        return
+
     if button_id == "cmd_summary": log_bot_command(phone, 'summary'); await handle_summary_request(phone)
     elif button_id == "cmd_today": log_bot_command(phone, 'today'); await handle_today_request(phone)
     elif button_id == "cmd_more": log_bot_command(phone, 'more'); await handle_more_request(phone)
