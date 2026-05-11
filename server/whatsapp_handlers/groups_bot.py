@@ -231,7 +231,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                     SELECT gt.id, gt.description, gt.amount, g.name as group_name
                     FROM group_transactions gt
                     JOIN expense_groups g ON g.id = gt.group_id
-                    WHERE gt.id = %s AND gt.logged_by = %s AND DATE(gt.logged_at) = CURDATE()
+                    WHERE gt.id = %s AND gt.logged_by = %s
                 """, (tx_id, user_id))
                 txn = cursor.fetchone()
 
@@ -242,10 +242,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
                 conn.commit()
                 
-                if cursor.rowcount > 0:
-                    await send_whatsapp_text(phone, f"🗑️ Successfully deleted: *{txn['description']}* (₹{txn['amount']:g}) from *{txn['group_name']}*")
-                else:
-                    await send_whatsapp_text(phone, "Error: Could not delete the transaction.")
+                await send_whatsapp_text(phone, f"🗑️ Successfully deleted: *{txn['description']}* (₹{txn['amount']:g}) from *{txn['group_name']}*")
             except Exception as e:
                 conn.rollback()
                 print(f"Group RM Error: {e}")
@@ -261,7 +258,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
         group_alias = match_alias_cmd.group(1).lower()
         cmd_text = match_alias_cmd.group(2).strip()
 
-        # Total Command
+        # A) Total Command
         if cmd_text == "total":
             async with db_semaphore:
                 conn = get_db()
@@ -356,13 +353,14 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
             elif cmd == "week": date_filter = "AND gt.logged_at >= CURDATE() - INTERVAL 7 DAY"
             elif cmd == "month": date_filter = "AND MONTH(gt.logged_at) = MONTH(CURDATE()) AND YEAR(gt.logged_at) = YEAR(CURDATE())"
 
+            # Using f-strings to pass limit/offset safely prevents MySQL silent failure bugs.
             cursor.execute(f"""
                 SELECT gt.amount, gt.description, u.name as logged_by_name, gt.logged_at
                 FROM group_transactions gt
                 JOIN users u ON u.id = gt.logged_by
                 WHERE gt.group_id = %s {date_filter}
-                ORDER BY gt.logged_at DESC LIMIT %s OFFSET %s
-            """, (group['id'], limit, offset))
+                ORDER BY gt.logged_at DESC LIMIT {limit} OFFSET {offset}
+            """, (group['id'],))
             rows = cursor.fetchall()
 
             if not rows:
@@ -370,10 +368,7 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
                 await send_whatsapp_text(phone, msg)
                 return
 
-            cursor.execute(f"SELECT SUM(amount) as total_sum, COUNT(*) as total_count FROM group_transactions gt WHERE gt.group_id = %s {date_filter}", (group['id'],))
-            agg = cursor.fetchone()
-            master_total = agg['total_sum'] or 0
-            total_records = agg['total_count'] or 0
+            page_total = sum(float(r['amount']) for r in rows)
 
             title = f"Recent expenses in {group['name']}"
             if is_all: title = f"Full history in {group['name']}"
@@ -382,7 +377,10 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
             for r in rows:
                 msg_lines.append(f"• {r['logged_at'].strftime('%d %b')}: ₹{float(r['amount']):g} {r['description']} ({r['logged_by_name']})")
             
-            msg_lines.append(f"\n*Total:* ₹{float(master_total):g}")
+            msg_lines.append(f"\n*Total:* ₹{page_total:g}")
+
+            cursor.execute(f"SELECT COUNT(*) as total_count FROM group_transactions gt WHERE gt.group_id = %s {date_filter}", (group['id'],))
+            total_records = cursor.fetchone()['total_count']
 
             if total_records > (offset + limit):
                 btn_cmd = f"group @{group_alias} {cmd} {page + 1}"
