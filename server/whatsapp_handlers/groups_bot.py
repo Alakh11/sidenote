@@ -353,5 +353,102 @@ async def handle_group_commands(phone: str, text: str) -> bool:
         
         await handle_group_search_command(phone, group_alias, query)
         return True
+    
+    match_total = re.match(r'^group\s+@(\w+)\s+total$', text_lower)
+    if match_total:
+        group_alias = match_total.group(1).lower()
+        async with db_semaphore:
+            conn = get_db()
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("""
+                    SELECT g.id, g.name, SUM(gt.amount) as total_spend
+                    FROM expense_groups g
+                    JOIN group_members gm ON g.id = gm.group_id
+                    LEFT JOIN group_transactions gt ON g.id = gt.group_id
+                    WHERE gm.user_id = (SELECT id FROM users WHERE mobile = %s) 
+                    AND g.status = 'active' AND LOWER(g.name) LIKE %s
+                    GROUP BY g.id
+                """, (phone, f"%{group_alias}%"))
+                res = cursor.fetchone()
+                if not res:
+                    await send_whatsapp_text(phone, f"❌ Group matching '{group_alias}' not found.")
+                else:
+                    total = res['total_spend'] or 0
+                    await send_whatsapp_text(phone, f"💰 *Lifetime Spend for {res['name']}*\n\nTotal: ₹{float(total):g}")
+            finally:
+                cursor.close()
+                conn.close()
+        return True
+    
+    match_history = re.match(r'^group\s+@(\w+)\s+history(?:\s+(all))?(?:\s+(\d+))?$', text_lower)
+    if match_history:
+        group_alias = match_history.group(1).lower()
+        is_all = match_history.group(2) == "all"
+        page = int(match_history.group(3)) if match_history.group(3) else 1
+        
+        limit = 50 if is_all else 10
+        offset = (page - 1) * limit
+
+        async with db_semaphore:
+            conn = get_db()
+            std_cursor = conn.cursor()
+            user_id = get_user_id(std_cursor, phone)
+            std_cursor.close()
+            
+            if not user_id: return True
+
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("""
+                    SELECT g.id, g.name FROM expense_groups g
+                    JOIN group_members gm ON g.id = gm.group_id
+                    WHERE gm.user_id = %s AND g.status = 'active' AND LOWER(g.name) LIKE %s LIMIT 1
+                """, (user_id, f"%{group_alias}%"))
+                group = cursor.fetchone()
+
+                if not group:
+                    await send_whatsapp_text(phone, f"❌ Group matching '{group_alias}' not found.")
+                    return True
+
+                cursor.execute(f"""
+                    SELECT gt.amount, gt.description, u.name as logged_by_name, gt.logged_at
+                    FROM group_transactions gt
+                    JOIN users u ON u.id = gt.logged_by
+                    WHERE gt.group_id = %s
+                    ORDER BY gt.logged_at DESC
+                    LIMIT %s OFFSET %s
+                """, (group['id'], limit, offset))
+                rows = cursor.fetchall()
+
+                if not rows and page == 1:
+                    await send_whatsapp_text(phone, f"📭 No history found for *{group['name']}*.")
+                    return True
+                elif not rows:
+                    await send_whatsapp_text(phone, f"🏁 No more transactions to show.")
+                    return True
+
+                title = f"Master History: {group['name']}" if is_all else f"Recent History: {group['name']}"
+                msg_lines = [f"📜 *{title} (Page {page})*"]
+                
+                for r in rows:
+                    date_str = r['logged_at'].strftime('%d %b')
+                    msg_lines.append(f"• {date_str}: ₹{float(r['amount']):g} {r['description']} (by {r['logged_by_name']})")
+                
+                cursor.execute("SELECT COUNT(*) as total FROM group_transactions WHERE group_id = %s", (group['id'],))
+                total_count = cursor.fetchone()['total']
+                
+                if total_count > (offset + limit):
+                    next_cmd = f"group @{group_alias} history {'all ' if is_all else ''}{page + 1}"
+                    msg_lines.append(f"\n👇 *Show More*\n👉 {next_cmd}")
+
+                await send_whatsapp_text(phone, "\n".join(msg_lines))
+            except Exception as e:
+                print(f"History Error: {e}")
+                await send_whatsapp_text(phone, "⚠️ Failed to fetch history.")
+            finally:
+                cursor.close()
+                conn.close()
+        return True
 
     return False
