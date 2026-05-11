@@ -213,8 +213,8 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
-    # 5. EXECUTE DELETE (RM)
-    match_rm = re.match(r'^group\s+rm\s+(\d+)$', text_lower)
+    # 5. EXECUTE DELETE
+    match_rm = re.search(r'group\s+rm\s+(\d+)', text_lower)
     if match_rm:
         tx_id = int(match_rm.group(1))
         async with db_semaphore:
@@ -236,7 +236,7 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 txn = cursor.fetchone()
 
                 if not txn:
-                    await send_whatsapp_text(phone, "❌ Transaction not found or too old to undo (Only today's entries can be deleted via WhatsApp).")
+                    await send_whatsapp_text(phone, "❌ Transaction not found or you don't have permission to delete it.")
                     return True
 
                 cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
@@ -252,14 +252,16 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
-
-    match_alias_cmd = re.match(r'^group\s+@(\w+)\s+(.+)$', text_lower)
+    # 6. ALL OTHER COMMANDS (Total, Search, History, Pagination)
+    match_alias_cmd = re.search(r'group\s+@(\w+)\s+(.+)', text_lower)
     if match_alias_cmd:
         group_alias = match_alias_cmd.group(1).lower()
-        cmd_text = match_alias_cmd.group(2).strip()
+        cmd_text = re.sub(r'\s+', ' ', match_alias_cmd.group(2).strip())
+        parts = cmd_text.split()
+        base_cmd = parts[0]
 
         # A) Total Command
-        if cmd_text == "total":
+        if base_cmd == "total":
             async with db_semaphore:
                 conn = get_db()
                 cursor = conn.cursor(dictionary=True)
@@ -284,18 +286,25 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             return True
 
         # B) Search/Find Command
-        match_search = re.match(r'^(?:search|find)\s+(.+)$', cmd_text)
-        if match_search:
-            query = match_search.group(1).strip()
+        if base_cmd in ["search", "find"]:
+            query = " ".join(parts[1:])
             await handle_group_search_command(phone, group_alias, query)
             return True
 
-        # C) Timeframes, Undo, and Pagination Commands
-        match_query = re.match(r'^(undo|today|yesterday|week|month|history(?:\s+all)?)(?:\s+(\d+))?$', cmd_text)
-        if match_query:
-            base_cmd = match_query.group(1)
-            page_str = match_query.group(2)
-            page = int(page_str) if page_str else 1
+        # C) Timeframes & History
+        if base_cmd == "history":
+            if len(parts) > 1 and parts[1] == "all":
+                cmd_to_pass = "history all"
+                page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
+            else:
+                cmd_to_pass = "history"
+                page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+            await process_group_query(phone, group_alias, cmd_to_pass, page)
+            return True
+
+        # D) Other Queries (Undo, Today, Week, Month)
+        if base_cmd in ["undo", "today", "yesterday", "week", "month"]:
+            page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
             await process_group_query(phone, group_alias, base_cmd, page)
             return True
         
@@ -343,7 +352,11 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
                     await send_whatsapp_text(phone, f"❌ No group transactions logged today to undo.")
                     return
                 
-                btns = [{"id": f"group rm {t['id']}", "title": f"❌ {float(t['amount']):g} {t['description'][:10]}"} for t in txns]
+                btns = []
+                for t in txns:
+                    title = f"❌ {float(t['amount']):g} {t['description'][:10]}"
+                    btns.append({"id": f"group rm {t['id']}", "title": title[:20]})
+                    
                 await send_whatsapp_interactive_buttons(phone, f"Which entry in *{group['name']}* do you want to delete?", btns)
                 return
 
@@ -353,7 +366,6 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
             elif cmd == "week": date_filter = "AND gt.logged_at >= CURDATE() - INTERVAL 7 DAY"
             elif cmd == "month": date_filter = "AND MONTH(gt.logged_at) = MONTH(CURDATE()) AND YEAR(gt.logged_at) = YEAR(CURDATE())"
 
-            # Using f-strings to pass limit/offset safely prevents MySQL silent failure bugs.
             cursor.execute(f"""
                 SELECT gt.amount, gt.description, u.name as logged_by_name, gt.logged_at
                 FROM group_transactions gt
@@ -370,7 +382,7 @@ async def process_group_query(phone: str, group_alias: str, cmd: str, page: int 
 
             page_total = sum(float(r['amount']) for r in rows)
 
-            title = f"Recent expenses in {group['name']}"
+            title = f"Recent expanses in {group['name']}"
             if is_all: title = f"Full history in {group['name']}"
 
             msg_lines = [f"📜 *{title}* (Page {page})"]
