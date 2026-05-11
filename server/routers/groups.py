@@ -93,23 +93,37 @@ def calculate_settlements(group_id: int):
         """, (group_id,))
         members = cursor.fetchall()
         
-        if not members: return {"settlements": []}
+        if not members: return {"total_spend": 0, "per_person": 0, "settlements": []}
         
         cursor.execute("""
-            SELECT logged_by, SUM(amount) as total_paid 
-            FROM group_transactions WHERE group_id = %s GROUP BY logged_by
+            SELECT amount, logged_by, split_type, split_details 
+            FROM group_transactions WHERE group_id = %s
         """, (group_id,))
-        payments = cursor.fetchall()
+        transactions = cursor.fetchall()
         
-        total_group_spend = sum(float(p['total_paid']) for p in payments)
-        split_share = total_group_spend / len(members) if len(members) > 0 else 0
+        balances = {m['id']: {'name': m['display_name'].split()[0], 'balance': 0.0} for m in members}
+        total_group_spend = 0.0
         
-        balances = {}
-        for m in members: balances[m['id']] = {"name": m['display_name'], "balance": -split_share}
-        
-        for p in payments: 
-            if p['logged_by'] in balances:
-                balances[p['logged_by']]['balance'] += float(p['total_paid'])
+        for tx in transactions:
+            payer = tx['logged_by']
+            amount = float(tx['amount'])
+            
+            if tx['split_type'] != 'settlement':
+                total_group_spend += amount
+                
+            if payer in balances:
+                balances[payer]['balance'] += amount
+                
+            if tx['split_details']:
+                details = json.loads(tx['split_details'])
+                for uid, owed in details.items():
+                    uid = int(uid)
+                    if uid in balances:
+                        balances[uid]['balance'] -= float(owed)
+            elif tx['split_type'] == 'equal':
+                share = amount / len(members)
+                for m in members:
+                    balances[m['id']]['balance'] -= share
             
         debtors = [{"id": k, "name": v["name"], "amount": abs(v["balance"])} for k, v in balances.items() if v["balance"] < -0.01]
         creditors = [{"id": k, "name": v["name"], "amount": v["balance"]} for k, v in balances.items() if v["balance"] > 0.01]
@@ -133,6 +147,7 @@ def calculate_settlements(group_id: int):
             if debtor['amount'] < 0.01: i += 1
             if creditor['amount'] < 0.01: j += 1
             
+        split_share = total_group_spend / len(members) if len(members) > 0 else 0
         return {"total_spend": total_group_spend, "per_person": round(split_share, 2), "settlements": settlements}
     finally:
         conn.close()
