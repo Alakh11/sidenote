@@ -28,7 +28,7 @@ def get_dashboard(user_id: int, view_by: str = Query("month")):
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.user_id = %s AND {date_filter_t}
-            ORDER BY t.date DESC LIMIT 5
+            ORDER BY t.date DESC LIMIT 7
         """, (user_id,))
         recent: list[Any] = cursor.fetchall()
         

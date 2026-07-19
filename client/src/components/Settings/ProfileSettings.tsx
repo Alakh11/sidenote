@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
-import { User, Lock, Save, Camera, CheckCircle2, AlertCircle, IndianRupee, Mail, Phone } from 'lucide-react';
+import { User, Lock, Save, Camera, CheckCircle2, AlertCircle, IndianRupee, Mail, Phone, AlertTriangle, Trash2 } from 'lucide-react';
 
 const API_URL = "https://api.sidenote.in";
 
@@ -59,6 +59,7 @@ export default function ProfileSettings() {
   
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const hasMobileLocked = !!user?.mobile;
 
   useEffect(() => {
@@ -99,8 +100,8 @@ export default function ProfileSettings() {
           };
           localStorage.setItem('user_data', JSON.stringify(updatedUser));
           
-          setMsg({ type: 'success', text: 'Profile updated!' });
-          setTimeout(() => window.location.reload(), 1000); 
+          setMsg({ type: 'success', text: 'Profile updated successfully!' });
+          setTimeout(() => window.location.reload(), 1500); 
       } catch(e: any) {
           setMsg({ type: 'error', text: e.response?.data?.detail || 'Failed to update profile.' });
       } finally {
@@ -147,18 +148,37 @@ export default function ProfileSettings() {
           localStorage.setItem('user_data', JSON.stringify(updatedUser));
           
           setMsg({ type: 'success', text: 'Financial preferences updated!' });
-          setTimeout(() => window.location.reload(), 1000);
+          setTimeout(() => window.location.reload(), 1500);
       } catch(e: any) {
           setMsg({ type: 'error', text: 'Failed to update preferences.' });
       } finally {
           setLoading(false);
       }
   };
+
+  const executeDeleteAccount = async () => {
+    try {
+        setLoading(true);
+        const token = localStorage.getItem('token');
+        await axios.delete('https://api.sidenote.in/auth/account/delete', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        localStorage.removeItem('token');
+        localStorage.removeItem('user_data');
+        window.location.href = '/login';
+        
+    } catch (error) {
+        setLoading(false);
+        setShowDeleteModal(false);
+        setMsg({ type: 'error', text: "Failed to delete account. Please try again." });
+    }
+  };
   
   const isUrl = profileData.profile_pic.startsWith('http');
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-20">
+    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in pb-20 relative">
         
         <div>
             <h2 className="text-3xl font-bold text-stone-800 dark:text-white flex items-center gap-2">
@@ -168,14 +188,61 @@ export default function ProfileSettings() {
         </div>
 
         {msg && (
-            <div className={`p-4 rounded-xl flex items-center gap-2 font-bold ${msg.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                {msg.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
-                {msg.text}
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setMsg(null)} />
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 max-w-sm w-full relative z-10 shadow-2xl border border-stone-100 dark:border-slate-800 animate-in zoom-in-95 text-center">
+                    <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-5 ${msg.type === 'success' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                        {msg.type === 'success' ? <CheckCircle2 size={32} /> : <AlertCircle size={32} />}
+                    </div>
+                    <h3 className="text-xl font-black text-stone-800 dark:text-white mb-2">
+                        {msg.type === 'success' ? 'Success!' : 'Oops!'}
+                    </h3>
+                    <p className="text-stone-500 dark:text-slate-400 mb-8 leading-relaxed">
+                        {msg.text}
+                    </p>
+                    <button 
+                        onClick={() => setMsg(null)}
+                        className="w-full px-4 py-3 bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-800 dark:text-white font-bold rounded-xl transition-colors"
+                    >
+                        Okay
+                    </button>
+                </div>
+            </div>
+        )}
+
+        {showDeleteModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !loading && setShowDeleteModal(false)} />
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 max-w-sm w-full relative z-10 shadow-2xl border border-stone-100 dark:border-slate-800 animate-in zoom-in-95 text-center">
+                    <div className="w-16 h-16 mx-auto bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mb-5">
+                        <AlertTriangle size={32} />
+                    </div>
+                    <h3 className="text-xl font-black text-stone-800 dark:text-white mb-2">Delete Account?</h3>
+                    <p className="text-stone-500 dark:text-slate-400 mb-8 text-sm leading-relaxed">
+                        Are you absolutely sure? You will be logged out immediately, and you will need to register again to use SideNote. <span className="font-bold text-rose-500">This action cannot be undone.</span>
+                    </p>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setShowDeleteModal(false)}
+                            disabled={loading}
+                            className="flex-1 px-4 py-3 bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-white font-bold rounded-xl transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={executeDeleteAccount}
+                            disabled={loading}
+                            className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Deleting...' : 'Yes, Delete'}
+                        </button>
+                    </div>
+                </div>
             </div>
         )}
 
         {/* --- SECTION 1: PUBLIC PROFILE --- */}
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-stone-100 dark:border-slate-800">
+        <div className="relative bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-stone-100 dark:border-slate-800">
             <h3 className="text-lg font-bold text-stone-800 dark:text-white mb-6">Public Profile</h3>
             
             <form onSubmit={handleUpdateProfile} className="space-y-6">
@@ -289,6 +356,15 @@ export default function ProfileSettings() {
                     <Save size={18} /> Update Profile
                 </button>
             </form>
+
+            <button 
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                title="Delete Account"
+                className="absolute bottom-8 right-8 p-2.5 text-stone-300 hover:text-rose-500 hover:bg-rose-50 dark:text-slate-700 dark:hover:text-rose-400 dark:hover:bg-rose-900/20 rounded-xl transition-colors"
+            >
+                <Trash2 size={18} />
+            </button>
         </div>
 
         {/* --- SECTION 2: SECURITY --- */}
@@ -320,6 +396,7 @@ export default function ProfileSettings() {
             </form>
         </div>
 
+        {/* --- SECTION 3: FINANCIAL PREFERENCES --- */}
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-stone-100 dark:border-slate-800">
             <h3 className="text-lg font-bold text-stone-800 dark:text-white mb-6 flex items-center gap-2">
                 <IndianRupee size={20} className="text-emerald-500" /> Financial Preferences

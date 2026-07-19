@@ -21,7 +21,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    to_encode.update({"exp": datetime.utcnow() + timedelta(days=7)})
+    to_encode.update({"exp": datetime.utcnow() + timedelta(hours=24)})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -35,9 +35,10 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 def require_admin(user_id: int = Depends(get_current_user)):
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    conn = None
     try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
         user: Any = cursor.fetchone()
         
@@ -46,7 +47,11 @@ def require_admin(user_id: int = Depends(get_current_user)):
             
         return user_id
     finally:
-        conn.close()
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"Error closing connection in require_admin: {e}")
         
 async def verify_meta_signature(request: Request, x_hub_signature_256: str = Header(None)):
     """Verifies the HMAC SHA-256 signature sent by Meta to ensure the request is genuine."""

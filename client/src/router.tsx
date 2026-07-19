@@ -29,6 +29,8 @@ import FAQ from './components/Support/FAQ';
 import TermsAndConditions from './components/Legal/Terms';
 import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 import ResetPassword from './components/Auth/ResetPassword';
+import GlobalLoader from './components/GlobalLoader';
+import GroupDashboard from './components/Groups/GroupDashboard';
 import PaymentPage from './components/PaymentPage/paymentPage';
 
 interface UserWithRole extends User {
@@ -48,6 +50,7 @@ const API_URL = "https://api.sidenote.in";
 // --- 1. Root Route ---
 const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => <Outlet />,
+  pendingComponent: GlobalLoader,
   errorComponent: ({ error }) => {
     return <ErrorPage code={500} customMessage={error.message} />;
   },
@@ -77,11 +80,10 @@ const dashboardRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/dashboard',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month';
     const userId = context.user!.id;
     
     const [dashboard, categories, prediction, insights] = await Promise.all([
-        axios.get(`${API_URL}/dashboard/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/dashboard/${userId}?view_by=month`),
         axios.get(`${API_URL}/categories/${userId}`),
         axios.get(`${API_URL}/predict/${userId}`),
         axios.get(`${API_URL}/insights/${userId}`)
@@ -102,10 +104,9 @@ const transactionsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/transactions',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month';
     const userId = context.user!.id;
     const [transactions, categories] = await Promise.all([
-        axios.get(`${API_URL}/transactions/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/transactions/${userId}?view_by=month`),
         axios.get(`${API_URL}/categories/${userId}`)
     ]);
     return { 
@@ -121,10 +122,9 @@ const budgetRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/budget',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month'; 
     const userId = context.user!.id;
     const [status, categories, history] = await Promise.all([
-        axios.get(`${API_URL}/budgets/${userId}?view_by=${viewMode}`), 
+        axios.get(`${API_URL}/budgets/${userId}?view_by=month`), 
         axios.get(`${API_URL}/categories/${userId}`),
         axios.get(`${API_URL}/budgets/history/${userId}`)
     ]);
@@ -153,6 +153,9 @@ const goalsRoute = createRoute({
 const recurringRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/recurring',
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/recurring/${userId}`);
@@ -166,10 +169,9 @@ const analyticsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/analytics',
   loader: async ({ context }) => {
-    const viewMode = localStorage.getItem('viewMode') || 'month';
     const userId = context.user!.id;
     const [analytics, dailyIncome, monthlyIncome, categoryMonthly, goals] = await Promise.all([
-        axios.get(`${API_URL}/analytics/${userId}?view_by=${viewMode}`),
+        axios.get(`${API_URL}/analytics/${userId}?view_by=month`),
         axios.get(`${API_URL}/income/daily/${userId}`),
         axios.get(`${API_URL}/income/monthly/${userId}`),
         axios.get(`${API_URL}/analytics/category-monthly/${userId}`),
@@ -190,6 +192,9 @@ const analyticsRoute = createRoute({
 const categoriesRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/categories',
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/categories/${userId}`);
@@ -202,6 +207,9 @@ const categoriesRoute = createRoute({
 const loansRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/loans',
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
     const res = await axios.get(`${API_URL}/loans/${userId}`);
@@ -214,6 +222,9 @@ const loansRoute = createRoute({
 const debtsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/debts',
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
   loader: async ({ context }) => {
     const userId = context.user!.id;
 
@@ -236,6 +247,16 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: Home,
+});
+ 
+// --- Groups Route ---
+const groupsRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/groups',
+  beforeLoad: ({ context }) => { 
+    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+  },
+  component: GroupDashboard,
 });
 
 
@@ -357,6 +378,7 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     settingsRoute,
     feedbackRoute,
+    groupsRoute,
     paymentRoute,
   ])
 ]);
@@ -369,6 +391,9 @@ export const router = createRouter({
     handleLogout: undefined!
   },
   notFoundRoute,
+  defaultPendingComponent: GlobalLoader,
+  defaultPendingMs: 0,
+  defaultPendingMinMs: 500
 });
 
 declare module '@tanstack/react-router' {

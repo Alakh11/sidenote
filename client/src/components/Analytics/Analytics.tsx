@@ -60,35 +60,7 @@ export default function Analytics() {
     <div className="space-y-8 animate-fade-in pb-12">
       <h2 className="text-3xl font-bold text-stone-800 dark:text-white tracking-tight">Financial Analytics</h2>
       
-      {/* --- Monthly Income Summary (Area Chart) --- */}
-      <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-stone-50 dark:border-slate-800 transition-colors">
-           <div className="flex items-center gap-3 mb-6">
-               <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                   <TrendingUp className="w-6 h-6" />
-               </div>
-               <h3 className="text-xl font-bold text-stone-700 dark:text-white">Monthly Income Trend</h3>
-           </div>
-           
-           <div className="h-72 w-full min-w-0">
-             <ResponsiveContainer width="100%" height="100%">
-               <AreaChart data={[...monthlyIncome].reverse()}>
-                 <defs>
-                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                    </linearGradient>
-                 </defs>
-                 <XAxis dataKey="display_name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: axisTextColor}} />
-                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: axisTextColor}} tickFormatter={(value) => `₹${value/1000}k`} />
-                 <Tooltip 
-                    contentStyle={tooltipStyle}
-                    formatter={(value: any) => [`₹${Number(value || 0).toLocaleString()}`, 'Income']}
-                 />
-                 <Area type="monotone" dataKey="total" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
-               </AreaChart>
-             </ResponsiveContainer>
-           </div>
-      </div>
+      
       
       {/* ROW 1: Expense Pie & GOALS PROGRESS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -208,6 +180,36 @@ export default function Analytics() {
            </div>
         </div>
 
+      </div>
+
+      {/* --- Monthly Income Summary (Area Chart) --- */}
+      <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-stone-50 dark:border-slate-800 transition-colors">
+           <div className="flex items-center gap-3 mb-6">
+               <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                   <TrendingUp className="w-6 h-6" />
+               </div>
+               <h3 className="text-xl font-bold text-stone-700 dark:text-white">Monthly Income Trend</h3>
+           </div>
+           
+           <div className="h-72 w-full min-w-0">
+             <ResponsiveContainer width="100%" height="100%">
+               <AreaChart data={[...monthlyIncome].reverse()}>
+                 <defs>
+                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                    </linearGradient>
+                 </defs>
+                 <XAxis dataKey="display_name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: axisTextColor}} />
+                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: axisTextColor}} tickFormatter={(value) => `₹${value/1000}k`} />
+                 <Tooltip 
+                    contentStyle={tooltipStyle}
+                    formatter={(value: any) => [`₹${Number(value || 0).toLocaleString()}`, 'Income']}
+                 />
+                 <Area type="monotone" dataKey="total" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
+               </AreaChart>
+             </ResponsiveContainer>
+           </div>
       </div>
       
       {/* Daily Income List */}

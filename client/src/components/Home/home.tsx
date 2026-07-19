@@ -7,7 +7,7 @@ import {
 import Logo from '../Logo';
 
 const WHATSAPP_NUMBER = "918796022992"; 
-const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi!`;
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=Hi`;
 
 // --- Scripted conversation data ---
 const simulationScript = [

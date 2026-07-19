@@ -9,7 +9,7 @@ import logging
 import random
 import os
 from datetime import datetime, timedelta
-from whatsapp_service import send_whatsapp_text
+from whatsapp_service import send_whatsapp_text, send_whatsapp_template
 from tracking import track_event, link_web_and_whatsapp
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -27,17 +27,28 @@ class VerifyOTP(BaseModel):
     otp: str
 
 async def generate_and_send_otp(cursor, phone: str, name: str):
-    """Generates a 4-digit OTP, saves it, and sends via WhatsApp."""
+    """Generates a 4-digit OTP, saves it, and routes via Free Text or Meta Template."""
     if not phone:
-        return # Safety check to satisfy Pylance
+        return 
         
     otp_code = str(random.randint(1000, 9999))
-    expiry = datetime.utcnow() + timedelta(minutes=10)
+    cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL 10 MINUTE))", (phone, otp_code))
     
-    cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, %s)", (phone, otp_code, expiry))
+    cursor.execute("""
+        SELECT u.id 
+        FROM users u
+        JOIN transactions t ON u.id = t.user_id
+        WHERE u.mobile = %s AND t.date >= NOW() - INTERVAL 24 HOUR
+        LIMIT 1
+    """, (phone,))
     
-    msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
-    await send_whatsapp_text(phone, msg)
+    recent_activity = cursor.fetchone()
+    
+    if recent_activity:
+        msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
+        await send_whatsapp_text(phone, msg)
+    else:
+        await send_whatsapp_template(phone, "sidenote_account_ticket_v1", [name, otp_code])
 
 @router.post("/register")
 async def register(payload: RegisterPayload):
@@ -80,7 +91,6 @@ async def register(payload: RegisterPayload):
             if user_id:
                 create_default_categories(int(user_id), cursor)
 
-        # Generate and Send OTP
         if target_mobile:
             await generate_and_send_otp(cursor, target_mobile, payload.name)
         
@@ -108,6 +118,10 @@ def verify_otp(data: VerifyOTP):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.contact, data.otp))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP/Case ID.")
+            
         cursor.execute("SELECT * FROM users WHERE mobile = %s", (data.contact,))
         raw_user = cursor.fetchone()
         
@@ -119,8 +133,6 @@ def verify_otp(data: VerifyOTP):
         token = create_access_token({"sub": str(user_db['id']), "name": user_db.get('name')})
         
         cursor.execute("UPDATE users SET is_verified = TRUE WHERE mobile = %s", (data.contact,))
-        
-        # Cleanup OTP
         cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.contact,))
         
         conn.commit()
@@ -141,6 +153,7 @@ def verify_otp(data: VerifyOTP):
         }
     except Exception as e:
         conn.rollback()
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
@@ -187,12 +200,10 @@ def google_login(data: GoogleAuth):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Check if user exists by email
         cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
         user: Any = cursor.fetchone()
         
         if not user:
-            # Create User
             cursor.execute(
                 "INSERT INTO users (name, email, profile_pic, is_verified) VALUES (%s, %s, %s, TRUE)", 
                 (data.name, data.email, data.picture)
@@ -204,7 +215,6 @@ def google_login(data: GoogleAuth):
             
             conn.commit()
             
-            # Fetch the new user to get details
             cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
             user = cursor.fetchone()
             
@@ -254,7 +264,6 @@ async def reset_password(data: ResetPassword):
         if not target_mobile:
              raise HTTPException(status_code=400, detail="No WhatsApp number linked to this account.")
             
-        # Update Password
         new_hash = pwd_context.hash(data.new_password)
         cursor.execute(f"UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
         
@@ -272,7 +281,6 @@ async def reset_password(data: ResetPassword):
     finally:
         conn.close()
 
-# --- 1. Update Profile (Name, Icon, Email, Mobile) ---
 @router.put("/profile")
 def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_user)):
     conn = get_db()
@@ -283,17 +291,14 @@ def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_u
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # RULE: Mobile number cannot be changed once linked
         if user['mobile'] and data.mobile and user['mobile'] != data.mobile:
             raise HTTPException(status_code=400, detail="Mobile number cannot be changed once linked.")
 
-        # Check Uniqueness if changing Email
         if data.email and data.email != user['email']:
             cursor.execute("SELECT id FROM users WHERE email = %s", (data.email,))
             if cursor.fetchone():
                 raise HTTPException(status_code=400, detail="Email is already in use by another account.")
 
-        # Check Uniqueness if linking Mobile for the first time
         if data.mobile and not user['mobile']:
             cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
             if cursor.fetchone():
@@ -301,7 +306,6 @@ def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_u
 
         new_mobile = user['mobile'] if user['mobile'] else data.mobile
 
-        # Execute Update
         cursor.execute("""
             UPDATE users 
             SET name = %s, profile_pic = %s, email = %s, mobile = %s 
@@ -321,7 +325,6 @@ def update_profile(data: UserUpdateProfile, user_id: int = Depends(get_current_u
     finally:
         conn.close()
 
-# --- 2. Change Password ---
 @router.put("/password")
 def change_password(data: UserChangePassword, user_id: int = Depends(get_current_user)):
     conn = get_db()
@@ -333,11 +336,9 @@ def change_password(data: UserChangePassword, user_id: int = Depends(get_current
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
             
-        # 2. Verify Old Password
         if not pwd_context.verify(data.old_password, user['password_hash']):
             raise HTTPException(status_code=400, detail="Incorrect old password")
             
-        # 3. Hash New Password & Update
         new_hash = pwd_context.hash(data.new_password)
         cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user_id))
         
@@ -353,7 +354,6 @@ def change_password(data: UserChangePassword, user_id: int = Depends(get_current
         
 @router.put("/complete-profile")
 def complete_profile(request: ProfileCompletionRequest):
-    """Upgrades a WhatsApp-only user to a full Web Dashboard user."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -414,6 +414,114 @@ def update_preferences(data: UserPreferencesUpdate, user_id: int = Depends(get_c
         """, (data.currency, data.month_start_date, user_id))
         conn.commit()
         return {"message": "Preferences updated"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+class LinkMobileRequest(BaseModel):
+    mobile: str
+
+@router.post("/link-mobile/request")
+async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="This WhatsApp number is already registered. Please log in using your phone number instead.")
+        
+        cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+        user_row: Any = cursor.fetchone()
+        
+        if not isinstance(user_row, dict):
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        user_name = str(user_row.get('name', 'WhatsApp User'))
+        
+        await generate_and_send_otp(cursor, data.mobile, user_name)
+        conn.commit()
+        
+        return {"message": "OTP sent to WhatsApp!"}
+    except Exception as e:
+        conn.rollback()
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+class LinkMobileVerify(BaseModel):
+    mobile: str
+    otp: str
+
+@router.post("/link-mobile/verify")
+def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM otps WHERE identifier = %s AND otp_code = %s AND expires_at > NOW()", (data.mobile, data.otp))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP/Case ID.")
+            
+        cursor.execute("UPDATE users SET mobile = %s WHERE id = %s", (data.mobile, user_id))
+        cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.mobile,))
+        conn.commit()
+        
+        link_web_and_whatsapp(data.mobile, user_id)
+        track_event(user_id, 'whatsapp_linked', {'source': 'web'})
+        
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        raw_user: Any = cursor.fetchone()
+        
+        if not isinstance(raw_user, dict):
+            raise HTTPException(status_code=404, detail="User not found after update")
+            
+        user_db: dict[str, Any] = raw_user
+        
+        return {
+            "message": "Mobile linked successfully!",
+            "user": {
+                "id": user_db.get('id', user_id),
+                "name": user_db.get('name'), 
+                "email": user_db.get('email'),
+                "mobile": user_db.get('mobile'),
+                "picture": user_db.get('profile_pic') or "",
+                "role": user_db.get('role', 'user')
+            }
+        }
+    except Exception as e:
+        conn.rollback()
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.delete("/account/delete")
+def soft_delete_account(user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT mobile, email FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        new_mobile = f"deleted_{user_id}_{user['mobile']}" if user['mobile'] else None
+        new_email = f"deleted_{user_id}_{user['email']}" if user['email'] else None
+        
+        cursor.execute("""
+            UPDATE users 
+            SET account_status = 'inactive', 
+                mobile = %s, 
+                email = %s,
+                bot_state = 'DELETED'
+            WHERE id = %s
+        """, (new_mobile, new_email, user_id))
+        
+        conn.commit()
+        return {"message": "Account successfully deleted. Your data has been archived."}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
