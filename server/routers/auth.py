@@ -470,13 +470,13 @@ def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_curren
             cursor.execute("SELECT email, profile_pic FROM users WHERE id = %s", (user_id,))
             current_google_user = cursor.fetchone()
             
+            cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            
             cursor.execute("""
                 UPDATE users 
                 SET email = %s, profile_pic = %s, is_verified = TRUE 
                 WHERE id = %s
             """, (current_google_user['email'], current_google_user['profile_pic'], existing_wa_user['id']))
-            
-            cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
             
             final_user_id = existing_wa_user['id']
         else:
