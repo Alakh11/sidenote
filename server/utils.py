@@ -67,3 +67,15 @@ def get_date_filter_sql(cursor, user_id: int, view_by: str, table_alias="t", dat
         return f"YEAR({adjusted_db_date}) = YEAR({adjusted_now})"
     else: 
         return f"DATE_FORMAT({adjusted_db_date}, '%Y-%m') = DATE_FORMAT({adjusted_now}, '%Y-%m')"
+    
+def is_country_allowed(mobile: str, cursor) -> bool:
+    clean_mobile = mobile.lstrip('+')
+    
+    cursor.execute("SELECT country_code FROM allowed_countries WHERE status = 1")
+    allowed_codes = [row['country_code'] for row in cursor.fetchall()]
+    
+    for code in allowed_codes:
+        if clean_mobile.startswith(code):
+            return True
+            
+    return False

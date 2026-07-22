@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from database import get_db
 from schemas import *
 from security import pwd_context, create_access_token, get_current_user
-from utils import create_default_categories
+from utils import create_default_categories, is_country_allowed
 import logging
 import random
 import os
@@ -57,6 +57,8 @@ async def register(payload: RegisterPayload):
     try:
         field = "email" if payload.contact_type == 'email' else "mobile"
         target_mobile = payload.contact if payload.contact_type == 'mobile' else payload.extra_mobile
+        if target_mobile and not is_country_allowed(target_mobile, cursor):
+            raise HTTPException(status_code=403, detail="Registration is currently not available in your region.")
         
         cursor.execute(f"SELECT id, email, is_verified FROM users WHERE {field} = %s", (payload.contact,))
         raw_user = cursor.fetchone()

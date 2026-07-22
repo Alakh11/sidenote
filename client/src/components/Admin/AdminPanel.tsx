@@ -1,5 +1,5 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List, Bot, Terminal } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List, Bot, Terminal, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import UserFormModal from './components/UserFormModal';
@@ -13,11 +13,12 @@ import AdminAutoRepliesView from './components/AdminAutoRepliesView';
 import AdminCategoriesView from './components/AdminCategoriesView';
 import BotLogCommandHistory from './components/BotLogCommandHistory';
 import SystemLogViewer from './components/SystemLogViewer';
+import AdminGeoBlockerView from './components/AdminGeoBlockerView';
 
 const API_URL = "https://api.sidenote.in";
 
 type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system';
-type SystemView = 'metrics' | 'feedback' | 'logs';
+type SystemView = 'metrics' | 'feedback' | 'logs' | 'geo';
 
 export default function AdminPanel() {
   const router = useRouter();
@@ -427,12 +428,17 @@ export default function AdminPanel() {
                     <button onClick={() => setSystemView('logs')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${systemView === 'logs' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
                         <Terminal size={14} className="shrink-0"/> Live Engine Logs
                       </button>
+                      <button onClick={() => setSystemView('geo')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${systemView === 'geo' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                        <MapPin size={14} className="shrink-0"/> Geo Blocker
+                      </button>
+                      
                   </div>
               </div>
 
               {systemView === 'metrics' && <SystemMetricsView />}
               {systemView === 'feedback' && <AdminFeedbackView />}
               {systemView === 'logs' && <SystemLogViewer />} 
+              {systemView === 'geo' && <AdminGeoBlockerView />}
           </div>
       )}
 

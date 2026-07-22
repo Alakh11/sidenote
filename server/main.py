@@ -14,6 +14,7 @@ from typing import Optional
 from tracking import track_event
 from starlette.background import BackgroundTask
 from zoneinfo import ZoneInfo
+from utils import is_country_allowed
 
 
 logging.basicConfig(level=logging.INFO)
@@ -292,6 +293,9 @@ async def process_incoming_message(message: dict, sender_phone: str, message_id:
     cursor = conn.cursor(dictionary=True)
     
     try:
+        if not is_country_allowed(sender_phone, cursor):
+            print(f"🚫 Geo-Blocked: Message from unauthorized country code ({sender_phone})")
+            return
         cursor.execute("SELECT id, has_consented FROM users WHERE mobile = %s", (sender_phone,))
         user = cursor.fetchone()
         

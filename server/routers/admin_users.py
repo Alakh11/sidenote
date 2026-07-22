@@ -4,6 +4,7 @@ from database import get_db
 from security import require_admin, pwd_context
 from schemas import UserRegister, AdminUpdateUser
 import logging
+from pydantic import BaseModel
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -211,5 +212,64 @@ def get_user_full_data(user_id: int, admin_id: int = Depends(require_admin)):
                 "records": lent_records
             }
         }
+    finally:
+        conn.close()
+        
+
+class CountryPayload(BaseModel):
+    country_code: str
+    country_name: str
+    status: int = 1
+
+@router.get("/countries")
+def get_allowed_countries():
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM allowed_countries ORDER BY status DESC, country_name ASC")
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.post("/countries")
+def add_country(data: CountryPayload):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO allowed_countries (country_code, country_name, status) VALUES (%s, %s, %s)",
+            (data.country_code.lstrip('+'), data.country_name, data.status)
+        )
+        conn.commit()
+        return {"message": "Country added successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail="Country code might already exist.")
+    finally:
+        conn.close()
+
+@router.put("/countries/{country_id}")
+def update_country(country_id: int, data: CountryPayload):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE allowed_countries 
+            SET country_code = %s, country_name = %s, status = %s 
+            WHERE id = %s
+        """, (data.country_code.lstrip('+'), data.country_name, data.status, country_id))
+        conn.commit()
+        return {"message": "Country updated successfully"}
+    finally:
+        conn.close()
+
+@router.delete("/countries/{country_id}")
+def delete_country(country_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM allowed_countries WHERE id = %s", (country_id,))
+        conn.commit()
+        return {"message": "Country removed successfully"}
     finally:
         conn.close()
