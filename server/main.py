@@ -16,7 +16,7 @@ from starlette.background import BackgroundTask
 from zoneinfo import ZoneInfo
 from utils import is_country_allowed
 
-
+blocked_notified_cache = {}
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 ist_timezone = ZoneInfo('Asia/Kolkata')
@@ -295,6 +295,23 @@ async def process_incoming_message(message: dict, sender_phone: str, message_id:
     try:
         if not is_country_allowed(sender_phone, cursor):
             print(f"🚫 Geo-Blocked: Message from unauthorized country code ({sender_phone})")
+            
+            current_time = time.time()
+            last_notified_time = blocked_notified_cache.get(sender_phone, 0)
+            if current_time - last_notified_time > 86400:
+                block_msg = (
+                    "⚠️ *Service Unavailable*\n\n"
+                    f"Hi {sender_name}, thank you for your interest! "
+                    "Unfortunately, SideNote is currently not available in your region. "
+                    "We hope to expand to your country soon! 🌍"
+                )
+                await send_whatsapp_text(sender_phone, block_msg)
+                
+                blocked_notified_cache[sender_phone] = current_time
+                print(f"📤 Sent rejection notice to {sender_phone}")
+            else:
+                print(f"🤫 Silently dropping repeated message from {sender_phone} to save API costs.")
+                
             return
         cursor.execute("SELECT id, has_consented FROM users WHERE mobile = %s", (sender_phone,))
         user = cursor.fetchone()
