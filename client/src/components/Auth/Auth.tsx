@@ -175,7 +175,8 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
           });
           
           posthog.identify(String(res.data.user.id), { name: res.data.user.name, email: res.data.user.email, role: res.data.user.role });
-          onLoginSuccess(res.data.user, tempToken);
+          
+          onLoginSuccess(res.data.user, res.data.token || tempToken);
       } catch (err: any) {
           setError(err.response?.data?.detail || "Invalid code / Case ID");
       } finally {

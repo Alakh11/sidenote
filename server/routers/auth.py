@@ -428,9 +428,6 @@ async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(ge
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id FROM users WHERE mobile = %s", (data.mobile,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="This WhatsApp number is already registered. Please log in using your phone number instead.")
         
         cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
         user_row: Any = cursor.fetchone()
@@ -464,25 +461,43 @@ def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_curren
         if not cursor.fetchone():
             raise HTTPException(status_code=400, detail="Invalid or expired OTP/Case ID.")
             
-        cursor.execute("UPDATE users SET mobile = %s WHERE id = %s", (data.mobile, user_id))
         cursor.execute("DELETE FROM otps WHERE identifier = %s", (data.mobile,))
+        
+        cursor.execute("SELECT * FROM users WHERE mobile = %s", (data.mobile,))
+        existing_wa_user = cursor.fetchone()
+
+        if existing_wa_user and existing_wa_user['id'] != user_id:
+            cursor.execute("SELECT email, profile_pic FROM users WHERE id = %s", (user_id,))
+            current_google_user = cursor.fetchone()
+            
+            cursor.execute("""
+                UPDATE users 
+                SET email = %s, profile_pic = %s, is_verified = TRUE 
+                WHERE id = %s
+            """, (current_google_user['email'], current_google_user['profile_pic'], existing_wa_user['id']))
+            
+            cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            
+            final_user_id = existing_wa_user['id']
+        else:
+            cursor.execute("UPDATE users SET mobile = %s, is_verified = TRUE WHERE id = %s", (data.mobile, user_id))
+            final_user_id = user_id
+            
         conn.commit()
         
-        link_web_and_whatsapp(data.mobile, user_id)
-        track_event(user_id, 'whatsapp_linked', {'source': 'web'})
+        link_web_and_whatsapp(data.mobile, final_user_id)
+        track_event(final_user_id, 'whatsapp_linked', {'source': 'web', 'merged': bool(existing_wa_user)})
         
-        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        raw_user: Any = cursor.fetchone()
+        cursor.execute("SELECT * FROM users WHERE id = %s", (final_user_id,))
+        user_db: dict[str, Any] = cursor.fetchone()
         
-        if not isinstance(raw_user, dict):
-            raise HTTPException(status_code=404, detail="User not found after update")
-            
-        user_db: dict[str, Any] = raw_user
+        new_token = create_access_token({"sub": str(user_db['id']), "name": user_db['name']})
         
         return {
             "message": "Mobile linked successfully!",
+            "token": new_token,
             "user": {
-                "id": user_db.get('id', user_id),
+                "id": user_db['id'],
                 "name": user_db.get('name'), 
                 "email": user_db.get('email'),
                 "mobile": user_db.get('mobile'),
