@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request, httpx
 from typing import Any, Optional
 from pydantic import BaseModel
 from database import get_db
@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_text, send_whatsapp_template
 from tracking import track_event, link_web_and_whatsapp
+from utils import get_client_ip, fetch_geoip_data, get_allowed_countries_from_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
@@ -25,6 +26,29 @@ class RegisterPayload(BaseModel):
 class VerifyOTP(BaseModel):
     contact: str
     otp: str
+    
+@router.get("/geo-check")
+async def check_geo_status(request: Request):
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (request.client.host if request.client else "127.0.0.1")
+    
+    async with httpx.AsyncClient(timeout=3.0) as client:
+        try:
+            res = await client.get(f"https://ipwho.is/{client_ip}")
+            data = res.json()
+            calling_code = str(data.get("calling_code", "")).lstrip("+")
+            country_name = str(data.get("country", "")).strip().lower()
+            
+            allowed_set = get_allowed_countries_from_db()
+            is_allowed = (calling_code in allowed_set) or (country_name in allowed_set) or (client_ip in ["127.0.0.1", "localhost"])
+            
+            return {
+                "allowed": is_allowed,
+                "country": data.get("country"),
+                "calling_code": calling_code,
+                "ip": client_ip
+            }
+        except Exception:
+            return {"allowed": True, "country": "Unknown", "ip": client_ip}
 
 async def generate_and_send_otp(cursor, phone: str, name: str):
     """Generates a 4-digit OTP, saves it, and routes via Free Text or Meta Template."""
