@@ -18,7 +18,6 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const CURRENT_FRONTEND_VERSION = "1.0.0";
   axios.defaults.headers.common['Content-Type'] = 'application/json';
-  axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
