@@ -6,7 +6,7 @@ import {
   redirect,
   NotFoundRoute, 
 } from '@tanstack/react-router';
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import Transactions from './components/Transactions/Transactions';
@@ -16,7 +16,6 @@ import Goals from './components/Goals/Goals';
 import Analytics from './components/Analytics/Analytics';
 import CategoryManager from './components/CategoryManager/CategoryManager'; 
 import type { User } from './types';
-import NotFound from './components/Error/NotFound';
 import ErrorPage from './components/Error/ErrorPage';
 import LoanTracker from './components/Loans/LoanTracker';
 import Debts from './components/Debts/Debts';
@@ -51,9 +50,20 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => <Outlet />,
   pendingComponent: GlobalLoader,
   errorComponent: ({ error }) => {
-    return <ErrorPage code={500} customMessage={error.message} />;
+    let code: any = 500;
+    let message = error.message;
+
+    if (isAxiosError(error)) {
+      code = error.response?.status || 500;
+      message = error.response?.data?.detail || error.response?.data?.message || error.message;
+    }
+
+    const supportedCodes = [400, 403, 404, 410, 429, 500, 502, 503];
+    const safeCode = supportedCodes.includes(code) ? code : 500;
+
+    return <ErrorPage code={safeCode as any} customMessage={message} />;
   },
-  notFoundComponent: NotFound,
+  notFoundComponent: () => <ErrorPage code={404} />,
 });
 
 const authRoute = createRoute({
@@ -345,7 +355,7 @@ const privacyRoute = createRoute({
 
 const notFoundRoute = new NotFoundRoute({
   getParentRoute: () => rootRoute,
-  component: NotFound,
+  component: () => <ErrorPage code={404} />,
 });
 
 // --- Assemble Route Tree ---
