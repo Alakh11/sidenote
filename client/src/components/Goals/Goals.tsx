@@ -28,7 +28,7 @@ export default function Goals() {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
       if (activeAction && inputRef.current) {

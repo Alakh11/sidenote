@@ -7,7 +7,7 @@ import BudgetList from './components/BudgetList';
 import BudgetChart from './components/BudgetChart';
 import EditCategoryModal from './components/EditCategoryModal';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function BudgetPlanner() {
   const router = useRouter();

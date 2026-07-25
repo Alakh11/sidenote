@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { MapPin, Plus, Trash2, Edit, CheckCircle2, XCircle, ShieldAlert, X } from 'lucide-react';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 interface Country {
     id: number;

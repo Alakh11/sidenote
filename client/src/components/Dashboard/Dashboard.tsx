@@ -28,7 +28,7 @@ export default function Dashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
 
   // Handle Logic
   const handleAddTransaction = async (txData: any) => {

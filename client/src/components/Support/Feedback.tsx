@@ -6,7 +6,7 @@ import { useRouter } from '@tanstack/react-router';
 export default function Feedback() {
   const router = useRouter();
   const { user } = router.options.context as any;
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
   const [viewTab, setViewTab] = useState<'new' | 'history'>('new');
   const [history, setHistory] = useState<any[]>([]);
 

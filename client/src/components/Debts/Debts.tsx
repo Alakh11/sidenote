@@ -19,7 +19,7 @@ export default function Debts() {
   const router = useRouter();
   const user = router.options.context?.user!;
   const { stats, top_borrowers, all_borrowers } = useLoaderData({ from: '/_auth/debts' });
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
 
   // State
   const [showForm, setShowForm] = useState(false);

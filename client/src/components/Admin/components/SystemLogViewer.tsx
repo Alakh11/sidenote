@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Terminal, RefreshCw, Copy, Trash2 } from 'lucide-react';
 import MasterNudgeControl from './MasterNudgeControl';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function SystemLogViewer() {
     const [logs, setLogs] = useState<string>('Initializing stream...');

@@ -39,7 +39,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   const [isGeoBlocked, setIsGeoBlocked] = useState(false);
   const [geoMessage, setGeoMessage] = useState('');
 
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
   const currentConfig = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
   const targetMobile = `${countryCode}${formData.contact}`;
 

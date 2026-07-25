@@ -35,6 +35,10 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Generate .env dynamically from GitHub Variables
+        run: |
+          echo '${{ toJSON(vars) }}' | jq -r 'to_entries | .[] | "\(.key)=\(.value)"' > .env
+
       - name: Build Project
         run: npm run build
 

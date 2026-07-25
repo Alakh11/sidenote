@@ -43,7 +43,7 @@ interface RouterContext {
   handleLogout: () => void;
 }
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 // --- 1. Root Route ---
 const rootRoute = createRootRouteWithContext<RouterContext>()({

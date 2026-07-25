@@ -13,7 +13,7 @@ export default function BudgetForm({ categories, onClose, userId }: Props) {
   const [selectedCat, setSelectedCat] = useState('');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
 
   const handleSaveBudget = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
 import { User, Lock, Save, Camera, CheckCircle2, AlertCircle, IndianRupee, Mail, Phone, AlertTriangle, Trash2 } from 'lucide-react';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 const AVATARS = ['😎', '👻', '🤖', '🐯', '👽', '🐶', '👑', '💼', '🧢', '🦄', '🦉', '👨‍💻'];
 

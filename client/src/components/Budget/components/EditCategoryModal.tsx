@@ -13,7 +13,7 @@ interface Props {
 export default function EditCategoryModal({ category, onClose, onMessage }: Props) {
   const router = useRouter();
   const user = router.options.context?.user!;
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
   const [budgetLimit, setBudgetLimit] = useState(category.budget_limit > 0 ? category.budget_limit.toString() : '');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');

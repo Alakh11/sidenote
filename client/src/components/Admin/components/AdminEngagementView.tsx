@@ -6,7 +6,7 @@ export default function AdminEngagementView() {
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     const [isTriggering, setIsTriggering] = useState(false);
     const LIMIT = 10;
-    const API_URL = "https://api.sidenote.in";
+    const API_URL = import.meta.env.VITE_API_URL;
 
     // --- Master Cron State ---
     const [cronStatus, setCronStatus] = useState<'running' | 'paused' | 'offline'>('offline');

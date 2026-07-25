@@ -4,7 +4,7 @@ import axios from 'axios';
 
 export default function UserActivityRetention() {
     const LIMIT = 10;
-    const API_URL = "https://api.sidenote.in";
+    const API_URL = import.meta.env.VITE_API_URL;
 
     const getTodayStr = () => {
         const d = new Date();

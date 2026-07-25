@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { X, Wallet, ReceiptIndianRupee, CheckCircle2, Target } from 'lucide-react';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function UserDetailView({ userId, onBack }: { userId: number, onBack: () => void }) {
     const [data, setData] = useState<any>(null);

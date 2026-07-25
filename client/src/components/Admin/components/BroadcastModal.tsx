@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, Clock, Image as ImageIcon, FileText, Video, Mic, Link, UploadCloud } from 'lucide-react';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 type MessageType = 'template' | 'text' | 'image' | 'document' | 'video' | 'audio';
 

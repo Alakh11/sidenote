@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Bug, Star, MessageSquare, Trash2, CheckCircle2, Send, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function AdminFeedbackView() {
     const [tickets, setTickets] = useState<any[]>([]);

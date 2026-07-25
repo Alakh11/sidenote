@@ -24,7 +24,7 @@ export default function ResetPassword() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
   const currentConfig = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
   const targetMobile = `${countryCode}${formData.mobile}`;
 

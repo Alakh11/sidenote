@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Activity, Zap, Clock, XCircle, CheckCircle2, Trash2 } from 'lucide-react';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function SystemMetricsView() {
     const [metrics, setMetrics] = useState<any>(null);

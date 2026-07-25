@@ -15,7 +15,7 @@ import BotLogCommandHistory from './components/BotLogCommandHistory';
 import SystemLogViewer from './components/SystemLogViewer';
 import AdminGeoBlockerView from './components/AdminGeoBlockerView';
 
-const API_URL = "https://api.sidenote.in";
+const API_URL = import.meta.env.VITE_API_URL;
 
 type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system';
 type SystemView = 'metrics' | 'feedback' | 'logs' | 'geo';

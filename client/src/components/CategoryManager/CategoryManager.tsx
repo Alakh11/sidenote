@@ -24,7 +24,7 @@ export default function CategoryManager() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
-  const API_URL = "https://api.sidenote.in";
+  const API_URL = import.meta.env.VITE_API_URL;
 
   // Handle Create or Update
   const handleSubmit = async (e: React.FormEvent) => {
