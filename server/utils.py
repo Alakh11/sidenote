@@ -1,6 +1,16 @@
+import time
+import httpx
+import logging
 from datetime import datetime, date, timedelta
 from fastapi import Request
+from database import get_db
 
+logger = logging.getLogger(__name__)
+
+IP_GEO_CACHE = {}
+IP_CACHE_TTL = 86400
+ALLOWED_COUNTRIES_CACHE = {"codes": set(), "updated_at": 0}
+ALLOWED_DB_CACHE_TTL = 300
 
 def calculate_interest(principal, rate, period, start_date_str):
     if not rate or rate == 0:
@@ -88,7 +98,6 @@ def get_client_ip(request: Request) -> str:
         return x_forwarded_for.split(",")[0].strip()
     return request.client.host if request.client else "127.0.0.1"
 
-
 def get_allowed_countries_from_db() -> set:
     now = time.time()
     if now - ALLOWED_COUNTRIES_CACHE["updated_at"] < ALLOWED_DB_CACHE_TTL and ALLOWED_COUNTRIES_CACHE["codes"]:
@@ -114,10 +123,9 @@ def get_allowed_countries_from_db() -> set:
     finally:
         conn.close()
 
-
 async def fetch_geoip_data(ip: str) -> dict:
     if ip in ["127.0.0.1", "::1", "localhost"] or ip.startswith(("192.168.", "10.", "172.16.")):
-        return {"country_name": "India", "calling_code": "91"}
+        return {"country_name": "india", "calling_code": "91"}
 
     now = time.time()
     if ip in IP_GEO_CACHE:

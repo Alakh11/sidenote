@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from fastapi import FastAPI, APIRouter, Depends, Query, HTTPException, Response, Request, BackgroundTasks
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging, json, os, hmac, hashlib, threading, time
 from database import get_db
@@ -14,16 +15,12 @@ from typing import Optional
 from tracking import track_event
 from starlette.background import BackgroundTask
 from zoneinfo import ZoneInfo
-from utils import is_country_allowed
+from utils import is_country_allowed, get_client_ip, fetch_geoip_data, get_allowed_countries_from_db 
 
 blocked_notified_cache = {}
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 ist_timezone = ZoneInfo('Asia/Kolkata')
-IP_GEO_CACHE = {}
-IP_CACHE_TTL = 86400
-ALLOWED_COUNTRIES_CACHE = {"codes": set(), "updated_at": 0}
-ALLOWED_DB_CACHE_TTL = 300
 
 ENVIRONMENT = os.getenv("ENVIRONMENT")
 APP_VERSION = os.getenv("APP_VERSION")

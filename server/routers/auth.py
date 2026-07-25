@@ -30,26 +30,25 @@ class VerifyOTP(BaseModel):
     
 @router.get("/geo-check")
 async def check_geo_status(request: Request):
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (request.client.host if request.client else "127.0.0.1")
+    client_ip = get_client_ip(request)
     
-    async with httpx.AsyncClient(timeout=3.0) as client:
-        try:
-            res = await client.get(f"https://ipwho.is/{client_ip}")
-            data = res.json()
-            calling_code = str(data.get("calling_code", "")).lstrip("+")
-            country_name = str(data.get("country", "")).strip().lower()
-            
-            allowed_set = get_allowed_countries_from_db()
-            is_allowed = (calling_code in allowed_set) or (country_name in allowed_set) or (client_ip in ["127.0.0.1", "localhost"])
-            
-            return {
-                "allowed": is_allowed,
-                "country": data.get("country"),
-                "calling_code": calling_code,
-                "ip": client_ip
-            }
-        except Exception:
-            return {"allowed": True, "country": "Unknown", "ip": client_ip}
+    geo_data = await fetch_geoip_data(client_ip)
+    
+    if geo_data:
+        allowed_set = get_allowed_countries_from_db()
+        calling_code = geo_data.get("calling_code")
+        country_name = geo_data.get("country_name")
+        
+        is_allowed = (calling_code in allowed_set) or (country_name in allowed_set) or (client_ip in ["127.0.0.1", "localhost"])
+        
+        return {
+            "allowed": is_allowed,
+            "country": country_name.title() if country_name else "Unknown",
+            "calling_code": calling_code,
+            "ip": client_ip
+        }
+        
+    return {"allowed": True, "country": "Unknown", "ip": client_ip}
 
 async def generate_and_send_otp(cursor, phone: str, name: str):
     """Generates a 4-digit OTP, saves it, and routes via Free Text or Meta Template."""
