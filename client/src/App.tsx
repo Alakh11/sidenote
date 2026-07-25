@@ -13,10 +13,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient();
 
 function App() {
-  const [serverError, setServerError] = useState<number | null>(null);
+  const [serverError, setServerError] = useState<{code: number, message?: string} | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const CURRENT_FRONTEND_VERSION = "1.0.0";
+  axios.defaults.headers.common['Content-Type'] = 'application/json';
+  axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
@@ -30,23 +32,34 @@ function App() {
       },
       (error) => {
         if (error.response) {
+            const status = error.response.status;
             const serverVersion = error.response.headers['x-app-version'];
+            
             if (serverVersion && serverVersion !== CURRENT_FRONTEND_VERSION) {
                 window.location.reload();
             }
 
-            if (error.response.status === 503) setServerError(503);
-            if (error.response.status === 410) setServerError(410);
+            if (status === 403) {
+                setServerError({
+                    code: 403,
+                    message: error.response.data?.detail || "Access Restricted: SideNote is not available in your region."
+                });
+            } else if (status === 503) {
+                setServerError({ code: 503 });
+            } else if (status === 410) {
+                setServerError({ code: 410 });
+            } else if (status === 401) {
+                console.warn("Session expired. Logging out.");
+                localStorage.removeItem('token');
+                localStorage.removeItem('user_data');
+                delete axios.defaults.headers.common['Authorization'];
+                posthog.reset();
+                window.location.href = '/login'; 
+            }
+        } else if (error.message === 'Network Error') {
+            setServerError({ code: 500, message: "Network Error: Could not connect to the API." });
         }
-        if (error.response && error.response.status === 401) {
-            console.warn("Session expired. Logging out.");
-            localStorage.removeItem('token');
-            localStorage.removeItem('user_data');
-            delete axios.defaults.headers.common['Authorization'];
-            posthog.reset();
-            
-            window.location.href = '/login'; 
-        }
+        
         return Promise.reject(error);
       }
     );
@@ -70,8 +83,10 @@ function App() {
     return () => axios.interceptors.response.eject(interceptor);
   }, []);
 
-  if (serverError === 503) return <ErrorPage code={503} />;
-  if (serverError === 410) return <ErrorPage code={410} />;
+  if (serverError) {
+      return <ErrorPage code={serverError.code as any} customMessage={serverError.message} />;
+  }
+  
   if (!isLoaded) return null;
 
   const handleLogout = () => {

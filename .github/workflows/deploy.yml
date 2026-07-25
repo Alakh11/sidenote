@@ -38,8 +38,10 @@ jobs:
       - name: Build Project
         run: npm run build
 
-      - name: Create 404.html
-        run: cp dist/index.html dist/404.html
+      - name: Prepare GitHub Pages SPA & Domain
+        run: |
+          cp dist/index.html dist/404.html
+          echo "www.sidenote.in" > dist/CNAME
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
