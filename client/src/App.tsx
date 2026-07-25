@@ -100,7 +100,7 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <GoogleOAuthProvider clientId="577129960094-8u7ef3ijs82pkmdou8goofcqatku3c70.apps.googleusercontent.com">
+        <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
           {user ? (
             <PreferencesProvider user={user}>
               <RouterProvider router={router} context={{ user, handleLogout }} />
