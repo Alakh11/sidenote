@@ -39,9 +39,7 @@ jobs:
         run: npm run build
 
       - name: Prepare GitHub Pages SPA & Domain
-        run: |
-          cp dist/index.html dist/404.html
-          echo "www.sidenote.in" > dist/CNAME
+        run: cp dist/index.html dist/404.html
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
