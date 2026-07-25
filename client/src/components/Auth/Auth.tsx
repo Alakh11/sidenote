@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Logo from '../Logo';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
@@ -36,12 +36,31 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [isGeoBlocked, setIsGeoBlocked] = useState(false);
+  const [geoMessage, setGeoMessage] = useState('');
 
   const API_URL = "https://api.sidenote.in";
   const currentConfig = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
   const targetMobile = `${countryCode}${formData.contact}`;
 
+  useEffect(() => {
+      const verifyGeoLocation = async () => {
+          try {
+              const res = await axios.get(`${API_URL}/auth/geo-check`);
+              if (!res.data.allowed) {
+                  setIsGeoBlocked(true);
+                  setGeoMessage(`Access Restricted: SideNote is currently not available in ${res.data.country || 'your region'}.`);
+              }
+          } catch (err) {
+              console.error("Geo check failed", err);
+          }
+      };
+      verifyGeoLocation();
+  }, []);
+
   const isFormValid = () => {
+    if (isGeoBlocked) return false;
+    
     if (authStep === 'otp' || authStep === 'link_mobile_otp') return formData.otp.length === 4;
 
     const isContactValid = formData.contact.length === currentConfig.len &&
@@ -208,129 +227,143 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             {authStep === 'link_mobile_form' && <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm mt-1">One last step! Link your WhatsApp number to use the SideNote.</p>}
         </div>
 
-        {authStep === 'form' && (
-            <>
-                <div className="flex justify-center mb-6">
-                    <GoogleLogin 
-                        onSuccess={handleGoogleSuccess} onError={() => setError("Google Login Failed")}
-                        shape="pill" width="100%" text={mode === 'login' ? "signin_with" : "signup_with"}
-                    />
-                </div>
-                
-                <div className="relative mb-6">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-slate-700"></div></div>
-                    <div className="relative flex justify-center text-xs md:text-sm"><span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">Or continue with mobile</span></div>
-                </div>
+        {geoMessage && (
+            <div className="flex items-start gap-2 mb-6 p-3 md:p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-sm font-bold rounded-xl border border-rose-100 dark:border-rose-900/30 animate-in fade-in">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="leading-tight">{geoMessage}</span>
+            </div>
+        )}
 
-                <div className="space-y-3 md:space-y-4 mt-2">
-                    {mode === 'signup' && (
-                        <div className="relative group animate-in slide-in-from-top-2 fade-in">
-                            <UserIcon className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
+        <div className={isGeoBlocked ? "opacity-50 pointer-events-none grayscale-[30%] transition-all duration-300" : ""}>
+            {authStep === 'form' && (
+                <>
+                    <div className="flex justify-center mb-6">
+                        <GoogleLogin 
+                            onSuccess={handleGoogleSuccess} onError={() => setError("Google Login Failed")}
+                            shape="pill" width="100%" text={mode === 'login' ? "signin_with" : "signup_with"}
+                        />
+                    </div>
+                    
+                    <div className="relative mb-6">
+                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-slate-700"></div></div>
+                        <div className="relative flex justify-center text-xs md:text-sm"><span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">Or continue with mobile</span></div>
+                    </div>
+
+                    <div className="space-y-3 md:space-y-4 mt-2">
+                        {mode === 'signup' && (
+                            <div className="relative group animate-in slide-in-from-top-2 fade-in">
+                                <UserIcon className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
+                                <input 
+                                    disabled={isGeoBlocked}
+                                    className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
+                                    placeholder="Full Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                                />
+                            </div>
+                        )}
+
+                        <div className="relative group flex">
+                            <div className="flex w-full">
+                                <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
+                                    <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
+                                    <select disabled={isGeoBlocked} value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
+                                        {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
+                                    </select>
+                                </div>
+                                <input 
+                                    disabled={isGeoBlocked}
+                                    type="tel" maxLength={currentConfig.len}
+                                    className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
+                                    placeholder="WhatsApp Number" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value.replace(/\D/g, '')})}
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="relative group">
+                            <Lock className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
                             <input 
-                                className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
-                                placeholder="Full Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                                disabled={isGeoBlocked}
+                                type={showPassword ? "text" : "password"}
+                                className="w-full pl-10 md:pl-12 pr-12 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
+                                placeholder="Password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
                             />
+                            <button disabled={isGeoBlocked} type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 md:right-4 top-3 md:top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {mode === 'login' && (
+                        <div className="mt-2.5 md:mt-3 text-right">
+                            <Link to="/reset-password" className="text-xs md:text-sm font-bold text-slate-400 hover:text-[#25D366] transition-colors">
+                                Forgot Password?
+                            </Link>
                         </div>
                     )}
+                </>
+            )}
 
+            {authStep === 'link_mobile_form' && (
+                <div className="space-y-4 animate-in slide-in-from-right-4">
                     <div className="relative group flex">
                         <div className="flex w-full">
                             <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
                                 <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
-                                <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
+                                <select disabled={isGeoBlocked} value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
                                     {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
                                 </select>
                             </div>
                             <input 
+                                disabled={isGeoBlocked}
                                 type="tel" maxLength={currentConfig.len}
                                 className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
                                 placeholder="WhatsApp Number" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value.replace(/\D/g, '')})}
                             />
                         </div>
                     </div>
-                    
-                    <div className="relative group">
-                        <Lock className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
-                        <input 
-                            type={showPassword ? "text" : "password"}
-                            className="w-full pl-10 md:pl-12 pr-12 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
-                            placeholder="Password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
-                        />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 md:right-4 top-3 md:top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </button>
-                    </div>
                 </div>
-
-                {mode === 'login' && (
-                    <div className="mt-2.5 md:mt-3 text-right">
-                        <Link to="/reset-password" className="text-xs md:text-sm font-bold text-slate-400 hover:text-[#25D366] transition-colors">
-                            Forgot Password?
-                        </Link>
-                    </div>
-                )}
-            </>
-        )}
-
-        {authStep === 'link_mobile_form' && (
-            <div className="space-y-4 animate-in slide-in-from-right-4">
-                <div className="relative group flex">
-                    <div className="flex w-full">
-                        <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
-                            <Phone className="absolute left-2.5 md:left-3 w-4 h-4 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
-                            <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="pl-8 md:pl-9 pr-1 md:pr-2 py-2.5 md:py-3 bg-transparent outline-none text-xs md:text-sm font-bold text-[#111111] dark:text-white cursor-pointer appearance-none">
-                                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code} className="text-black">{c.label}</option>)}
-                            </select>
-                        </div>
-                        <input 
-                            type="tel" maxLength={currentConfig.len}
-                            className="w-full pl-3 md:pl-4 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-r-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
-                            placeholder="WhatsApp Number" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value.replace(/\D/g, '')})}
-                        />
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {(authStep === 'otp' || authStep === 'link_mobile_otp') && (
-            <div className="text-center space-y-4 animate-in slide-in-from-right-4">
-                <p className="text-sm text-slate-500 mb-6">Enter the 4-digit OTP / Case ID sent to your WhatsApp.</p>
-                <input 
-                    type="text" maxLength={4} placeholder="••••"
-                    className="w-full text-center tracking-[1em] text-3xl font-bold py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-[#25D366]/30 dark:text-white"
-                    value={formData.otp} onChange={e => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})}
-                />
-            </div>
-        )}
-
-        {error && <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in border border-rose-100 dark:border-rose-900/30"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span className="leading-tight">{error}</span></div>}
-        {successMsg && <div className="flex items-center gap-2 mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in border border-emerald-100 dark:border-emerald-900/30"><CheckCircle className="w-4 h-4 shrink-0" />{successMsg}</div>}
-
-        <button 
-            onClick={handleNextStep} disabled={loading || !isFormValid()}
-            className="w-full mt-5 md:mt-6 bg-[#111111] dark:bg-[#25D366] text-white py-3 md:py-3.5 rounded-xl font-bold hover:bg-black dark:hover:bg-[#1EA952] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-200 dark:shadow-[#25D366]/20 text-sm md:text-base"
-        >
-            {loading ? 'Processing...' : ((authStep === 'form' || authStep === 'link_mobile_form') ? (mode === 'login' && authStep !== 'link_mobile_form' ? 'Sign In' : 'Continue') : 'Verify')}
-            {!loading && <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />}
-        </button>
-
-        <div className="mt-5 md:mt-6 text-center">
-            {authStep !== 'form' ? (
-                <button onClick={() => {
-                    if (authStep === 'link_mobile_form') { setAuthStep('form'); setTempToken(''); setTempUser(null); setError(''); }
-                    else if (authStep === 'link_mobile_otp') { setAuthStep('link_mobile_form'); formData.otp = ''; setError(''); }
-                    else { setAuthStep('form'); setError(''); }
-                }} className="text-xs md:text-sm font-bold text-slate-500 hover:text-[#111111] dark:hover:text-white flex items-center justify-center gap-2 mx-auto">
-                    <ArrowLeft className="w-4 h-4" /> Go Back
-                </button>
-            ) : (
-                <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">
-                    {mode === 'login' ? "Don't have an account?" : "Already have an account?"} 
-                    <button onClick={() => {setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setFormData({name: '', contact: '', password: '', otp: ''})}} className="ml-1.5 md:ml-2 font-bold text-[#25D366] hover:underline">
-                        {mode === 'login' ? 'Sign Up' : 'Login'}
-                    </button>
-                </p>
             )}
+
+            {(authStep === 'otp' || authStep === 'link_mobile_otp') && (
+                <div className="text-center space-y-4 animate-in slide-in-from-right-4">
+                    <p className="text-sm text-slate-500 mb-6">Enter the 4-digit OTP / Case ID sent to your WhatsApp.</p>
+                    <input 
+                        disabled={isGeoBlocked}
+                        type="text" maxLength={4} placeholder="••••"
+                        className="w-full text-center tracking-[1em] text-3xl font-bold py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-[#25D366]/30 dark:text-white"
+                        value={formData.otp} onChange={e => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})}
+                    />
+                </div>
+            )}
+
+            {error && !isGeoBlocked && <div className="flex items-start gap-2 mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in border border-rose-100 dark:border-rose-900/30"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span className="leading-tight">{error}</span></div>}
+            {successMsg && <div className="flex items-center gap-2 mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs md:text-sm font-bold rounded-xl animate-in fade-in border border-emerald-100 dark:border-emerald-900/30"><CheckCircle className="w-4 h-4 shrink-0" />{successMsg}</div>}
+
+            <button 
+                onClick={handleNextStep} disabled={loading || !isFormValid() || isGeoBlocked}
+                className="w-full mt-5 md:mt-6 bg-[#111111] dark:bg-[#25D366] text-white py-3 md:py-3.5 rounded-xl font-bold hover:bg-black dark:hover:bg-[#1EA952] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-200 dark:shadow-[#25D366]/20 text-sm md:text-base"
+            >
+                {loading ? 'Processing...' : ((authStep === 'form' || authStep === 'link_mobile_form') ? (mode === 'login' && authStep !== 'link_mobile_form' ? 'Sign In' : 'Continue') : 'Verify')}
+                {!loading && <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />}
+            </button>
+
+            <div className="mt-5 md:mt-6 text-center">
+                {authStep !== 'form' ? (
+                    <button disabled={isGeoBlocked} onClick={() => {
+                        if (authStep === 'link_mobile_form') { setAuthStep('form'); setTempToken(''); setTempUser(null); setError(''); }
+                        else if (authStep === 'link_mobile_otp') { setAuthStep('link_mobile_form'); formData.otp = ''; setError(''); }
+                        else { setAuthStep('form'); setError(''); }
+                    }} className="text-xs md:text-sm font-bold text-slate-500 hover:text-[#111111] dark:hover:text-white flex items-center justify-center gap-2 mx-auto">
+                        <ArrowLeft className="w-4 h-4" /> Go Back
+                    </button>
+                ) : (
+                    <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">
+                        {mode === 'login' ? "Don't have an account?" : "Already have an account?"} 
+                        <button disabled={isGeoBlocked} onClick={() => {setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setFormData({name: '', contact: '', password: '', otp: ''})}} className="ml-1.5 md:ml-2 font-bold text-[#25D366] hover:underline disabled:opacity-50">
+                            {mode === 'login' ? 'Sign Up' : 'Login'}
+                        </button>
+                    </p>
+                )}
+            </div>
         </div>
     </div>
   );
