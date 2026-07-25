@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router';
 import { 
   AlertTriangle, 
   FileQuestion, 
@@ -120,14 +119,13 @@ export default function ErrorPage({ code = 404, customMessage, onRetry }: ErrorP
             </button>
           )}
 
-          {/* Go Home Button */}
           {code !== 403 ? (
-            <Link 
-              to="/dashboard" 
+            <a 
+              href="/dashboard" 
               className="w-full py-3.5 rounded-xl bg-stone-900 dark:bg-[#25D366] text-white font-bold flex items-center justify-center gap-2 hover:bg-stone-800 dark:hover:bg-[#1EA952] transition shadow-lg shadow-stone-200 dark:shadow-[#25D366]/20 text-sm md:text-base"
             >
               <Home className="w-4 h-4" /> Go to Dashboard
-            </Link>
+            </a>
           ) : (
             <p className="text-xs font-semibold text-stone-400 dark:text-slate-500">
               If you believe this is an error, please contact support.
