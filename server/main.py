@@ -12,7 +12,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cron_nudges import run_daily_nudges
 from pydantic import BaseModel
 from typing import Optional
-from tracking import track_event
 from starlette.background import BackgroundTask
 from zoneinfo import ZoneInfo
 from utils import is_country_allowed, get_client_ip, fetch_geoip_data, get_allowed_countries_from_db 
@@ -466,14 +465,6 @@ def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: 
         if conn:
             try: conn.close() 
             except: pass
-        
-    if not endpoint.startswith("/admin"):
-        track_event('server_backend', 'api_request_made', {
-            'endpoint': endpoint,
-            'method': method,
-            'status_code': status_code,
-            'response_time_ms': duration_ms
-        })
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):

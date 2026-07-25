@@ -7,7 +7,6 @@ import axios from 'axios';
 import ErrorPage from './components/Error/ErrorPage';
 import { ThemeProvider } from './context/ThemeContext';
 import { PreferencesProvider } from './context/PreferencesContext';
-import posthog from 'posthog-js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -52,7 +51,6 @@ function App() {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user_data');
                 delete axios.defaults.headers.common['Authorization'];
-                posthog.reset();
                 window.location.href = '/login'; 
             }
         } else if (error.message === 'Network Error') {
@@ -70,13 +68,6 @@ function App() {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        if (!window.location.pathname.startsWith('/admin')) {
-            posthog.identify(parsedUser.email || parsedUser.mobile, {
-                name: parsedUser.name,
-                email: parsedUser.email
-            });
-        }
     }
     setIsLoaded(true);
     return () => axios.interceptors.response.eject(interceptor);
@@ -93,7 +84,6 @@ function App() {
     localStorage.removeItem('user_data');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
-    posthog.reset();
     window.location.href = '/login';
   };
 

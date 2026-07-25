@@ -36,7 +36,6 @@ numpy==2.4.4
 packaging==26.2
 passlib==1.7.4
 pillow==12.2.0
-posthog==7.9.12
 proto-plus==1.27.2
 protobuf==5.29.6
 pyasn1==0.6.2

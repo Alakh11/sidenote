@@ -6,7 +6,6 @@ import logging, math
 from datetime import datetime, timedelta
 from utils import get_date_filter_sql
 import mysql.connector
-from tracking import track_event
 
 router = APIRouter(tags=["Transactions & Categories"])
 logger = logging.getLogger(__name__)
@@ -33,14 +32,6 @@ def add_transaction(tx: TransactionCreate):
         query = "INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring))
         conn.commit()
-        
-        event_name = 'expense_logged' if tx.type == 'expense' else 'income_logged'
-        track_event(tx.user_id, event_name, {
-            'amount': tx.amount,
-            'category': tx.category,
-            'type': tx.type,
-            'source': 'web'
-        })
     
         return {"message": "Transaction Saved"}
     except mysql.connector.IntegrityError as e:
@@ -173,13 +164,6 @@ def delete_transaction(id: int):
         cursor.execute("DELETE FROM transactions WHERE id = %s", (id,))
         conn.commit()
 
-        if tx_data:
-            event_name = 'expense_deleted' if tx_data['type'] == 'expense' else 'income_deleted'
-            track_event(tx_data['user_id'], event_name, {
-                'amount': float(tx_data['amount']),
-                'source': 'web'
-            })
-
         return {"message": "Deleted"}
     except Exception as e:
         conn.rollback()
@@ -274,11 +258,6 @@ def set_budget(budget: BudgetSchema):
         """, (budget.user_id, budget.category_id, budget.amount, budget.amount))
         conn.commit()
         conn.close()
-
-        track_event(budget.user_id, 'budget_set', {
-            'amount': budget.amount,
-            'source': 'web'
-        })
 
         return {"message": "Budget saved"}
     except Exception as e:
@@ -419,12 +398,6 @@ def update_transaction(id: int, tx: TransactionCreate):
         """
         cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id))
         conn.commit()
-
-        track_event(tx.user_id, 'transaction_updated', {
-            'amount': tx.amount,
-            'type': tx.type,
-            'source': 'web'
-        })
 
         return {"message": "Transaction updated"}
     except mysql.connector.IntegrityError as e:
