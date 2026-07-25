@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, Request, httpx
+from fastapi import APIRouter, HTTPException, Depends, Request
+import httpx
 from typing import Any, Optional
 from pydantic import BaseModel
 from database import get_db

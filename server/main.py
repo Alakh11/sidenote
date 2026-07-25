@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from fastapi import FastAPI, APIRouter, Depends, Query, HTTPException, Response, Request, BackgroundTasks, JSONResponse, httpx
+from fastapi import FastAPI, APIRouter, Depends, Query, HTTPException, Response, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import logging, json, os, hmac, hashlib, threading, time
 from database import get_db
@@ -532,66 +532,6 @@ def get_user_feedback_history(user_id: int = Depends(get_current_user)):
     finally:
         conn.close()
         
-def get_client_ip(request: Request) -> str:
-    x_forwarded_for = request.headers.get("X-Forwarded-For")
-    if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
-    return request.client.host if request.client else "127.0.0.1"
-
-
-def get_allowed_countries_from_db() -> set:
-    now = time.time()
-    if now - ALLOWED_COUNTRIES_CACHE["updated_at"] < ALLOWED_DB_CACHE_TTL and ALLOWED_COUNTRIES_CACHE["codes"]:
-        return ALLOWED_COUNTRIES_CACHE["codes"]
-
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT country_code, country_name FROM allowed_countries WHERE status = 1")
-        rows = cursor.fetchall()
-        
-        allowed_set = set()
-        for row in rows:
-            allowed_set.add(row['country_code'].lstrip('+'))
-            allowed_set.add(row['country_name'].strip().lower())
-
-        ALLOWED_COUNTRIES_CACHE["codes"] = allowed_set
-        ALLOWED_COUNTRIES_CACHE["updated_at"] = now
-        return allowed_set
-    except Exception as e:
-        logger.error(f"Failed to load allowed countries from DB: {e}")
-        return ALLOWED_COUNTRIES_CACHE["codes"] or {"91", "india"}
-    finally:
-        conn.close()
-
-
-async def fetch_geoip_data(ip: str) -> dict:
-    if ip in ["127.0.0.1", "::1", "localhost"] or ip.startswith(("192.168.", "10.", "172.16.")):
-        return {"country_name": "India", "calling_code": "91"}
-
-    now = time.time()
-    if ip in IP_GEO_CACHE:
-        cached_data, cached_time = IP_GEO_CACHE[ip]
-        if now - cached_time < IP_CACHE_TTL:
-            return cached_data
-
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            response = await client.get(f"https://ipwho.is/{ip}")
-            data = response.json()
-            
-            if data.get("success"):
-                result = {
-                    "country_name": str(data.get("country", "")).strip().lower(),
-                    "calling_code": str(data.get("calling_code", "")).lstrip("+")
-                }
-                IP_GEO_CACHE[ip] = (result, now)
-                return result
-    except Exception as e:
-        logger.error(f"GeoIP API request failed for IP {ip}: {e}")
-    return None
-
-
 @app.middleware("http")
 async def geo_ip_block_middleware(request: Request, call_next):
     exempt_paths = ["/", "/webhook", "/docs", "/openapi.json", "/redoc"]
