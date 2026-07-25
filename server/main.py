@@ -47,8 +47,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Include Routers ---
@@ -546,11 +546,18 @@ async def geo_ip_block_middleware(request: Request, call_next):
 
         if country_code not in allowed_countries and country_name not in allowed_countries:
             logger.warning(f"🚫 Geo-Blocked IP {client_ip} ({country_name} / +{country_code}) on path {request.url.path}")
+            origin = request.headers.get("origin", "*")
             return JSONResponse(
                 status_code=403,
                 content={
                     "detail": "Access Denied: SideNote is currently not available in your region/country.",
                     "ip": client_ip
+                },
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "*",
+                    "Access-Control-Allow-Headers": "*",
                 }
             )
 
