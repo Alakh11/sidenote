@@ -3,7 +3,7 @@ from typing import Any
 from datetime import datetime, timedelta
 from database import get_db
 from whatsapp_service import send_whatsapp_template, send_whatsapp_text, send_whatsapp_interactive_buttons
-from constants import INCOME_KEYWORDS, BUDGET_THRESHOLD_WARNING, TEMPLATE_ENTRY_RECORDED
+from constants import INCOME_KEYWORDS, BUDGET_THRESHOLD_WARNING, TEMPLATE_ENTRY_RECORDED, TEMPLATE_DATED_ENTRY_RECORDED
 from whatsapp_handlers.bot_utils import get_user_id, db_semaphore, send_delayed_message, log_bot_command
 
 hint_tracker: dict[str, dict[str, Any]] = {}
@@ -290,11 +290,14 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             await send_whatsapp_text(phone, msg)
         else:
             follow_up_msg = ""
-            if tx_date != ist_now.date(): follow_up_msg += f"📅 P.S. This was logged on *{tx_date.strftime('%d %b, %Y')}*.\n\n"
             if budget_note: follow_up_msg += f"{budget_note}\n\n"
             if include_hint: follow_up_msg += f"💡 {random_hint}"
             
-            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
+            if tx_date == ist_now.date():
+                await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
+            else:
+                formatted_date = tx_date.strftime('%d %b, %Y')
+                await send_whatsapp_template(phone, TEMPLATE_DATED_ENTRY_RECORDED, [str(amount), clean_item, formatted_date, f"{today_total:g}"])
             
             follow_up_msg = follow_up_msg.strip()
             if follow_up_msg: asyncio.create_task(send_delayed_message(phone, follow_up_msg, delay=10))

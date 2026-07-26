@@ -8,6 +8,7 @@ TEMPLATE_ENTRY_RECORDED = "entry_recorded_v1"
 TEMPLATE_OVERVIEW = "sidenote_overview_v1_1"
 TEMPLATE_WEEKLY = "weekly_overview_v1_1"
 TEMPLATE_MONTHLY = "monthly_overview_v1"
+TEMPLATE_DATED_ENTRY_RECORDED = "dated_entry_recorded_v1"
 
 # ==========================================
 # BOT COMMAND KEYWORDS
