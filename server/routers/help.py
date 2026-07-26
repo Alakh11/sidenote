@@ -183,3 +183,31 @@ def delete_article(article_id: int, user_id: int = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+        
+@router.get("/admin/feedback")
+def get_help_feedback_analytics(user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT 
+                f.id,
+                f.is_helpful,
+                f.ip_address,
+                f.created_at as date_updated,
+                f.user_id,
+                u.name as user_name,
+                t.title as topic_title,
+                a.title as article_title
+            FROM help_feedback f
+            LEFT JOIN users u ON f.user_id = u.id
+            LEFT JOIN help_topics t ON f.topic_id = t.id
+            LEFT JOIN help_articles a ON f.article_id = a.id
+            ORDER BY f.created_at DESC
+        """)
+        return cursor.fetchall()
+    except Exception as e:
+        logger.error(f"Failed to fetch feedback analytics: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    finally:
+        conn.close()

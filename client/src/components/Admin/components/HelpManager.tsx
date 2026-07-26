@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
-  Plus, Edit2, Trash2, ChevronDown, ChevronRight, X, BookOpen, Layers
+  Plus, Edit2, Trash2, ChevronDown, ChevronRight, X, BookOpen, Layers, Activity, FileText
 } from 'lucide-react';
 import GlobalLoader from '../../GlobalLoader';
+import HelpFeedbackAnalytics from './HelpFeedbackAnalytics';
 
 interface HelpArticle {
   id: number;
@@ -23,6 +24,8 @@ interface HelpTopic {
 }
 
 export default function HelpManager() {
+  const [activeTab, setActiveTab] = useState<'content' | 'analytics'>('content');
+
   const [topics, setTopics] = useState<HelpTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -127,80 +130,105 @@ export default function HelpManager() {
           <h1 className="text-2xl font-extrabold text-stone-900 dark:text-white flex items-center gap-2">
             <BookOpen className="text-[#25D366]" /> Help Center Manager
           </h1>
-          <p className="text-stone-500 dark:text-slate-400 text-sm mt-1">Manage public topics and articles</p>
+          <p className="text-stone-500 dark:text-slate-400 text-sm mt-1">Manage content and view feedback</p>
         </div>
-        <button 
-          onClick={() => { setEditingTopic({ icon_name: 'MessageSquare', status: 1 }); setIsTopicModalOpen(true); }}
-          className="bg-[#111111] dark:bg-[#25D366] text-white py-2 px-4 rounded-xl font-bold hover:bg-black dark:hover:bg-[#1EA952] transition flex items-center gap-2 text-sm"
-        >
-          <Plus size={16} /> Add New Topic
-        </button>
+
+        <div className="bg-stone-100 dark:bg-slate-800 p-1 rounded-xl flex items-center shadow-inner w-full md:w-auto">
+          <button 
+            onClick={() => setActiveTab('content')} 
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'content' ? 'bg-white dark:bg-slate-900 text-[#25D366] shadow-sm' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400'}`}
+          >
+            <FileText size={16} /> Content
+          </button>
+          <button 
+            onClick={() => setActiveTab('analytics')} 
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'analytics' ? 'bg-white dark:bg-slate-900 text-[#25D366] shadow-sm' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400'}`}
+          >
+            <Activity size={16} /> Analytics
+          </button>
+        </div>
       </div>
 
-      {error && <div className="p-4 bg-rose-50 text-rose-600 rounded-xl mb-6 text-sm font-bold">{error}</div>}
+      {activeTab === 'analytics' ? (
+        <HelpFeedbackAnalytics />
+      ) : (
+        <div className="space-y-4">
+          
+          <div className="flex justify-end mb-4">
+            <button 
+              onClick={() => { setEditingTopic({ icon_name: 'MessageSquare', status: 1 }); setIsTopicModalOpen(true); }}
+              className="bg-[#111111] dark:bg-[#25D366] text-white py-2 px-4 rounded-xl font-bold hover:bg-black dark:hover:bg-[#1EA952] transition flex items-center gap-2 text-sm"
+            >
+              <Plus size={16} /> Add New Topic
+            </button>
+          </div>
 
-      <div className="space-y-4">
-        {topics.map(topic => (
-          <div key={topic.id} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-4 flex items-center justify-between bg-stone-50/50 dark:bg-slate-800/20">
-              <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => toggleTopic(topic.id)}>
-                <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                  <Layers size={18} className="text-stone-600 dark:text-slate-300" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-stone-800 dark:text-slate-200 flex items-center gap-2">
-                    {topic.title}
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${topic.status === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-600'}`}>
-                      {topic.status === 1 ? 'Active' : 'Hidden'}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-stone-500 line-clamp-1">{topic.description}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2 ml-4">
-                <button onClick={() => { setEditingTopic(topic); setIsTopicModalOpen(true); }} className="p-2 text-stone-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"><Edit2 size={16} /></button>
-                <button onClick={() => handleDeleteTopic(topic.id)} className="p-2 text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"><Trash2 size={16} /></button>
-                <button onClick={() => toggleTopic(topic.id)} className="p-2 text-stone-400">
-                  {expandedTopics.includes(topic.id) ? <ChevronDown size={20}/> : <ChevronRight size={20}/>}
-                </button>
-              </div>
-            </div>
+          {error && <div className="p-4 bg-rose-50 text-rose-600 rounded-xl mb-6 text-sm font-bold">{error}</div>}
 
-            {expandedTopics.includes(topic.id) && (
-              <div className="p-4 border-t border-stone-100 dark:border-slate-800">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="text-xs font-black uppercase text-stone-400">Articles ({topic.articles.length})</h4>
-                  <button onClick={() => { setEditingArticle({ topic_id: topic.id, status: 1 }); setIsArticleModalOpen(true); }} className="text-xs font-bold text-[#25D366] hover:underline flex items-center gap-1">
-                    <Plus size={14} /> Add Article
-                  </button>
+          <div className="space-y-4">
+            {topics.map(topic => (
+              <div key={topic.id} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <div className="p-4 flex items-center justify-between bg-stone-50/50 dark:bg-slate-800/20">
+                  <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => toggleTopic(topic.id)}>
+                    <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                      <Layers size={18} className="text-stone-600 dark:text-slate-300" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-stone-800 dark:text-slate-200 flex items-center gap-2">
+                        {topic.title}
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${topic.status === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-600'}`}>
+                          {topic.status === 1 ? 'Active' : 'Hidden'}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-stone-500 line-clamp-1">{topic.description}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 ml-4">
+                    <button onClick={() => { setEditingTopic(topic); setIsTopicModalOpen(true); }} className="p-2 text-stone-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"><Edit2 size={16} /></button>
+                    <button onClick={() => handleDeleteTopic(topic.id)} className="p-2 text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"><Trash2 size={16} /></button>
+                    <button onClick={() => toggleTopic(topic.id)} className="p-2 text-stone-400">
+                      {expandedTopics.includes(topic.id) ? <ChevronDown size={20}/> : <ChevronRight size={20}/>}
+                    </button>
+                  </div>
                 </div>
 
-                {topic.articles.length === 0 ? (
-                  <p className="text-sm text-stone-500 italic py-2">No articles in this topic yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {topic.articles.map(art => (
-                      <div key={art.id} className="flex items-center justify-between p-3 bg-stone-50 dark:bg-slate-800/40 rounded-xl border border-stone-100 dark:border-slate-800/80">
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-stone-700 dark:text-slate-300 flex items-center gap-2">
-                            {art.title}
-                            {art.status === 0 && <span className="text-[10px] bg-stone-200 text-stone-500 px-1.5 rounded">Hidden</span>}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => { setEditingArticle(art); setIsArticleModalOpen(true); }} className="text-stone-400 hover:text-blue-500"><Edit2 size={14} /></button>
-                          <button onClick={() => handleDeleteArticle(art.id)} className="text-stone-400 hover:text-rose-500"><Trash2 size={14} /></button>
-                        </div>
+                {expandedTopics.includes(topic.id) && (
+                  <div className="p-4 border-t border-stone-100 dark:border-slate-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-xs font-black uppercase text-stone-400">Articles ({topic.articles.length})</h4>
+                      <button onClick={() => { setEditingArticle({ topic_id: topic.id, status: 1 }); setIsArticleModalOpen(true); }} className="text-xs font-bold text-[#25D366] hover:underline flex items-center gap-1">
+                        <Plus size={14} /> Add Article
+                      </button>
+                    </div>
+
+                    {topic.articles.length === 0 ? (
+                      <p className="text-sm text-stone-500 italic py-2">No articles in this topic yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {topic.articles.map(art => (
+                          <div key={art.id} className="flex items-center justify-between p-3 bg-stone-50 dark:bg-slate-800/40 rounded-xl border border-stone-100 dark:border-slate-800/80">
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-stone-700 dark:text-slate-300 flex items-center gap-2">
+                                {art.title}
+                                {art.status === 0 && <span className="text-[10px] bg-stone-200 text-stone-500 px-1.5 rounded">Hidden</span>}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => { setEditingArticle(art); setIsArticleModalOpen(true); }} className="text-stone-400 hover:text-blue-500"><Edit2 size={14} /></button>
+                              <button onClick={() => handleDeleteArticle(art.id)} className="text-stone-400 hover:text-rose-500"><Trash2 size={14} /></button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
-            )}
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* --- TOPIC MODAL --- */}
       {isTopicModalOpen && (
