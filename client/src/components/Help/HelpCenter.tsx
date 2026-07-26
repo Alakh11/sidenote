@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from '@tanstack/react-router';
 import axios from 'axios';
 import { 
-  Search, MessageSquare, Pencil, AlertCircle, BarChart2, CheckCircle,
-  MessageCircle, User, ArrowLeft, ChevronRight, ThumbsUp, ThumbsDown, Sun, Moon
+  Search, MessageSquare, Pencil, AlertCircle, BarChart2, 
+  MessageCircle, User, ArrowLeft, ChevronRight, ThumbsUp, ThumbsDown, Sun, Moon, CheckCircle
 } from 'lucide-react';
 import Logo from '../Logo';
 import { useTheme } from '../../context/ThemeContext';
+import GlobalLoader from '../GlobalLoader';
 
 interface HelpArticle {
   id: number;
@@ -102,9 +103,7 @@ export default function HelpCenter() {
       )
     : [];
 
-  if (loading) {
-    return <div className="min-h-screen bg-[#FAFAFA] dark:bg-slate-950 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#25D366]"></div></div>;
-  }
+  if (loading) return <GlobalLoader />;
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-slate-950 text-stone-800 dark:text-slate-100 transition-colors duration-300">
