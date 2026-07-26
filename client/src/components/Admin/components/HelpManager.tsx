@@ -3,6 +3,7 @@ import axios from 'axios';
 import { 
   Plus, Edit2, Trash2, ChevronDown, ChevronRight, X, BookOpen, Layers
 } from 'lucide-react';
+import GlobalLoader from '../../GlobalLoader';
 
 interface HelpArticle {
   id: number;
@@ -116,7 +117,7 @@ export default function HelpManager() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-stone-500">Loading Help Center Data...</div>;
+  if (loading) return <GlobalLoader />;
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto animate-fade-in">
@@ -138,16 +139,11 @@ export default function HelpManager() {
 
       {error && <div className="p-4 bg-rose-50 text-rose-600 rounded-xl mb-6 text-sm font-bold">{error}</div>}
 
-      {/* TOPICS LIST */}
       <div className="space-y-4">
         {topics.map(topic => (
           <div key={topic.id} className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            {/* Topic Header */}
             <div className="p-4 flex items-center justify-between bg-stone-50/50 dark:bg-slate-800/20">
-              <div 
-                className="flex items-center gap-3 cursor-pointer flex-1"
-                onClick={() => toggleTopic(topic.id)}
-              >
+              <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => toggleTopic(topic.id)}>
                 <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
                   <Layers size={18} className="text-stone-600 dark:text-slate-300" />
                 </div>
@@ -163,33 +159,19 @@ export default function HelpManager() {
               </div>
               
               <div className="flex items-center gap-2 ml-4">
-                <button 
-                  onClick={() => { setEditingTopic(topic); setIsTopicModalOpen(true); }}
-                  className="p-2 text-stone-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button 
-                  onClick={() => handleDeleteTopic(topic.id)}
-                  className="p-2 text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <button onClick={() => { setEditingTopic(topic); setIsTopicModalOpen(true); }} className="p-2 text-stone-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"><Edit2 size={16} /></button>
+                <button onClick={() => handleDeleteTopic(topic.id)} className="p-2 text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"><Trash2 size={16} /></button>
                 <button onClick={() => toggleTopic(topic.id)} className="p-2 text-stone-400">
                   {expandedTopics.includes(topic.id) ? <ChevronDown size={20}/> : <ChevronRight size={20}/>}
                 </button>
               </div>
             </div>
 
-            {/* Articles List (Expanded) */}
             {expandedTopics.includes(topic.id) && (
               <div className="p-4 border-t border-stone-100 dark:border-slate-800">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-xs font-black uppercase text-stone-400">Articles ({topic.articles.length})</h4>
-                  <button 
-                    onClick={() => { setEditingArticle({ topic_id: topic.id, status: 1 }); setIsArticleModalOpen(true); }}
-                    className="text-xs font-bold text-[#25D366] hover:underline flex items-center gap-1"
-                  >
+                  <button onClick={() => { setEditingArticle({ topic_id: topic.id, status: 1 }); setIsArticleModalOpen(true); }} className="text-xs font-bold text-[#25D366] hover:underline flex items-center gap-1">
                     <Plus size={14} /> Add Article
                   </button>
                 </div>
