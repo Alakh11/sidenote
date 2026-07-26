@@ -14,6 +14,107 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
     clean_item = clean_item.strip("- =:,+")
     clean_item = clean_item[:240] 
     
+    ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+    tx_date = ist_now.date()
+    
+    if re.search(r'\bday before yesterday\b', clean_item, re.IGNORECASE):
+        tx_date = tx_date - timedelta(days=2)
+        clean_item = re.sub(r'(?i)\bday before yesterday\b', '', clean_item)
+    elif re.search(r'\byesterday\b', clean_item, re.IGNORECASE):
+        tx_date = tx_date - timedelta(days=1)
+        clean_item = re.sub(r'(?i)\byesterday\b', '', clean_item)
+    elif re.search(r'\btoday\b', clean_item, re.IGNORECASE):
+        clean_item = re.sub(r'(?i)\btoday\b', '', clean_item)
+    else:
+        months_regex = r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*'
+        month_map = {'jan':1, 'feb':2, 'mar':3, 'apr':4, 'may':5, 'jun':6, 'jul':7, 'aug':8, 'sep':9, 'oct':10, 'nov':11, 'dec':12}
+        
+        def parse_year(y_str):
+            y = int(y_str)
+            return 2000 + y if y < 100 else y
+
+        matched = False
+
+        # Format A: YYYY-MM-DD or YYYY/MM/DD
+        m_rev = re.search(r'\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b', clean_item)
+        if m_rev:
+            try:
+                tx_date = tx_date.replace(year=int(m_rev.group(1)), month=int(m_rev.group(2)), day=int(m_rev.group(3)))
+                clean_item = clean_item[:m_rev.start()] + clean_item[m_rev.end():]
+                matched = True
+            except ValueError: pass
+
+        # Format B: DD/MM/YYYY or DD-MM-YYYY or DD/MM/YY
+        if not matched:
+            m_fwd = re.search(r'\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b', clean_item)
+            if m_fwd:
+                try:
+                    tx_date = tx_date.replace(year=parse_year(m_fwd.group(3)), month=int(m_fwd.group(2)), day=int(m_fwd.group(1)))
+                    clean_item = clean_item[:m_fwd.start()] + clean_item[m_fwd.end():]
+                    matched = True
+                except ValueError: pass
+
+        # Format C: DD Month YYYY (e.g., 15 Jan 2024)
+        if not matched:
+            m_txt_y1 = re.search(rf'\b(\d{{1,2}})(?:st|nd|rd|th)?\s+{months_regex}\s+(\d{{2,4}})\b', clean_item, re.IGNORECASE)
+            if m_txt_y1:
+                try:
+                    tx_date = tx_date.replace(year=parse_year(m_txt_y1.group(3)), month=month_map[m_txt_y1.group(2).lower()[:3]], day=int(m_txt_y1.group(1)))
+                    clean_item = clean_item[:m_txt_y1.start()] + clean_item[m_txt_y1.end():]
+                    matched = True
+                except ValueError: pass
+
+        # Format D: Month DD YYYY (e.g., Jan 15th 2024)
+        if not matched:
+            m_txt_y2 = re.search(rf'\b{months_regex}\s+(\d{{1,2}})(?:st|nd|rd|th)?\s*,?\s*(\d{{2,4}})\b', clean_item, re.IGNORECASE)
+            if m_txt_y2:
+                try:
+                    tx_date = tx_date.replace(year=parse_year(m_txt_y2.group(3)), month=month_map[m_txt_y2.group(1).lower()[:3]], day=int(m_txt_y2.group(2)))
+                    clean_item = clean_item[:m_txt_y2.start()] + clean_item[m_txt_y2.end():]
+                    matched = True
+                except ValueError: pass
+
+        # Format E: DD/MM (No Year)
+        if not matched:
+            m_short = re.search(r'\b(\d{1,2})[-/](\d{1,2})\b', clean_item)
+            if m_short:
+                try:
+                    tx_date = tx_date.replace(month=int(m_short.group(2)), day=int(m_short.group(1)))
+                    clean_item = clean_item[:m_short.start()] + clean_item[m_short.end():]
+                    if tx_date > ist_now.date(): tx_date = tx_date.replace(year=tx_date.year - 1)
+                    matched = True
+                except ValueError: pass
+
+        # Format F: DD Month (No Year)
+        if not matched:
+            m_txt_s1 = re.search(rf'\b(\d{{1,2}})(?:st|nd|rd|th)?\s+{months_regex}\b', clean_item, re.IGNORECASE)
+            if m_txt_s1:
+                try:
+                    tx_date = tx_date.replace(month=month_map[m_txt_s1.group(2).lower()[:3]], day=int(m_txt_s1.group(1)))
+                    clean_item = clean_item[:m_txt_s1.start()] + clean_item[m_txt_s1.end():]
+                    if tx_date > ist_now.date(): tx_date = tx_date.replace(year=tx_date.year - 1)
+                    matched = True
+                except ValueError: pass
+
+        # Format G: Month DD (No Year)
+        if not matched:
+            m_txt_s2 = re.search(rf'\b{months_regex}\s+(\d{{1,2}})(?:st|nd|rd|th)?\b', clean_item, re.IGNORECASE)
+            if m_txt_s2:
+                try:
+                    tx_date = tx_date.replace(month=month_map[m_txt_s2.group(1).lower()[:3]], day=int(m_txt_s2.group(2)))
+                    clean_item = clean_item[:m_txt_s2.start()] + clean_item[m_txt_s2.end():]
+                    if tx_date > ist_now.date(): tx_date = tx_date.replace(year=tx_date.year - 1)
+                    matched = True
+                except ValueError: pass
+
+    clean_item = re.sub(r'\bon\b\s*$', '', clean_item, flags=re.IGNORECASE)
+    clean_item = re.sub(r'^\s*\bon\b', '', clean_item, flags=re.IGNORECASE)
+    clean_item = re.sub(r'\s{2,}', ' ', clean_item).strip("- =:,+ ")
+    if not clean_item:
+        clean_item = "Expense" if not explicit_income else "Income"
+
+    transaction_datetime = datetime.combine(tx_date, ist_now.time())
+
     item_lower = clean_item.lower()
     is_income = explicit_income or any(keyword in item_lower for keyword in INCOME_KEYWORDS)
     tx_type = 'income' if is_income else 'expense'
@@ -133,8 +234,8 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
             
             cursor.execute("""
                 INSERT INTO transactions (user_id, amount, type, note, date, category_id, payment_mode) 
-                VALUES (%s, %s, %s, %s, NOW(), %s, %s)
-            """, (user_id, amount, tx_type, clean_item, category_id, payment_mode))
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (user_id, amount, tx_type, clean_item, transaction_datetime, category_id, payment_mode))
             conn.commit()
             
             if tx_type == 'expense' and budget_limit > 0:
@@ -150,7 +251,7 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 else: budget_note = f"💰 Budget: ₹{remaining:g} remaining."
                 
             if not silent and not is_income:
-                cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = CURDATE()", (user_id,))
+                cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = %s AND type = 'expense' AND DATE(date) = %s", (user_id, tx_date))
                 today_row = tuple(cursor.fetchone() or (0,))
                 today_total = float(str(today_row[0])) if today_row[0] else 0.0
 
@@ -167,7 +268,6 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
                 except: pass
 
     if success and not silent:
-        ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         today_str = ist_now.strftime('%Y-%m-%d')
         
         user_hint = hint_tracker.get(phone, {'date': today_str, 'count': 0})
@@ -185,13 +285,17 @@ async def handle_transaction_entry(phone: str, amount: float, item: str, silent:
 
         if is_income:
             msg = f"✅ Income noted!\n₹{amount:g} for '{clean_item}' added."
+            if tx_date != ist_now.date(): msg += f"\n📅 Logged on: *{tx_date.strftime('%d %b, %Y')}*"
             if include_hint: msg += f"\n\n💡 {random_hint}"
             await send_whatsapp_text(phone, msg)
         else:
-            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
             follow_up_msg = ""
+            if tx_date != ist_now.date(): follow_up_msg += f"📅 P.S. This was logged on *{tx_date.strftime('%d %b, %Y')}*.\n\n"
             if budget_note: follow_up_msg += f"{budget_note}\n\n"
             if include_hint: follow_up_msg += f"💡 {random_hint}"
+            
+            await send_whatsapp_template(phone, TEMPLATE_ENTRY_RECORDED, [str(amount), clean_item, f"{today_total:g}"])
+            
             follow_up_msg = follow_up_msg.strip()
             if follow_up_msg: asyncio.create_task(send_delayed_message(phone, follow_up_msg, delay=10))
                 
