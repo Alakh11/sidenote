@@ -49,10 +49,20 @@ def extract_transaction_details(text: str):
     if currency_match:
         amount_str = currency_match.group(1)
     else:
-        numbers = re.findall(r'\d+(?:\.\d+)?', text_clean)
+        temp_text = text_clean
+        months_regex = r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*'
+        temp_text = re.sub(r'\b\d{1,2}[-/]\d{1,2}(?:[-/]\d{2,4})?\b', '', temp_text)
+        temp_text = re.sub(rf'\b\d{{1,2}}(?:st|nd|rd|th)?\s+{months_regex}\s*(?:\d{{2,4}})?\b', '', temp_text, flags=re.IGNORECASE)
+        temp_text = re.sub(rf'\b{months_regex}\s+\d{{1,2}}(?:st|nd|rd|th)?\s*(?:\d{{2,4}})?\b', '', temp_text, flags=re.IGNORECASE)
+        temp_text = re.sub(r'\b20[2-3]\d\b', '', temp_text)
+        
+        numbers = re.findall(r'\d+(?:\.\d+)?', temp_text)
+        
         if not numbers:
-            return None, text_clean, False, payment_mode
-        amount_str = max(numbers, key=float)
+            numbers = re.findall(r'\d+(?:\.\d+)?', text_clean)
+            if not numbers:
+                return None, text_clean, False, payment_mode
+        amount_str = numbers[0]
         
     amount = float(amount_str)
     
