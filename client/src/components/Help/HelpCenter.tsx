@@ -120,7 +120,7 @@ export default function HelpCenter() {
             {theme === 'dark' ? <Sun size={18} className="text-amber-400"/> : <Moon size={18} className="text-indigo-500"/>}
           </button>
           <Link to="/" className="text-sm font-semibold text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white transition-colors">
-            ← Back to Sidenote
+            ← Back
           </Link>
         </div>
       </header>
