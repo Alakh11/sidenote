@@ -30,6 +30,7 @@ import PrivacyPolicy from './components/Legal/PrivacyPolicy';
 import ResetPassword from './components/Auth/ResetPassword';
 import GlobalLoader from './components/GlobalLoader';
 import GroupDashboard from './components/Groups/GroupDashboard';
+import HelpCenter from './components/Help/HelpCenter';
 
 interface UserWithRole extends User {
   id: number;
@@ -268,6 +269,11 @@ const groupsRoute = createRoute({
   component: GroupDashboard,
 });
 
+const helpRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/help',
+  component: HelpCenter,
+});
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -366,6 +372,7 @@ const routeTree = rootRoute.addChildren([
   faqRoute,
   termsRoute,
   privacyRoute,
+  helpRoute,
   authRoute.addChildren([
     dashboardRoute,
     transactionsRoute,

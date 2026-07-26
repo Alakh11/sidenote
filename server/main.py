@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging, json, os, hmac, hashlib, threading, time
 from database import get_db
-from routers import auth, transactions, features, analytics, admin, groups
+from routers import auth, transactions, features, analytics, admin, groups, help
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image, process_whatsapp_audio
 from security import get_current_user, verify_meta_signature
 from whatsapp_service import send_whatsapp_template, send_policy_consent_prompt, send_whatsapp_text
@@ -57,6 +57,7 @@ app.include_router(features.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
 app.include_router(groups.router)
+app.include_router(help.router)
 
 @app.api_route("/", tags=["Health"], methods=["GET", "HEAD"])
 def health_check():

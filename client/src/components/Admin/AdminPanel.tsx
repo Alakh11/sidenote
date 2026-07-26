@@ -1,5 +1,5 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List, Bot, Terminal, MapPin } from 'lucide-react';
+import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List, Bot, Terminal, MapPin, BookOpen  } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import UserFormModal from './components/UserFormModal';
@@ -14,10 +14,11 @@ import AdminCategoriesView from './components/AdminCategoriesView';
 import BotLogCommandHistory from './components/BotLogCommandHistory';
 import SystemLogViewer from './components/SystemLogViewer';
 import AdminGeoBlockerView from './components/AdminGeoBlockerView';
+import HelpManager from './components/HelpManager';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system';
+type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help';
 type SystemView = 'metrics' | 'feedback' | 'logs' | 'geo';
 
 export default function AdminPanel() {
@@ -212,6 +213,12 @@ export default function AdminPanel() {
                 className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'system' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
             >
                 <Server size={16} className="shrink-0"/> <span className="hidden sm:inline">System & Support</span><span className="sm:hidden">System</span>
+            </button>
+            <button 
+                onClick={() => setPrimaryTab('help')} 
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'help' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+            >
+                <BookOpen size={16} className="shrink-0"/> <span className="hidden sm:inline">Help Center</span><span className="sm:hidden">Help</span>
             </button>
         </div>
       </div>
@@ -431,7 +438,6 @@ export default function AdminPanel() {
                       <button onClick={() => setSystemView('geo')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${systemView === 'geo' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
                         <MapPin size={14} className="shrink-0"/> Geo Blocker
                       </button>
-                      
                   </div>
               </div>
 
@@ -439,6 +445,12 @@ export default function AdminPanel() {
               {systemView === 'feedback' && <AdminFeedbackView />}
               {systemView === 'logs' && <SystemLogViewer />} 
               {systemView === 'geo' && <AdminGeoBlockerView />}
+          </div>
+      )}
+
+      {primaryTab === 'help' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
+              <HelpManager />
           </div>
       )}
 
