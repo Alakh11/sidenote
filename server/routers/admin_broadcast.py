@@ -144,9 +144,11 @@ async def broadcast_whatsapp_message(
         params: list[Any] = []
         
         if payload.audience == "active_24h":
-            query += "JOIN transactions t ON u.id = t.user_id "
             query += "WHERE u.is_verified = TRUE AND u.mobile IS NOT NULL "
-            query += "AND t.date >= NOW() - INTERVAL 24 HOUR "
+            query += "AND EXISTS ("
+            query += "    SELECT 1 FROM bot_command_logs b "
+            query += "    WHERE b.user_id = u.id AND b.created_at >= NOW() - INTERVAL 24 HOUR"
+            query += ") "
         else:
             query += "WHERE u.is_verified = TRUE AND u.mobile IS NOT NULL "
             
