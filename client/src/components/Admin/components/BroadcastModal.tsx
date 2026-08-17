@@ -96,8 +96,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
             if (['image', 'document', 'video', 'audio'].includes(messageType) && mediaSource === 'upload') {
                 if (!selectedFile) {
                     alert("Please select a media file first.");
-                    setLoading(false);
-                    return;
+                    setLoading(false); return;
                 }
                 setUploadProgress('Uploading to WhatsApp...');
                 const formData = new FormData();
@@ -254,12 +253,11 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                                 <p className={`text-xs mt-1 leading-tight ${audienceFilter === 'active_24h' ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-stone-500'}`}>Only target users active in the last 24 hours.</p>
                             </div>
                         </div>
-                        <label className={`relative inline-flex items-center shrink-0 ml-2 ${messageType !== 'template' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                        <label className="relative inline-flex items-center shrink-0 ml-2 cursor-pointer">
                             <input 
                                 type="checkbox" 
                                 className="sr-only peer" 
                                 checked={audienceFilter === 'active_24h'} 
-                                disabled={messageType !== 'template'}
                                 onChange={(e) => setAudienceFilter(e.target.checked ? 'active_24h' : 'all')} 
                             />
                             <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
