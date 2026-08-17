@@ -324,14 +324,27 @@ export default function AdminPanel() {
                                                     {user.role === 'superadmin' && <span className="bg-purple-100 text-purple-600 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1 dark:bg-purple-900/30 dark:text-purple-400"><Crown size={10}/> Super</span>}
                                                     {user.role === 'admin' && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1 dark:bg-indigo-900/30 dark:text-indigo-400"><Shield size={10}/> Admin</span>}
                                                   </div>
-                                                  <p className="text-xs text-stone-400">ID: {user.id}</p>
+                                                  <p className="text-xs text-stone-400 mt-0.5">ID: {user.id}</p>
                                               </div>
                                           </td>
                                           <td className="p-5">
                                               <p className="text-sm text-stone-600 dark:text-slate-300 font-medium">{user.email || <span className="text-stone-400 italic">Unlinked</span>}</p>
                                             </td>
                                             <td className="p-5">
-                                                <p className="text-sm text-stone-600 dark:text-slate-300 font-medium whitespace-nowrap">{user.mobile || <span className="text-stone-400 italic">Unlinked</span>}</p>
+                                                {user.mobile ? (
+                                                    <span 
+                                                        className={`text-sm font-bold whitespace-nowrap px-2.5 py-1 rounded-md ${
+                                                            user.has_consented 
+                                                            ? 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-900/20' 
+                                                            : 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20'
+                                                        }`}
+                                                        title={user.has_consented ? "T&C Accepted" : "Pending T&C"}
+                                                    >
+                                                        {user.mobile}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-stone-400 italic text-sm">Unlinked</span>
+                                                )}
                                             </td>
                                             <td className="p-5 text-sm font-medium text-stone-500 dark:text-slate-400 whitespace-nowrap">
                                                 {user.created_at ? (
@@ -356,17 +369,6 @@ export default function AdminPanel() {
                                                     Active
                                                 </span>
                                             )}
-                                            <div className="flex items-center gap-2 mt-1">
-                                                    {user.has_consented ? (
-                                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 px-1.5 py-0.5 rounded tracking-wide uppercase">
-                                                            T&C Accepted
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 px-1.5 py-0.5 rounded tracking-wide uppercase">
-                                                            Pending T&C
-                                                        </span>
-                                                    )}
-                                                    </div>
                                           </td>
                                             
                                           <td className="p-5 flex justify-center gap-2">
