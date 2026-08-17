@@ -356,6 +356,17 @@ export default function AdminPanel() {
                                                     Active
                                                 </span>
                                             )}
+                                            <div className="flex items-center gap-2 mt-1">
+                                                    {user.has_consented ? (
+                                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 px-1.5 py-0.5 rounded tracking-wide uppercase">
+                                                            T&C Accepted
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 px-1.5 py-0.5 rounded tracking-wide uppercase">
+                                                            Pending T&C
+                                                        </span>
+                                                    )}
+                                                    </div>
                                           </td>
                                             
                                           <td className="p-5 flex justify-center gap-2">
