@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, Clock, Image as ImageIcon, FileText, Video, Mic, Link, UploadCloud } from 'lucide-react';
+import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, Clock, Image as ImageIcon, FileText, Video, Mic, Link, UploadCloud, FileSpreadsheet, Users } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 type MessageType = 'template' | 'text' | 'image' | 'document' | 'video' | 'audio';
+type TargetMode = 'selected' | 'all' | 'mis';
 
 export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: () => void, selectedUserIds: number[] }) {
     const [messageType, setMessageType] = useState<MessageType>('template');
@@ -20,9 +21,13 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
     const [caption, setCaption] = useState('');
     const [filename, setFilename] = useState('');
     
-    // Audience & Status State
-    const [sendToAll, setSendToAll] = useState(selectedUserIds.length === 0);
+    const [targetMode, setTargetMode] = useState<TargetMode>(selectedUserIds.length > 0 ? 'selected' : 'all');
     const [audienceFilter, setAudienceFilter] = useState<'all' | 'active_24h'>('all');
+    
+    const [misUsers, setMisUsers] = useState<any[]>([]);
+    const [misSelectedIds, setMisSelectedIds] = useState<number[]>([]);
+    const [isParsingMis, setIsParsingMis] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState('');
 
@@ -34,9 +39,54 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
         }
     }, [messageType]);
 
+    const handleMisUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsParsingMis(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await axios.post(`${API_URL}/admin/broadcast/parse-mis`, formData, {
+                headers: { 
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            setMisUsers(res.data.users);
+            setMisSelectedIds(res.data.users.map((u: any) => u.id));
+        } catch (err: any) {
+            alert(err.response?.data?.detail || "Failed to parse MIS file.");
+        } finally {
+            setIsParsingMis(false);
+            if (e.target) e.target.value = '';
+        }
+    };
+
+    const toggleAllMisUsers = () => {
+        if (misSelectedIds.length === misUsers.length) setMisSelectedIds([]);
+        else setMisSelectedIds(misUsers.map(u => u.id));
+    };
+
     const handleSend = async () => {
-        const targetCount = sendToAll ? "ALL verified users" : `${selectedUserIds.length} selected users`;
-        if (!confirm(`Blast this ${messageType} to ${targetCount} via WhatsApp?`)) return;
+        let finalTargets: number[] = [];
+        let targetLabel = "";
+
+        if (targetMode === 'selected') {
+            finalTargets = selectedUserIds;
+            targetLabel = `${selectedUserIds.length} selected users`;
+        } else if (targetMode === 'mis') {
+            finalTargets = misSelectedIds;
+            targetLabel = `${misSelectedIds.length} users from MIS`;
+            if (finalTargets.length === 0) return alert("Please select at least one user from the uploaded MIS.");
+        } else {
+            targetLabel = "ALL verified users";
+        }
+
+        if (targetMode === 'selected' && finalTargets.length === 0) {
+            return alert("No users selected in the directory.");
+        }
+
+        if (!confirm(`Blast this ${messageType} to ${targetLabel} via WhatsApp?`)) return;
         
         setLoading(true);
         try {
@@ -45,7 +95,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
 
             if (['image', 'document', 'video', 'audio'].includes(messageType) && mediaSource === 'upload') {
                 if (!selectedFile) {
-                    alert("Please select a file first.");
+                    alert("Please select a media file first.");
                     setLoading(false);
                     return;
                 }
@@ -72,7 +122,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                 media_id: finalMediaId,
                 caption: ['image', 'document', 'video'].includes(messageType) ? caption : null,
                 filename: messageType === 'document' ? (filename || selectedFile?.name) : null,
-                target_user_ids: sendToAll ? [] : selectedUserIds,
+                target_user_ids: finalTargets,
                 audience: audienceFilter
             };
             
@@ -100,7 +150,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] w-full max-w-xl shadow-2xl animate-in zoom-in-95 border border-stone-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] w-full max-w-2xl shadow-2xl animate-in zoom-in-95 border border-stone-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
                 
                 <div className="flex justify-between items-center mb-6 shrink-0">
                     <h3 className="text-xl font-bold text-stone-800 dark:text-white flex items-center gap-2">
@@ -111,22 +161,72 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                 
                 <div className="space-y-5 overflow-y-auto custom-scrollbar pr-2 pb-2">
                     
-                    {/* User Target Toggle */}
+                    {/* Audience Selection Toggle */}
                     <div className="flex gap-2 p-1 bg-stone-100 dark:bg-slate-800 rounded-xl shrink-0">
                         <button 
-                            onClick={() => setSendToAll(false)} 
-                            disabled={selectedUserIds.length === 0}
-                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${!sendToAll ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700 disabled:opacity-30'}`}
+                            onClick={() => setTargetMode('selected')} 
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${targetMode === 'selected' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}
                         >
-                            Selected Users ({selectedUserIds.length})
+                            Selected ({selectedUserIds.length})
                         </button>
                         <button 
-                            onClick={() => setSendToAll(true)} 
-                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${sendToAll ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}
+                            onClick={() => setTargetMode('all')} 
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${targetMode === 'all' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}
                         >
-                            All Verified Users
+                            All Users
+                        </button>
+                        <button 
+                            onClick={() => setTargetMode('mis')} 
+                            className={`flex-1 py-2 flex justify-center items-center gap-1.5 text-xs font-bold rounded-lg transition ${targetMode === 'mis' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}
+                        >
+                            <FileSpreadsheet size={14} /> Upload MIS
                         </button>
                     </div>
+
+                    {targetMode === 'mis' && (
+                        <div className="animate-in fade-in slide-in-from-top-2 p-4 border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl">
+                            <label className="text-xs font-bold uppercase text-indigo-800 dark:text-indigo-300 mb-2 block">Upload CSV List</label>
+                            <input 
+                                type="file" 
+                                accept=".csv"
+                                onChange={handleMisUpload}
+                                className="w-full text-sm file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 dark:file:bg-indigo-900/50 dark:file:text-indigo-300 cursor-pointer text-stone-600 dark:text-slate-300" 
+                            />
+                            {isParsingMis && <p className="text-xs text-indigo-600 font-bold mt-3 animate-pulse">Reading file and finding users...</p>}
+                            
+                            {misUsers.length > 0 && (
+                                <div className="mt-4 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                                    <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+                                       <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                                           <Users size={14}/> {misSelectedIds.length} / {misUsers.length} Users Selected
+                                       </span>
+                                       <button onClick={toggleAllMisUsers} className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
+                                           Toggle All
+                                       </button>
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                                        {misUsers.map(u => (
+                                            <label key={u.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    checked={misSelectedIds.includes(u.id)} 
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setMisSelectedIds([...misSelectedIds, u.id]);
+                                                        else setMisSelectedIds(misSelectedIds.filter(id => id !== u.id));
+                                                    }} 
+                                                />
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{u.name}</p>
+                                                    <p className="text-[10px] font-mono text-slate-500">{u.mobile || u.email || `ID: ${u.id}`}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Message Format Grid */}
                     <div className="grid grid-cols-3 gap-2 p-1 bg-stone-100 dark:bg-slate-800 rounded-xl shrink-0">

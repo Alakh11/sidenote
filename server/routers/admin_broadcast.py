@@ -1,3 +1,5 @@
+import csv
+import io
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, UploadFile
 from typing import Any, Optional
 from pydantic import BaseModel
@@ -44,6 +46,75 @@ async def upload_media_for_broadcast(
             raise HTTPException(status_code=500, detail="Failed to upload media to WhatsApp servers.")
             
         return {"media_id": media_id, "message": "File uploaded successfully"}
+    finally:
+        conn.close()
+
+@router.post("/broadcast/parse-mis")
+async def parse_mis_file(
+    file: UploadFile = File(...),
+    admin_id: int = Depends(require_admin)
+):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        content = await file.read()
+        text = content.decode('utf-8-sig')
+        reader = csv.reader(io.StringIO(text))
+        
+        search_terms = []
+        for row in reader:
+            for cell in row:
+                val = cell.strip()
+                if val:
+                    search_terms.append(val)
+        
+        if not search_terms:
+            raise HTTPException(status_code=400, detail="Empty file or no valid data found.")
+        
+        # Deduplicate and categorize terms to prevent DB type errors
+        unique_terms = list(set(search_terms))[:5000] # Limit to prevent payload overflow
+        ids = []
+        mobiles = []
+        emails = []
+
+        for term in unique_terms:
+            if term.isdigit():
+                ids.append(term)
+                if len(term) >= 10:
+                    mobiles.append(term)
+                    mobiles.append('+' + term)
+            elif '@' in term:
+                emails.append(term)
+            else:
+                clean_phone = ''.join(filter(lambda x: x.isdigit() or x == '+', term))
+                if len(clean_phone) >= 10:
+                    mobiles.append(clean_phone)
+
+        where_clauses = []
+        params = []
+
+        if ids:
+            where_clauses.append(f"id IN ({','.join(['%s']*len(ids))})")
+            params.extend(ids)
+        if mobiles:
+            where_clauses.append(f"mobile IN ({','.join(['%s']*len(mobiles))})")
+            params.extend(mobiles)
+        if emails:
+            where_clauses.append(f"email IN ({','.join(['%s']*len(emails))})")
+            params.extend(emails)
+
+        if not where_clauses:
+             return {"users": [], "message": "No valid search identifiers (ID, Email, Mobile) found in the file."}
+
+        query = f"SELECT id, name, mobile, email FROM users WHERE {' OR '.join(where_clauses)}"
+        cursor.execute(query, params)
+        users = cursor.fetchall()
+        
+        return {"users": users, "message": f"Found {len(users)} matching users from MIS."}
+        
+    except Exception as e:
+        logger.error(f"MIS Parse Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to parse MIS file. Please ensure it is a valid CSV.")
     finally:
         conn.close()
 
