@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, Clock, Image as ImageIcon, FileText, Video, Mic, Link, UploadCloud, FileSpreadsheet, Users } from 'lucide-react';
+import { 
+    Megaphone, Send, X, AlertTriangle, MessageSquare, LayoutTemplate, 
+    Clock, Image as ImageIcon, FileText, Video, Mic, Link as LinkIcon, 
+    UploadCloud, FileSpreadsheet, Users, Bold, Italic, Strikethrough, 
+    Code, CornerDownLeft 
+} from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -32,12 +37,85 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
     const [uploadProgress, setUploadProgress] = useState('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const messageRef = useRef<HTMLTextAreaElement>(null);
+    const captionRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         if (messageType !== 'template') {
             setAudienceFilter('active_24h');
         }
     }, [messageType]);
+
+    const handleFormat = (
+        type: 'bold' | 'italic' | 'strikethrough' | 'code' | 'link' | 'newline',
+        ref: React.RefObject<HTMLTextAreaElement | null>,
+        setter: React.Dispatch<React.SetStateAction<string>>,
+        currentValue: string
+    ) => {
+        if (!ref.current) return;
+        const start = ref.current.selectionStart;
+        const end = ref.current.selectionEnd;
+        const selectedText = currentValue.substring(start, end);
+        let newText = '';
+        let offset = 0;
+        let selectLen = 0;
+
+        switch (type) {
+            case 'bold':
+                newText = `*${selectedText || 'bold text'}*`;
+                offset = 1; selectLen = selectedText ? 0 : 9;
+                break;
+            case 'italic':
+                newText = `_${selectedText || 'italic text'}_`;
+                offset = 1; selectLen = selectedText ? 0 : 11;
+                break;
+            case 'strikethrough':
+                newText = `~${selectedText || 'strikethrough'}~`;
+                offset = 1; selectLen = selectedText ? 0 : 13;
+                break;
+            case 'code':
+                newText = `\`\`\`${selectedText || 'code block'}\`\`\``;
+                offset = 3; selectLen = selectedText ? 0 : 10;
+                break;
+            case 'link':
+                newText = selectedText ? `${selectedText} https://example.com` : `https://example.com`;
+                offset = selectedText ? selectedText.length + 1 : 0;
+                selectLen = 19;
+                break;
+            case 'newline':
+                newText = `\n`;
+                offset = 1; selectLen = 0;
+                break;
+        }
+
+        const newValue = currentValue.substring(0, start) + newText + currentValue.substring(end);
+        setter(newValue);
+        
+        setTimeout(() => {
+            if (ref.current) {
+                ref.current.focus();
+                if (type === 'newline') {
+                    ref.current.setSelectionRange(start + 1, start + 1);
+                } else if (!selectedText) {
+                    ref.current.setSelectionRange(start + offset, start + offset + selectLen);
+                } else {
+                    ref.current.setSelectionRange(start + newText.length, start + newText.length);
+                }
+            }
+        }, 0);
+    };
+
+    const FormatToolbar = ({ textareaRef, value, setter }: { textareaRef: React.RefObject<HTMLTextAreaElement | null>, value: string, setter: React.Dispatch<React.SetStateAction<string>> }) => (
+        <div className="flex items-center gap-1 mb-2 bg-stone-100 dark:bg-slate-800 p-1 rounded-lg border border-stone-200 dark:border-slate-700 w-max">
+            <button type="button" onClick={() => handleFormat('bold', textareaRef, setter, value)} className="p-1.5 text-stone-600 hover:bg-stone-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded transition" title="Bold (*text*)"><Bold size={14}/></button>
+            <button type="button" onClick={() => handleFormat('italic', textareaRef, setter, value)} className="p-1.5 text-stone-600 hover:bg-stone-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded transition" title="Italic (_text_)"><Italic size={14}/></button>
+            <button type="button" onClick={() => handleFormat('strikethrough', textareaRef, setter, value)} className="p-1.5 text-stone-600 hover:bg-stone-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded transition" title="Strikethrough (~text~)"><Strikethrough size={14}/></button>
+            <div className="w-px h-4 bg-stone-300 dark:bg-slate-600 mx-1"></div>
+            <button type="button" onClick={() => handleFormat('code', textareaRef, setter, value)} className="p-1.5 text-stone-600 hover:bg-stone-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded transition" title="Code Format (```text```)"><Code size={14}/></button>
+            <button type="button" onClick={() => handleFormat('link', textareaRef, setter, value)} className="p-1.5 text-stone-600 hover:bg-stone-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded transition" title="Insert Link"><LinkIcon size={14}/></button>
+            <button type="button" onClick={() => handleFormat('newline', textareaRef, setter, value)} className="p-1.5 text-stone-600 hover:bg-stone-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded transition" title="New Line"><CornerDownLeft size={14}/></button>
+        </div>
+    );
 
     const handleMisUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -205,7 +283,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                                     </div>
                                     <div className="max-h-48 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                                         {misUsers.map(u => (
-                                            <label key={u.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                                            <label key={u.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:bg-slate-800 cursor-pointer transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
@@ -298,8 +376,12 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                                 <span>Free-form texts bypass Meta's template billing, but will <strong>FAIL</strong> if sent to users outside the 24-hour service window.</span>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs font-bold uppercase text-stone-400 ml-1">Message Body</label>
+                                <div className="flex justify-between items-end mb-1">
+                                    <label className="text-xs font-bold uppercase text-stone-400 ml-1">Message Body</label>
+                                </div>
+                                <FormatToolbar textareaRef={messageRef} value={messageText} setter={setMessageText} />
                                 <textarea 
+                                    ref={messageRef}
                                     className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition resize-none text-sm" 
                                     rows={4}
                                     placeholder="Type your exact message here..."
@@ -319,7 +401,7 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
                             
                             <div className="flex gap-2 p-1 bg-stone-100 dark:bg-slate-800 rounded-xl">
                                 <button type="button" onClick={() => setMediaSource('url')} className={`flex-1 py-2 flex items-center justify-center gap-2 text-xs font-bold rounded-lg transition ${mediaSource === 'url' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}>
-                                    <Link size={14} /> Public Link
+                                    <LinkIcon size={14} /> Public Link
                                 </button>
                                 <button type="button" onClick={() => setMediaSource('upload')} className={`flex-1 py-2 flex items-center justify-center gap-2 text-xs font-bold rounded-lg transition ${mediaSource === 'upload' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:bg-stone-200 dark:hover:bg-slate-700'}`}>
                                     <UploadCloud size={14} /> Upload File
@@ -352,10 +434,15 @@ export default function BroadcastModal({ onClose, selectedUserIds }: { onClose: 
 
                             {['image', 'document', 'video'].includes(messageType) && (
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold uppercase text-stone-400 ml-1">Caption (Optional)</label>
-                                    <input 
-                                        className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm" 
-                                        placeholder="Add a message..." 
+                                    <div className="flex justify-between items-end mb-1">
+                                        <label className="text-xs font-bold uppercase text-stone-400 ml-1">Caption (Optional)</label>
+                                    </div>
+                                    <FormatToolbar textareaRef={captionRef} value={caption} setter={setCaption} />
+                                    <textarea 
+                                        ref={captionRef}
+                                        className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl dark:bg-slate-950 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition resize-none text-sm" 
+                                        rows={3}
+                                        placeholder="Add a formatted message..." 
                                         value={caption} 
                                         onChange={e => setCaption(e.target.value)} 
                                     />
