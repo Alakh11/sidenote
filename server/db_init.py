@@ -359,16 +359,6 @@ def initialize_database():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
             """
-            CREATE TABLE IF NOT EXISTS message_delivery_logs (
-            id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            mobile VARCHAR(50) NOT NULL,
-            message_id VARCHAR(255) UNIQUE NOT NULL,
-            status VARCHAR(50) DEFAULT 'sent',
-            error_message TEXT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            """
-            """
             CREATE TABLE IF NOT EXISTS whatsapp_messages (
                 id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                 whatsapp_message_id VARCHAR(255) UNIQUE NOT NULL,
