@@ -119,7 +119,12 @@ async def parse_mis_file(
         conn.close()
 
 @router.get("/broadcast/reports")
-def get_whatsapp_delivery_reports(admin_id: int = Depends(require_admin)):
+def get_whatsapp_delivery_reports(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    status_filter: str = Query("failed"),
+    admin_id: int = Depends(require_admin)
+):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -133,17 +138,34 @@ def get_whatsapp_delivery_reports(admin_id: int = Depends(require_admin)):
         """)
         stats = cursor.fetchone() or {"total": 0, "total_sent": 0, "total_failed": 0}
 
-        cursor.execute("""
-            SELECT w.id, w.whatsapp_message_id, w.phone_number, w.status, w.error_code, w.error_message, w.timestamp, u.name
+        where_clause = "WHERE w.direction = 'outbound'"
+        if status_filter == "failed":
+            where_clause += " AND (w.status = 'failed' OR w.error_code IS NOT NULL)"
+
+        cursor.execute(f"SELECT COUNT(*) as count FROM whatsapp_messages w {where_clause}")
+        count_row = cursor.fetchone()
+        total_items = count_row['count'] if count_row else 0
+
+        data_query = f"""
+            SELECT w.id, w.whatsapp_message_id, w.phone_number, w.status, w.error_code, 
+                   w.error_message, w.timestamp, w.message_type, u.name
             FROM whatsapp_messages w
             LEFT JOIN users u ON w.phone_number = u.mobile
-            WHERE w.status = 'failed' OR w.error_code IS NOT NULL
+            {where_clause}
             ORDER BY w.timestamp DESC
-            LIMIT 100
-        """)
-        failures = cursor.fetchall()
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(data_query, (limit, (page - 1) * limit))
+        messages = cursor.fetchall()
         
-        return {"stats": stats, "failures": failures}
+        return {
+            "stats": stats, 
+            "messages": messages,
+            "total": total_items,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_items + limit - 1) // limit if limit else 1
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
