@@ -186,13 +186,18 @@ async def broadcast_whatsapp_message(
         params: list[Any] = []
         
         if payload.audience == "active_24h":
-            query += "WHERE u.is_verified = TRUE AND u.mobile IS NOT NULL "
+            query += "WHERE u.is_verified = TRUE AND u.has_consented = TRUE AND u.mobile IS NOT NULL "
             query += "AND EXISTS ("
-            query += "    SELECT 1 FROM bot_command_logs b "
-            query += "    WHERE b.user_id = u.id AND b.created_at >= NOW() - INTERVAL 24 HOUR"
+            query += "    SELECT 1 FROM whatsapp_messages w "
+            query += "    WHERE w.phone_number = u.mobile AND w.direction = 'inbound' AND w.timestamp >= NOW() - INTERVAL 24 HOUR"
             query += ") "
         else:
-            query += "WHERE u.is_verified = TRUE AND u.mobile IS NOT NULL "
+            query += "WHERE u.is_verified = TRUE AND u.has_consented = TRUE AND u.mobile IS NOT NULL "
+            
+        if payload.target_user_ids:
+            format_strings = ','.join(['%s'] * len(payload.target_user_ids))
+            query += f" AND u.id IN ({format_strings})"
+            params.extend(payload.target_user_ids)
             
         if payload.target_user_ids:
             format_strings = ','.join(['%s'] * len(payload.target_user_ids))
