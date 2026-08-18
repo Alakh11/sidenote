@@ -232,7 +232,7 @@ def log_inbound_message(message: dict, sender_phone: str, message_id: Optional[s
             msg_body = "[Contact Card Shared]"
 
         ts_raw = message.get("timestamp")
-        msg_time = datetime.fromtimestamp(int(ts_raw)) if ts_raw else datetime.now()
+        msg_time = datetime.fromtimestamp(int(ts_raw), tz=ist_timezone).replace(tzinfo=None) if ts_raw else datetime.now(ist_timezone).replace(tzinfo=None)
 
         cursor.execute("""
             INSERT INTO whatsapp_messages 
@@ -273,7 +273,7 @@ def process_message_status(status_dict: dict):
         wamid = status_dict.get('id')
         status = status_dict.get('status')
         ts_int = int(status_dict.get('timestamp', time.time()))
-        timestamp = datetime.fromtimestamp(ts_int)
+        timestamp = datetime.fromtimestamp(ts_int, tz=ist_timezone).replace(tzinfo=None)
         phone = status_dict.get('recipient_id')
         
         err_code = None
