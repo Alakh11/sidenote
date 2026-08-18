@@ -30,7 +30,8 @@ def initialize_database():
                 has_consented TINYINT(1) DEFAULT 0,
                 account_status VARCHAR(20) DEFAULT 'active',
                 bot_state VARCHAR(50) DEFAULT 'NEW',
-                nickname VARCHAR(100)
+                nickname VARCHAR(100),
+                whatsapp_user_id VARCHAR(100)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
             """
@@ -355,6 +356,69 @@ def initialize_database():
                 used TINYINT(1) DEFAULT 0,
                 FOREIGN KEY (group_id) REFERENCES expense_groups(id) ON DELETE CASCADE,
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS message_delivery_logs (
+            id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            mobile VARCHAR(50) NOT NULL,
+            message_id VARCHAR(255) UNIQUE NOT NULL,
+            status VARCHAR(50) DEFAULT 'sent',
+            error_message TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+            """
+            CREATE TABLE IF NOT EXISTS whatsapp_messages (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                whatsapp_message_id VARCHAR(255) UNIQUE NOT NULL,
+                phone_number VARCHAR(50) NOT NULL,
+                direction ENUM('inbound', 'outbound') NOT NULL,
+                message_type VARCHAR(50),
+                message_body TEXT,
+                timestamp DATETIME,
+                status VARCHAR(50),
+                error_code VARCHAR(50),
+                error_message TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS whatsapp_message_events (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                whatsapp_message_id VARCHAR(255) NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                timestamp DATETIME,
+                raw_event TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (whatsapp_message_id) REFERENCES whatsapp_messages(whatsapp_message_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS whatsapp_media (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                message_id VARCHAR(255),
+                whatsapp_media_id VARCHAR(255) NOT NULL,
+                media_type VARCHAR(50),
+                mime_type VARCHAR(100),
+                file_url TEXT,
+                file_name VARCHAR(255),
+                file_size INT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS whatsapp_webhook_events (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                event_type VARCHAR(100),
+                payload TEXT,
+                received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                processed_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                processing_status VARCHAR(50) DEFAULT 'pending',
+                error_message TEXT
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """
         ]

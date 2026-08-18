@@ -118,6 +118,48 @@ async def parse_mis_file(
     finally:
         conn.close()
 
+@router.get("/broadcast/reports")
+def get_whatsapp_delivery_reports(admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status IN ('sent', 'delivered', 'read') THEN 1 ELSE 0 END) as total_sent,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as total_failed
+            FROM whatsapp_messages
+            WHERE direction = 'outbound'
+        """)
+        stats = cursor.fetchone() or {"total": 0, "total_sent": 0, "total_failed": 0}
+
+        cursor.execute("""
+            SELECT w.id, w.whatsapp_message_id, w.phone_number, w.status, w.error_code, w.error_message, w.timestamp, u.name
+            FROM whatsapp_messages w
+            LEFT JOIN users u ON w.phone_number = u.mobile
+            WHERE w.status = 'failed' OR w.error_code IS NOT NULL
+            ORDER BY w.timestamp DESC
+            LIMIT 100
+        """)
+        failures = cursor.fetchall()
+        
+        return {"stats": stats, "failures": failures}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.post("/broadcast/reports/clear-errors")
+def clear_whatsapp_errors(admin_id: int = Depends(require_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE whatsapp_messages SET error_message = NULL, error_code = NULL, status = 'cleared' WHERE status = 'failed'")
+        conn.commit()
+        return {"message": "Error log cleared successfully."}
+    finally:
+        conn.close()
+
 @router.post("/broadcast")
 async def broadcast_whatsapp_message(
     payload: BroadcastPayload, 

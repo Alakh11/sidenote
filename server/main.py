@@ -187,7 +187,60 @@ async def process_incoming_message(message: dict, sender_phone: str, message_id:
     finally:
         conn.close()
 
-    
+def log_webhook_event(payload_str: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO whatsapp_webhook_events (event_type, payload, processing_status) VALUES (%s, %s, %s)",
+            ('webhook_received', payload_str, 'processed')
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to log webhook: {e}")
+    finally:
+        conn.close()
+
+def process_message_status(status_dict: dict):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        wamid = status_dict.get('id')
+        status = status_dict.get('status')
+        ts_int = int(status_dict.get('timestamp', time.time()))
+        timestamp = datetime.fromtimestamp(ts_int)
+        phone = status_dict.get('recipient_id')
+        
+        err_code = None
+        err_msg = None
+        
+        if status == 'failed' and 'errors' in status_dict:
+            err = status_dict['errors'][0]
+            err_code = err.get('code')
+            err_msg = f"{err.get('title', '')} - {err.get('error_data', {}).get('details', '')}"
+
+        cursor.execute("""
+            INSERT INTO whatsapp_messages (whatsapp_message_id, phone_number, direction, status, timestamp, error_code, error_message)
+            VALUES (%s, %s, 'outbound', %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+                status = VALUES(status), 
+                timestamp = VALUES(timestamp),
+                error_code = VALUES(error_code),
+                error_message = VALUES(error_message),
+                updated_at = CURRENT_TIMESTAMP
+        """, (wamid, phone, status, timestamp, err_code, err_msg))
+        
+        cursor.execute("""
+            INSERT INTO whatsapp_message_events (whatsapp_message_id, status, timestamp, raw_event)
+            VALUES (%s, %s, %s, %s)
+        """, (wamid, status, timestamp, json.dumps(status_dict)))
+        
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Status Processing Error: {e}")
+    finally:
+        conn.close()
+            
 @app.get("/webhook")
 async def verify_webhook(
     mode: str = Query(None, alias="hub.mode"),
@@ -224,6 +277,7 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
 
     try:
         body = json.loads(raw_body)
+        background_tasks.add_task(log_webhook_event, raw_body.decode('utf-8'))
         
         entry = body.get('entry', [])[0]
         changes = entry.get('changes', [])[0]
@@ -231,30 +285,39 @@ async def receive_whatsapp_message(request: Request, background_tasks: Backgroun
         
         contacts = value.get('contacts', [])
         sender_name = contacts[0].get('profile', {}).get('name', 'WhatsApp User') if contacts else 'WhatsApp User'
+        wa_id = contacts[0].get('wa_id') if contacts else None
         
         if 'messages' in value:
             message = value['messages'][0]
             sender_phone = message['from']
             message_id = message.get('id')
             
-            # --- THE MAGIC HAPPENS HERE ---
-            # Instead of routing here, we pass EVERYTHING to the background task Gatekeeper!
+            if wa_id:
+                background_tasks.add_task(update_user_wa_id, sender_phone, wa_id)
+            
             background_tasks.add_task(process_incoming_message, message, sender_phone, message_id, sender_name)
 
         elif 'statuses' in value:
-            status = value['statuses'][0]
-            if status.get('status') == 'failed':
-                errors = status.get('errors', [{}])[0]
-                err_code = errors.get('code', 'Unknown')
-                err_title = errors.get('title', 'Delivery Failed')
-                err_details = errors.get('error_data', {}).get('details', 'No details provided by Meta.')
+            for status in value['statuses']:
+                background_tasks.add_task(process_message_status, status)
                 
-                print(f"❌ META DELIVERY FAILED [Code {err_code}]: {err_title} -> {err_details}")
+                if status.get('status') == 'failed':
+                    errors = status.get('errors', [{}])[0]
+                    print(f"❌ META DELIVERY FAILED [Code {errors.get('code')}]: {errors.get('title')} -> {errors.get('error_data', {}).get('details')}")
                 
     except Exception as e:
         print(f"⚠️ Webhook Processing Error: {e}")
 
     return {"status": "ok"}
+
+def update_user_wa_id(mobile: str, wa_id: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE users SET whatsapp_user_id = %s WHERE mobile = %s", (wa_id, mobile))
+        conn.commit()
+    except: pass
+    finally: conn.close()
 
 
 def log_api_metric(method: str, endpoint: str, duration_ms: float, status_code: int):
