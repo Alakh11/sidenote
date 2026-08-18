@@ -106,6 +106,7 @@ def start_scheduler():
 
 
 async def process_incoming_message(message: dict, sender_phone: str, message_id: Optional[str], sender_name: str):
+    log_inbound_message(message, sender_phone, message_id)
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     
@@ -184,6 +185,70 @@ async def process_incoming_message(message: dict, sender_phone: str, message_id:
 
     except Exception as e:
         logger.error(f"Error in Master Message Router: {e}")
+    finally:
+        conn.close()
+
+def log_inbound_message(message: dict, sender_phone: str, message_id: Optional[str]):
+    if not message_id:
+        return
+        
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        msg_type = message.get("type", "unknown")
+        msg_body = None
+        
+        if msg_type == "text":
+            msg_body = message.get("text", {}).get("body", "")
+        elif msg_type == "interactive":
+            interactive = message.get("interactive", {})
+            int_type = interactive.get("type", "")
+            if int_type == "button_reply":
+                msg_body = interactive.get("button_reply", {}).get("title", "")
+            elif int_type == "list_reply":
+                msg_body = interactive.get("list_reply", {}).get("title", "")
+        elif msg_type in ["image", "document", "audio", "video", "sticker"]:
+            media_data = message.get(msg_type, {})
+            msg_body = media_data.get("caption") or f"[{msg_type.upper()}]"
+            
+            media_id = media_data.get("id")
+            if media_id:
+                cursor.execute("""
+                    INSERT INTO whatsapp_media 
+                    (message_id, whatsapp_media_id, media_type, mime_type, file_name, file_size)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    message_id,
+                    media_id,
+                    msg_type,
+                    media_data.get("mime_type"),
+                    media_data.get("filename"),
+                    media_data.get("file_size")
+                ))
+        elif msg_type == "location":
+            loc = message.get("location", {})
+            msg_body = f"Location: {loc.get('latitude')}, {loc.get('longitude')} ({loc.get('name', '')})"
+        elif msg_type == "contacts":
+            msg_body = "[Contact Card Shared]"
+
+        ts_raw = message.get("timestamp")
+        msg_time = datetime.fromtimestamp(int(ts_raw)) if ts_raw else datetime.now()
+
+        cursor.execute("""
+            INSERT INTO whatsapp_messages 
+            (whatsapp_message_id, phone_number, direction, message_type, message_body, status, timestamp)
+            VALUES (%s, %s, 'inbound', %s, %s, 'received', %s)
+            ON DUPLICATE KEY UPDATE
+                message_type = VALUES(message_type),
+                message_body = VALUES(message_body),
+                status = VALUES(status),
+                timestamp = VALUES(timestamp),
+                updated_at = CURRENT_TIMESTAMP
+        """, (message_id, sender_phone, msg_type, msg_body, msg_time))
+
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to log inbound message {message_id}: {e}")
     finally:
         conn.close()
 

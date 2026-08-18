@@ -4,6 +4,7 @@ import logging
 import asyncio
 from typing import Any, Optional
 from dotenv import load_dotenv
+from database import get_db
 
 load_dotenv()
 
@@ -22,6 +23,26 @@ http_client = httpx.AsyncClient(
     timeout=timeout
 )
 outbound_semaphore = asyncio.Semaphore(10)
+
+def log_outbound_message(wamid: str, phone: str, msg_type: str, msg_body: str):
+    if not wamid: return
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO whatsapp_messages 
+            (whatsapp_message_id, phone_number, direction, message_type, message_body, status, timestamp)
+            VALUES (%s, %s, 'outbound', %s, %s, 'queued', NOW())
+            ON DUPLICATE KEY UPDATE
+                message_type = VALUES(message_type),
+                message_body = VALUES(message_body)
+        """, (wamid, phone, msg_type, msg_body))
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to log outbound message content: {e}")
+    finally:
+        conn.close()
+
 
 async def send_whatsapp_template(to_number: str, template_name: str, variables: list[str]):
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
@@ -42,6 +63,11 @@ async def send_whatsapp_template(to_number: str, template_name: str, variables: 
         try:
             response = await http_client.post(WA_URL, json=payload, headers=headers)
             response.raise_for_status()
+            res_data = response.json()
+            if "messages" in res_data:
+                wamid = res_data["messages"][0]["id"]
+                log_outbound_message(wamid, to_number, "template", f"{template_name} {variables}")
+                
             logger.info(f"Template '{template_name}' sent to {to_number}")
             return {"status": "success"}
         except httpx.HTTPStatusError as e:
@@ -66,6 +92,11 @@ async def send_whatsapp_text(to_number: str, text_message: str):
         try:
             response = await http_client.post(WA_URL, json=payload, headers=headers)
             response.raise_for_status()
+            res_data = response.json()
+            if "messages" in res_data:
+                wamid = res_data["messages"][0]["id"]
+                log_outbound_message(wamid, to_number, "text", text_message)
+                
             return {"status": "success"}
         except httpx.HTTPStatusError as e:
             logger.error(f"WhatsApp Text Error: {e.response.text}")
@@ -76,7 +107,6 @@ async def send_whatsapp_text(to_number: str, text_message: str):
 
 
 async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, buttons: list[dict[str, str]]):
-    """Sends a message with up to 3 clickable buttons."""
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
     
     action_buttons = [
@@ -102,6 +132,11 @@ async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, butt
         try:
             response = await http_client.post(WA_URL, json=payload, headers=headers)
             response.raise_for_status()
+            res_data = response.json()
+            if "messages" in res_data:
+                wamid = res_data["messages"][0]["id"]
+                log_outbound_message(wamid, to_number, "interactive", body_text)
+                
             logger.info(f"Interactive buttons sent to {to_number}")
             return {"status": "success"}
         except httpx.HTTPStatusError as e:
@@ -120,10 +155,6 @@ async def send_whatsapp_media(
     caption: Optional[str] = None,
     filename: Optional[str] = None
 ):
-    """
-    Sends media (image, audio, video, document, sticker) to a user.
-    Provide either a public 'media_link' OR a Meta-hosted 'media_id'.
-    """
     if not media_link and not media_id:
         logger.error("Failed to send media: Must provide either media_link or media_id")
         return {"status": "error", "detail": "Missing media source"}
@@ -159,6 +190,11 @@ async def send_whatsapp_media(
         try:
             response = await http_client.post(WA_URL, json=payload, headers=headers)
             response.raise_for_status()
+            res_data = response.json()
+            if "messages" in res_data:
+                wamid = res_data["messages"][0]["id"]
+                log_outbound_message(wamid, to_number, media_type, caption or media_link or media_id)
+                
             logger.info(f"Media ({media_type}) sent to {to_number}")
             return {"status": "success"}
         except httpx.HTTPStatusError as e:
@@ -170,7 +206,6 @@ async def send_whatsapp_media(
 
 
 async def get_whatsapp_media_url(media_id: str) -> str | None:
-    """Asks Meta for the secure download URL of a media file."""
     url = f"https://graph.facebook.com/v23.0/{media_id}"
     headers = {"Authorization": f"Bearer {WA_TOKEN}"}
     
@@ -198,7 +233,6 @@ async def download_whatsapp_media(media_url: str) -> bytes | None:
         
 
 async def upload_whatsapp_media(file_bytes: bytes, mime_type: str, filename: str) -> str | None:
-    """Uploads a local file to Meta's servers and returns the secure media_id."""
     url = f"https://graph.facebook.com/v23.0/{WA_PHONE_ID}/media"
     headers = {"Authorization": f"Bearer {WA_TOKEN}"}
     
@@ -224,7 +258,6 @@ async def upload_whatsapp_media(file_bytes: bytes, mime_type: str, filename: str
             return None
 
 async def send_policy_consent_prompt(to_number: str):
-    """Sends the mandatory Terms and Privacy Policy update with Yes/No buttons."""
     body_text = (
         "*SideNote Update:*\n\n"
         "Our Terms and Privacy Policy have been updated.\n\n"
