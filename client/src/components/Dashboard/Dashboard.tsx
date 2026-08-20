@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import axios from 'axios';
 import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
@@ -18,12 +18,16 @@ export default function Dashboard() {
   const { totals, recent: transactions, categories, prediction, insights } = useLoaderData({ from: '/_auth/dashboard' });
   
   // Calculate Stats
-  const stats = { income: 0, expense: 0, balance: 0 };
-  totals.forEach((t: any) => {
-    if (t.type === 'income') stats.income = Number(t.total);
-    if (t.type === 'expense') stats.expense = Number(t.total);
-  });
-  stats.balance = stats.income - stats.expense;
+  // ⚡ Bolt: Memoize stats calculation to prevent unnecessary recalculation on local state changes (e.g., toast, isSubmitting)
+  const stats = useMemo(() => {
+    const calculated = { income: 0, expense: 0, balance: 0 };
+    totals.forEach((t: any) => {
+      if (t.type === 'income') calculated.income = Number(t.total);
+      if (t.type === 'expense') calculated.expense = Number(t.total);
+    });
+    calculated.balance = calculated.income - calculated.expense;
+    return calculated;
+  }, [totals]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
