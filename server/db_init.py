@@ -336,7 +336,7 @@ def initialize_database():
                 amount DECIMAL(10,2) NOT NULL,
                 description VARCHAR(255),
                 logged_by INT NOT NULL,
-                split_type ENUM('equal', 'subset', 'percentage', 'ratio') DEFAULT 'equal',
+                split_type VARCHAR(50) DEFAULT 'equal',
                 split_data JSON,
                 logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 category_id INT,
@@ -417,12 +417,6 @@ def initialize_database():
         logger.info(f"Executing {len(queries)} table creation queries...")
         for query in queries:
             cursor.execute(query)
-        try:
-            cursor.execute("ALTER TABLE group_transactions ADD COLUMN category_id INT;")
-            cursor.execute("ALTER TABLE group_transactions ADD FOREIGN KEY (category_id) REFERENCES global_categories(id) ON DELETE SET NULL;")
-            logger.info("Successfully migrated group_transactions to use category_id.")
-        except Exception as e:
-            pass
             
         conn.commit()
         logger.info("Database schema successfully validated and initialized.")

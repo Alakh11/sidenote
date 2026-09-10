@@ -263,6 +263,9 @@ def update_group_transaction(tx_id: int, payload: GroupTransactionUpdate, user_i
         
         conn.commit()
         return {"message": "Transaction updated successfully"}
+        
+    except HTTPException:
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
