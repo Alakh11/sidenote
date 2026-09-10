@@ -309,11 +309,37 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                     await send_whatsapp_text(phone, f"❌ {str(e)}")
                     return True
                 
+                cursor.execute("SELECT id, name, keywords FROM global_categories WHERE type = 'expense'")
+                global_cats = cursor.fetchall()
+                
+                category_id = None
+                desc_lower = desc.lower()
+                
+                for gc in global_cats:
+                    c_name = gc['name'].lower()
+                    c_keys = gc['keywords'].lower() if gc['keywords'] else ""
+                    
+                    aliases = [c_name]
+                    if "&" in c_name: 
+                        aliases.extend([a.strip() for a in c_name.split("&")])
+                    if c_keys and c_keys != 'none': 
+                        aliases.extend([k.strip() for k in c_keys.split(',')])
+                        
+                    if any(re.search(rf'\b{re.escape(alias)}\b', desc_lower) for alias in aliases):
+                        category_id = gc['id']
+                        break
+                        
+                if not category_id:
+                    cursor.execute("SELECT id FROM global_categories WHERE name = 'Misc Expenses' LIMIT 1")
+                    def_cat = cursor.fetchone()
+                    if def_cat: category_id = def_cat['id']
+
                 details_json = json.dumps(shares)
+                
                 cursor.execute("""
-                    INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, split_details)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (group['id'], amount, desc, user_id, split_type, details_json))
+                    INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, split_details, category_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (group['id'], amount, desc, user_id, split_type, details_json, category_id))
                 
                 conn.commit()
                 

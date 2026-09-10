@@ -28,9 +28,11 @@ async def handle_group_search_command(phone: str, group_alias: str, query: str) 
             search_term = f"%{query.lower()}%"
             cursor.execute("""
                 SELECT gt.id, gt.amount, gt.description, DATE(gt.logged_at) as date, 
-                       u.name as logged_by_name, gt.logged_by as paid_by_user_id
+                       u.name as logged_by_name, gt.logged_by as paid_by_user_id,
+                       gc.icon as category_icon
                 FROM group_transactions gt
                 JOIN users u ON u.id = gt.logged_by
+                LEFT JOIN global_categories gc ON gt.category_id = gc.id
                 WHERE gt.group_id = %s AND LOWER(gt.description) LIKE %s
                 ORDER BY gt.logged_at DESC LIMIT 15
             """, (group['id'], search_term))
@@ -47,7 +49,8 @@ async def handle_group_search_command(phone: str, group_alias: str, query: str) 
             msg_lines.append(f"Group: {group['name']}\n")
             
             for r in rows:
-                msg_lines.append(f"• ₹{float(r['amount']):g} - {r['description']}")
+                icon = r['category_icon'] or "🏷️"
+                msg_lines.append(f"• {icon} ₹{float(r['amount']):g} - {r['description']}")
                 msg_lines.append(f"  _(by {r['logged_by_name']} on {r['date'].strftime('%b %d')})_")
                 
                 if r['paid_by_user_id'] == user_id and r['date'] == datetime.now().date():

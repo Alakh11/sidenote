@@ -53,18 +53,8 @@ const groupTransactionsByDate = (transactions: Transaction[]) => {
 const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
 
 export default function GroupFeed({ 
-  transactions, 
-  group, 
-  currentUserId, 
-  page, 
-  setPage,
-  limit,
-  onLimitChange,
-  hasMore, 
-  onLogTransaction,
-   onEditTransaction,
-  onDeleteTransaction,
-  actualMemberCount
+  transactions, group, currentUserId, page, setPage, limit, onLimitChange, 
+  hasMore, onLogTransaction, onEditTransaction, onDeleteTransaction, actualMemberCount
 }: GroupFeedProps) {
   const { currency } = usePreferences();
   const groupedTxns = groupTransactionsByDate(transactions || []);
@@ -92,10 +82,18 @@ export default function GroupFeed({
     <div className="space-y-8 pb-24 animate-in fade-in duration-500">
       {Object.entries(groupedTxns).map(([dateLabel, txns]) => (
         <div key={dateLabel}>
-          <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-3 tracking-widest uppercase sticky top-0 bg-slate-50/90 dark:bg-[#121212]/90 backdrop-blur-md py-2 z-10">{dateLabel}</h3>
+          <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-3 tracking-widest uppercase sticky top-0 bg-slate-50/90 dark:bg-[#121212]/90 backdrop-blur-md py-2 z-10">
+            {dateLabel}
+          </h3>
+          
           <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 shadow-sm overflow-hidden">
             {txns.map((t, index) => (
-              <div key={t.id} className={`group relative p-4 transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${index !== txns.length - 1 ? 'border-b border-stone-100 dark:border-white/5' : ''}`}>
+              <div 
+                key={t.id} 
+                className={`group p-4 transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${
+                  index !== txns.length - 1 ? 'border-b border-stone-100 dark:border-white/5' : ''
+                }`}
+              >
                 <div className="flex justify-between items-start">
                   
                   <div className="flex gap-4">
@@ -122,61 +120,64 @@ export default function GroupFeed({
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-1 relative">
+                  <div className="flex flex-col items-end gap-1 shrink-0">
                     <div className="font-black text-slate-900 dark:text-white text-lg tracking-tight">
                       {currency}{t.amount.toLocaleString()}
                     </div>
-                    
-                    {t.paid_by_user_id === currentUserId && (
-                      <div className="absolute -top-1 -right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all">
-                        <button 
-                          onClick={() => onEditTransaction(t)}
-                          className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors"
-                          title="Edit Transaction"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        {onDeleteTransaction && (
-                          <button 
-                            onClick={() => onDeleteTransaction(t.id)}
-                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors"
-                            title="Delete Transaction"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {isSplit && (
-                  <div className="flex flex-wrap gap-2 mt-3 ml-16">
-                    {t.split_type === 'percentage' ? (
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                          <Percent size={10} /> Percentage
-                      </div>
-                    ) : t.split_type === 'exact' ? (
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                          Exact
-                      </div>
-                    ) : t.split_type === 'ratio' ? (
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                          Ratio
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                        <Divide size={10} /> Equal · {actualMemberCount}
-                      </div>
-                    )}
-                    
-                    {t.paid_by_user_id !== currentUserId && t.split_type === 'equal' && (
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-900/30 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                        You owe {currency}{Math.round(t.amount / (actualMemberCount || 1)).toLocaleString()}
-                      </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 ml-16">
+                  <div className="flex flex-wrap gap-2">
+                    {isSplit && (
+                      <>
+                        {t.split_type === 'percentage' ? (
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                              <Percent size={10} /> Percentage
+                          </div>
+                        ) : t.split_type === 'exact' ? (
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                              Exact
+                          </div>
+                        ) : t.split_type === 'ratio' ? (
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                              Ratio
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                            <Divide size={10} /> Equal · {actualMemberCount}
+                          </div>
+                        )}
+                        
+                        {t.paid_by_user_id !== currentUserId && t.split_type === 'equal' && (
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-900/30 px-2.5 py-1 rounded-md uppercase tracking-wider">
+                            You owe {currency}{Math.round(t.amount / (actualMemberCount || 1)).toLocaleString()}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
-                )}
+
+                  {t.paid_by_user_id === currentUserId && (
+                    <div className="flex items-center gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => onEditTransaction(t)}
+                        className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 dark:bg-white/5 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg uppercase tracking-wider transition-colors active:scale-95"
+                      >
+                        <Edit2 size={12} /> Edit
+                      </button>
+                      {onDeleteTransaction && (
+                        <button 
+                          onClick={() => onDeleteTransaction(t.id)}
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 dark:bg-white/5 dark:hover:bg-rose-900/20 px-3 py-1.5 rounded-lg uppercase tracking-wider transition-colors active:scale-95"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                </div>
               </div>
             ))}
           </div>
@@ -185,7 +186,6 @@ export default function GroupFeed({
 
       {transactions?.length > 0 && (
         <div className="flex justify-between items-center mt-6 pt-4 border-t border-stone-100 dark:border-white/5">
-          
           <div className="flex items-center gap-2">
             <button 
               disabled={page === 1} 
@@ -220,7 +220,6 @@ export default function GroupFeed({
                 <span className="hidden sm:inline">per page</span>
              </div>
           </div>
-
         </div>
       )}
 

@@ -32,8 +32,8 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
   
   transactions.forEach((t) => {
     const amount = typeof t.amount === 'string' ? parseFloat(t.amount) : t.amount;
-    const catName = t.category || 'General';
-    const catIcon = t.category_icon || '🏷️';
+    const catName = t.category || 'Misc Expenses';
+    const catIcon = t.category_icon || '🧾'; 
     
     if (!categories[catName]) {
         categories[catName] = { amount: 0, icon: catIcon };
