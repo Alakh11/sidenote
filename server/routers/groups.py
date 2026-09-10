@@ -209,10 +209,10 @@ def get_group_transactions(
                 t.id, t.amount, t.description, t.logged_at as date, 
                 u.name as paid_by, t.logged_by as paid_by_user_id, 
                 t.split_type, t.split_details, t.payment_mode,
-                t.category_id, gc.name as category, gc.icon as category_icon
+                t.category_id, c.name as category, c.icon as category_icon
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
-            LEFT JOIN global_categories gc ON t.category_id = gc.id
+            LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.group_id = %s
             ORDER BY t.logged_at DESC
             LIMIT %s OFFSET %s

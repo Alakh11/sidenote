@@ -141,3 +141,47 @@ def log_bot_command(phone: str, command: str):
 async def send_delayed_message(phone: str, msg: str, delay: int = 10):
     await asyncio.sleep(delay)
     await send_whatsapp_text(phone, msg)
+    
+def match_category_from_text(cursor: Any, user_id: int, description: str, tx_type: str = 'expense') -> int:
+    cursor.execute("SELECT name, keywords, icon, color FROM global_categories WHERE type = %s", (tx_type,))
+    global_cats = cursor.fetchall()
+    
+    target_name = "Misc Expenses" if tx_type == "expense" else "Misc Income"
+    cat_icon = "🧾" if tx_type == "expense" else "💵"
+    cat_color = "#94A3B8" if tx_type == "expense" else "#10B981"
+    
+    desc_lower = description.lower()
+    
+    if global_cats:
+        for gc in global_cats:
+            gc_name = str(gc[0] if isinstance(gc, tuple) else gc['name'])
+            gc_keys = str(gc[1] if isinstance(gc, tuple) else gc['keywords'] or "")
+            gc_ico = str(gc[2] if isinstance(gc, tuple) else gc['icon'])
+            gc_col = str(gc[3] if isinstance(gc, tuple) else gc['color'])
+            
+            aliases = [gc_name.lower()]
+            if "&" in gc_name: aliases.extend([a.strip().lower() for a in gc_name.split("&")])
+            if gc_keys and gc_keys.lower() != 'none': 
+                aliases.extend([k.strip().lower() for k in gc_keys.split(',')])
+                
+            if any(re.search(rf'\b{re.escape(alias)}\b', desc_lower) for alias in aliases):
+                target_name = gc_name
+                cat_icon = gc_ico
+                cat_color = gc_col
+                break
+
+    cursor.execute("""
+        SELECT id FROM categories 
+        WHERE (user_id = %s OR user_id IS NULL) AND name = %s AND type = %s 
+        ORDER BY user_id DESC LIMIT 1
+    """, (user_id, target_name, tx_type))
+    cat_row = cursor.fetchone()
+    
+    if cat_row:
+        return int(cat_row[0] if isinstance(cat_row, tuple) else cat_row['id'])
+    else:
+        cursor.execute("""
+            INSERT INTO categories (user_id, name, type, icon, color, is_default) 
+            VALUES (%s, %s, %s, %s, %s, TRUE)
+        """, (user_id, target_name, tx_type, cat_icon, cat_color))
+        return cursor.lastrowid

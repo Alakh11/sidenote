@@ -5,7 +5,7 @@ import traceback
 from datetime import datetime, timedelta
 from database import get_db
 from whatsapp_service import send_whatsapp_text, send_whatsapp_interactive_buttons
-from whatsapp_handlers.bot_utils import get_user_id, db_semaphore
+from whatsapp_handlers.bot_utils import get_user_id, db_semaphore, match_category_from_text
 import json
 from whatsapp_handlers.groups_search import handle_group_search_command
 from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError
@@ -309,33 +309,15 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                     await send_whatsapp_text(phone, f"❌ {str(e)}")
                     return True
                 
-                cursor.execute("SELECT id, name, keywords FROM global_categories WHERE type = 'expense'")
-                global_cats = cursor.fetchall()
+                try:
+                    desc, split_type, shares = parse_and_compute_split(amount, remaining_text, members, user_id)
+                except SplitError as e:
+                    await send_whatsapp_text(phone, f"❌ {str(e)}")
+                    return True
                 
-                category_id = None
-                desc_lower = desc.lower()
-                
-                for gc in global_cats:
-                    c_name = gc['name'].lower()
-                    c_keys = gc['keywords'].lower() if gc['keywords'] else ""
-                    
-                    aliases = [c_name]
-                    if "&" in c_name: 
-                        aliases.extend([a.strip() for a in c_name.split("&")])
-                    if c_keys and c_keys != 'none': 
-                        aliases.extend([k.strip() for k in c_keys.split(',')])
-                        
-                    if any(re.search(rf'\b{re.escape(alias)}\b', desc_lower) for alias in aliases):
-                        category_id = gc['id']
-                        break
-                        
-                if not category_id:
-                    cursor.execute("SELECT id FROM global_categories WHERE name = 'Misc Expenses' LIMIT 1")
-                    def_cat = cursor.fetchone()
-                    if def_cat: category_id = def_cat['id']
+                category_id = match_category_from_text(cursor, user_id, desc, 'expense')
 
                 details_json = json.dumps(shares)
-                
                 cursor.execute("""
                     INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, split_details, category_id)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
