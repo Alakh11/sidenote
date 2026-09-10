@@ -344,7 +344,7 @@ def initialize_database():
                 split_details JSON,
                 FOREIGN KEY (group_id) REFERENCES expense_groups(id) ON DELETE CASCADE,
                 FOREIGN KEY (logged_by) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY (category_id) REFERENCES global_categories(id) ON DELETE SET NULL
+                FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
             """
