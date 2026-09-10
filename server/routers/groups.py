@@ -187,18 +187,31 @@ def get_user_groups(user_id: int):
         conn.close()
 
 @router.get("/groups/{group_id}/transactions")
-def get_group_transactions(group_id: int):
+def get_group_transactions(
+    group_id: int, 
+    page: int = Query(1, ge=1), 
+    limit: int = Query(15, ge=1, le=100)
+):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        offset = (page - 1) * limit
+        
         cursor.execute("""
-            SELECT t.id, t.amount, t.description, t.logged_at as date, u.name as paid_by, t.logged_by as paid_by_user_id, t.split_type
+            SELECT 
+                t.id, t.amount, t.description, t.logged_at as date, 
+                u.name as paid_by, t.logged_by as paid_by_user_id, 
+                t.split_type, t.category
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
             WHERE t.group_id = %s
             ORDER BY t.logged_at DESC
-        """, (group_id,))
+            LIMIT %s OFFSET %s
+        """, (group_id, limit, offset))
+        
         return cursor.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
 

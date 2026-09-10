@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Users, X, Settings, Edit2, LogOut, MessageCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Users, X, Settings, Edit2, LogOut, MessageCircle, AlertTriangle, CheckCircle2, ChevronLeft, Plus, RefreshCw } from 'lucide-react';
 import GroupHeader from '../Groups/components/GroupHeader';
 import GroupTabs from '../Groups/components/GroupsTab';
 import GroupFeed from '../Groups/components/GroupFeed';
@@ -48,10 +48,10 @@ export default function GroupDashboard() {
   // Custom Action Modals
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, actionText: string, isDanger: boolean, onConfirm: () => void } | null>(null);
   const [promptModal, setPromptModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: (val: string) => void } | null>(null);
-  const [promptInputValue, setPromptInputValue] = useState(""); // Fixed DOM Manipulation
+  const [promptInputValue, setPromptInputValue] = useState(""); 
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean, message: string } | null>(null);
   
-  // Settle Up Modal (Removes hardcoded UPI)
+  // Settle Up Modal
   const [settleModal, setSettleModal] = useState<{ isOpen: boolean, targetName: string, targetId: number, amount: number } | null>(null);
   const [settlePaymentMode, setSettlePaymentMode] = useState('UPI');
 
@@ -65,12 +65,10 @@ export default function GroupDashboard() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Queries
-  const { data: groups, isLoading: groupsLoading } = useQuery({
+  const { data: groups, isLoading: groupsLoading, isError: isGroupsError, refetch: refetchGroups } = useQuery({
     queryKey: ['groups', user.id],
     queryFn: async () => {
       const res = await axios.get(`${API_URL}/users/${user.id}/groups`);
-      if (res.data.length > 0 && !selectedGroupId) setSelectedGroupId(res.data[0].id);
       return res.data;
     }
   });
@@ -131,7 +129,7 @@ export default function GroupDashboard() {
     const targetUser = members?.find((m: Member) => m.name === targetName || m.nickname === targetName);
     if(!targetUser) return setAlertModal({ isOpen: true, message: "Could not find member details." });
     
-    setSettlePaymentMode('UPI'); // Reset to default
+    setSettlePaymentMode('UPI');
     setSettleModal({ isOpen: true, targetName, targetId: targetUser.id, amount: settleAmount });
   };
 
@@ -272,22 +270,36 @@ export default function GroupDashboard() {
     }
   };
 
-  if (groupsLoading) return <div className="p-8 text-center text-slate-500 animate-pulse">Loading groups...</div>;
-  if (!groups || groups.length === 0) {
-    return (
-      <div className="bg-white dark:bg-[#1a1a1a] p-8 rounded-[2rem] border border-stone-50 dark:border-white/5 text-center shadow-sm">
-        <Users className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No Groups Yet</h3>
-      </div>
-    );
-  }
-
   const groupAlias = selectedGroup ? selectedGroup.name.split(' ')[0].toLowerCase() : '';
   const waCommand = `@${groupAlias} ${amount || '100'} ${description || 'coffee'}`;
   const waLink = `https://wa.me/918796022992?text=${encodeURIComponent(waCommand)}`;
 
+  if (groupsLoading) {
+    return (
+      <div className="max-w-3xl mx-auto w-full space-y-4 animate-pulse">
+        <div className="h-10 w-48 bg-slate-200 dark:bg-white/10 rounded-xl mb-8"></div>
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-24 bg-slate-100 dark:bg-white/5 rounded-3xl w-full"></div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isGroupsError) {
+    return (
+      <div className="max-w-3xl mx-auto w-full flex flex-col items-center justify-center py-20 animate-in fade-in">
+        <AlertTriangle className="w-12 h-12 text-rose-500 mb-4" />
+        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Connection Error</h3>
+        <p className="text-slate-500 dark:text-slate-400 mb-6 text-center">We couldn't load your groups. Please check your internet connection.</p>
+        <button onClick={() => refetchGroups()} className="flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-800 dark:text-white font-bold rounded-xl transition-colors">
+          <RefreshCw size={18} /> Try Again
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col lg:flex-row gap-8">
+    <div className="max-w-3xl mx-auto w-full pb-24">
       
       {/* Custom Reusable Modals */}
       {confirmModal?.isOpen && (
@@ -323,7 +335,6 @@ export default function GroupDashboard() {
         </div>
       )}
 
-      {/* Settle Up Modal */}
       {settleModal?.isOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1a1a1a] rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -360,72 +371,104 @@ export default function GroupDashboard() {
         </div>
       )}
 
-      {/* Sidebar */}
-      <div className="w-full lg:w-1/3 flex flex-col gap-4">
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white px-2">Shared Ledgers</h3>
-        <div className="flex flex-col gap-3">
-          {groups.map((g: Group) => (
-            <button
-              key={g.id}
-              onClick={() => { setSelectedGroupId(g.id); setActiveTab('feed'); setPage(1); }}
-              className={`p-5 rounded-2xl border text-left transition-all ${
-                selectedGroupId === g.id 
-                ? 'bg-blue-50 border-blue-200 dark:bg-white/10 dark:border-white/20 shadow-sm' 
-                : 'bg-white border-stone-100 hover:border-stone-200 dark:bg-[#1a1a1a] dark:border-white/5 shadow-sm hover:shadow-md'
-              }`}
-            >
-              <div className="font-bold text-slate-800 dark:text-white">{g.name}</div>
+      {!selectedGroupId ? (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex justify-between items-center mb-6 px-2">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">My Groups</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Manage your shared expenses</p>
+            </div>
+            <button className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:text-blue-400 px-4 py-2.5 rounded-full font-bold text-sm transition-colors shadow-sm">
+              <Plus size={18} /> New
             </button>
-          ))}
+          </div>
+
+          {!groups || groups.length === 0 ? (
+            <div className="bg-white dark:bg-[#1a1a1a] p-10 rounded-[2rem] border border-stone-100 dark:border-white/5 text-center shadow-sm mt-4">
+              <Users className="w-16 h-16 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No Groups Yet</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Create a group or ask a friend for an invite code.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {groups.map((g: Group) => (
+                <button
+                  key={g.id}
+                  onClick={() => { setSelectedGroupId(g.id); setActiveTab('feed'); setPage(1); }}
+                  className="flex items-center justify-between p-5 rounded-3xl bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 shadow-sm hover:shadow-md hover:border-blue-100 dark:hover:border-white/10 transition-all group text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-slate-50 dark:bg-white/5 flex items-center justify-center text-xl shadow-inner group-hover:scale-105 transition-transform">
+                      {g.type === 'family' ? '🏡' : g.type === 'split' ? '✂️' : '👥'}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{g.name}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 capitalize">{g.type} • {g.max_members} limit</p>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    <ChevronLeft size={20} className="rotate-180" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
 
-      {/* Main Content */}
-      {selectedGroup && (
-        <div className="w-full lg:w-2/3 bg-slate-50 dark:bg-[#121212] rounded-[2rem] border border-stone-100 dark:border-white/5 p-6 md:p-8 flex flex-col min-h-[600px] relative shadow-sm">
+        <div className="bg-slate-50 dark:bg-[#121212] rounded-[2.5rem] border border-stone-100 dark:border-white/5 p-4 sm:p-8 flex flex-col min-h-[600px] relative shadow-sm animate-in slide-in-from-right-4 duration-300">
           
-          <div className="relative w-full">
-            <div className="absolute top-0 right-0 z-10">
-              <button 
-                onClick={() => setIsSettingsOpen(true)}
-                className="p-2.5 bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/10 rounded-full text-slate-400 hover:text-slate-800 dark:hover:text-white shadow-sm transition-all hover:scale-105"
-              >
-                <Settings size={18} />
-              </button>
-            </div>
-            
-            <div className="pr-14">
-              <GroupHeader group={selectedGroup} settlements={settlements} totalSpend={settlements?.total_spend || 0} members={members} currentUserName={user.name} />
-            </div>
-          </div>
+          <div className="flex justify-between items-center mb-6">
+            <button 
+              onClick={() => setSelectedGroupId(null)}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-bold text-sm bg-white dark:bg-white/5 px-4 py-2 rounded-full border border-stone-200 dark:border-white/10 shadow-sm transition-colors"
+            >
+              <ChevronLeft size={16} /> Back
+            </button>
 
-          <GroupTabs activeTab={activeTab} setActiveTab={setActiveTab} isSplit={selectedGroup.type === 'split'} />
-
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-            {activeTab === 'feed' && (
-              txLoading ? <FeedSkeleton /> : 
-              <GroupFeed 
-                transactions={txData} 
-                group={selectedGroup} 
-                currentUserId={user.id} 
-                page={page} 
-                setPage={setPage} 
-                hasMore={txData?.length === limit} 
-                onLogTransaction={() => setIsLogModalOpen(true)} 
-                onDeleteTransaction={handleDeleteTransaction}
-                actualMemberCount={members?.length || 1} 
-              />
-            )}
-            {activeTab === 'balances' && (settlementsLoading ? <BalancesSkeleton /> : <GroupBalances settlements={settlements} currentUserName={user.name} onSettle={handleSettleUpClick} />)}
-            {activeTab === 'members' && (membersLoading ? <BalancesSkeleton /> : <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />)}
-            {activeTab === 'summary' && !txLoading && <GroupSummary transactions={txData} />}
+            <button 
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2.5 bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/10 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white shadow-sm transition-all hover:scale-105"
+            >
+              <Settings size={18} />
+            </button>
           </div>
+          
+          {selectedGroup && (
+            <>
+              <div className="mb-2">
+                <GroupHeader group={selectedGroup} settlements={settlements} totalSpend={settlements?.total_spend || 0} members={members} currentUserName={user.name} />
+              </div>
+
+              <GroupTabs activeTab={activeTab} setActiveTab={setActiveTab} isSplit={selectedGroup.type === 'split'} />
+
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                {activeTab === 'feed' && (
+                  txLoading ? <FeedSkeleton /> : 
+                  <GroupFeed 
+                    transactions={txData} 
+                    group={selectedGroup} 
+                    currentUserId={user.id} 
+                    page={page} 
+                    setPage={setPage} 
+                    hasMore={txData?.length === limit} 
+                    onLogTransaction={() => setIsLogModalOpen(true)} 
+                    onDeleteTransaction={handleDeleteTransaction}
+                    actualMemberCount={members?.length || 1} 
+                  />
+                )}
+                {activeTab === 'balances' && (settlementsLoading ? <BalancesSkeleton /> : <GroupBalances settlements={settlements} currentUserName={user.name} onSettle={handleSettleUpClick} />)}
+                {activeTab === 'members' && (membersLoading ? <BalancesSkeleton /> : <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />)}
+                {activeTab === 'summary' && !txLoading && <GroupSummary transactions={txData} />}
+              </div>
+            </>
+          )}
 
           {/* Web Logging Form Modal */}
-          {isLogModalOpen && (
+          {isLogModalOpen && selectedGroup && (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-[#1a1a1a] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                <div className="px-6 py-4 flex justify-between items-center border-b border-stone-100 dark:border-white/5 shrink-0">
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-300 flex flex-col max-h-[90vh]">
+                <div className="px-6 py-5 flex justify-between items-center border-b border-stone-100 dark:border-white/5 shrink-0">
                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">Add Expense</h3>
                   <button onClick={() => setIsLogModalOpen(false)} className="p-2 bg-slate-50 dark:bg-white/5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
                     <X size={16} />
@@ -561,30 +604,30 @@ export default function GroupDashboard() {
           )}
 
           {/* Group Settings Modal */}
-          {isSettingsOpen && (
+          {isSettingsOpen && selectedGroup && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-[#1e1e1e] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+              <div className="bg-white dark:bg-[#1e1e1e] rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
                 
-                <div className="px-6 py-4 border-b border-stone-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-white/5">
+                <div className="px-6 py-5 border-b border-stone-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-white/5">
                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">Group Settings</h3>
                   <button onClick={() => setIsSettingsOpen(false)} className="p-2 bg-white dark:bg-white/10 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
                     <X size={16} />
                   </button>
                 </div>
                 
-                <div className="p-3">
-                  <div className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">General</div>
-                  <button onClick={() => { setIsSettingsOpen(false); handleRenameGroup(); }} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-700 dark:text-slate-200 font-medium text-left">
+                <div className="p-4">
+                  <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">General</div>
+                  <button onClick={() => { setIsSettingsOpen(false); handleRenameGroup(); }} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-700 dark:text-slate-200 font-medium text-left">
                     <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl"><Edit2 size={18} /></div>
                     Rename Group
                   </button>
-                  <button onClick={() => { setActiveTab('members'); setIsSettingsOpen(false); }} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-700 dark:text-slate-200 font-medium text-left mt-1">
+                  <button onClick={() => { setActiveTab('members'); setIsSettingsOpen(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-700 dark:text-slate-200 font-medium text-left mt-2">
                     <div className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Users size={18} /></div>
                     Manage Members & Invites
                   </button>
                   
-                  <div className="px-4 py-2 mt-4 text-xs font-bold text-rose-400/70 uppercase tracking-wider">Danger Zone</div>
-                  <button onClick={() => { setIsSettingsOpen(false); handleLeaveGroup(); }} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-2xl transition-colors text-rose-600 dark:text-rose-500 font-bold text-left">
+                  <div className="px-4 py-2 mt-6 text-[10px] font-bold text-rose-400/70 uppercase tracking-wider mb-2">Danger Zone</div>
+                  <button onClick={() => { setIsSettingsOpen(false); handleLeaveGroup(); }} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-2xl transition-colors text-rose-600 dark:text-rose-500 font-bold text-left">
                     <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl"><LogOut size={18} /></div>
                     Leave Group
                   </button>
