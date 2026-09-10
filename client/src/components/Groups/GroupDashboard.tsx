@@ -9,7 +9,7 @@ import GroupFeed from '../Groups/components/GroupFeed';
 import GroupSummary from '../Groups/components/GroupSummary';
 import GroupBalances from '../Groups/components/GroupBalances';
 import GroupMembers from '../Groups/components/GroupMembers';
-import { FeedSkeleton, BalancesSkeleton } from '../Groups/components/GroupSkeletons';
+import { FeedSkeleton, BalancesSkeleton, SummarySkeleton, MembersSkeleton } from '../Groups/components/GroupSkeletons';
 import { usePreferences } from '../../context/PreferencesContext';
 
 export interface Group {
@@ -491,11 +491,21 @@ export default function GroupDashboard() {
                     actualMemberCount={members?.length || 1} 
                   />
                 )}
-                {activeTab === 'balances' && (settlementsLoading ? <BalancesSkeleton /> : <GroupBalances settlements={settlements} currentUserName={user.name} onSettle={handleSettleUpClick} />)}
-                {activeTab === 'members' && (membersLoading ? <BalancesSkeleton /> : <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />)}
-                {activeTab === 'summary' && !txLoading && (
-                 <GroupSummary transactions={txData} />
+                {activeTab === 'balances' && (
+                  settlementsLoading ? <BalancesSkeleton /> : 
+                  <GroupBalances settlements={settlements} currentUserName={user.name} onSettle={handleSettleUpClick} />
                 )}
+
+                {activeTab === 'members' && (
+                  membersLoading ? <MembersSkeleton /> : 
+                  <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />
+                )}
+
+                {activeTab === 'summary' && (
+                  txLoading ? <SummarySkeleton /> : 
+                  <GroupSummary transactions={txData} />
+                )}
+
               </div>
             </>
           )}
