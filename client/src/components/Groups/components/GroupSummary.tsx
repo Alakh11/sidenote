@@ -1,8 +1,11 @@
 import { usePreferences } from '../../../context/PreferencesContext';
 import { PieChart } from 'lucide-react';
+
 export interface SummaryTransaction {
   amount: number | string;
   description: string;
+  category?: string; 
+  category_icon?: string;
 }
 
 interface GroupSummaryProps {
@@ -25,18 +28,22 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
   }
 
   let totalSpend = 0;
-  const categories: Record<string, number> = {};
+  const categories: Record<string, { amount: number, icon: string }> = {};
   
   transactions.forEach((t) => {
     const amount = typeof t.amount === 'string' ? parseFloat(t.amount) : t.amount;
-    const cat = t.description.split(' ')[0];
-    const categoryName = cat.charAt(0).toUpperCase() + cat.slice(1);
+    const catName = t.category || 'General';
+    const catIcon = t.category_icon || '🏷️';
     
-    categories[categoryName] = (categories[categoryName] || 0) + amount;
+    if (!categories[catName]) {
+        categories[catName] = { amount: 0, icon: catIcon };
+    }
+    
+    categories[catName].amount += amount;
     totalSpend += amount;
   });
 
-  const sortedCategories = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+  const sortedCategories = Object.entries(categories).sort((a, b) => b[1].amount - a[1].amount);
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
@@ -45,8 +52,8 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
       </h3>
       
       <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 p-2 shadow-sm">
-        {sortedCategories.map(([cat, amount], index) => {
-          const percentage = totalSpend > 0 ? (amount / totalSpend) * 100 : 0;
+        {sortedCategories.map(([cat, data], index) => {
+          const percentage = totalSpend > 0 ? (data.amount / totalSpend) * 100 : 0;
           
           return (
             <div 
@@ -61,7 +68,7 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
               <div className="relative z-10 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <span className="text-xl drop-shadow-sm bg-white dark:bg-black/20 w-8 h-8 rounded-full flex items-center justify-center">
-                    {cat.toLowerCase() === 'groceries' ? '🛒' : cat.toLowerCase() === 'electricity' ? '⚡' : cat.toLowerCase() === 'food' ? '🍽️' : cat.toLowerCase() === 'fuel' ? '⛽' : '🏷️'}
+                    {data.icon}
                   </span>
                   <div>
                     <div className="font-bold text-slate-800 dark:text-white leading-tight">{cat}</div>
@@ -69,7 +76,7 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
                   </div>
                 </div>
                 <div className="font-black text-slate-800 dark:text-white tracking-tight">
-                  {currency}{amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {currency}{data.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
             </div>

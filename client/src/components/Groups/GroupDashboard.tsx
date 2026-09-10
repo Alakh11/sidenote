@@ -46,6 +46,7 @@ export default function GroupDashboard() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Custom Action Modals
+  const [editingTx, setEditingTx] = useState<any>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, actionText: string, isDanger: boolean, onConfirm: () => void } | null>(null);
   const [promptModal, setPromptModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: (val: string) => void } | null>(null);
   const [promptInputValue, setPromptInputValue] = useState(""); 
@@ -80,9 +81,10 @@ export default function GroupDashboard() {
     queryFn: async () => (await axios.get(`${API_URL}/categories/${user.id}`)).data
   });
 
-  const limit = 15;
+  const [limit, setLimit] = useState(15);
+  
   const { data: txData, isLoading: txLoading } = useQuery({
-    queryKey: ['group-transactions', selectedGroupId, page],
+    queryKey: ['group-transactions', selectedGroupId, page, limit],
     queryFn: async () => (await axios.get(`${API_URL}/groups/${selectedGroupId}/transactions?page=${page}&limit=${limit}`)).data,
     enabled: !!selectedGroupId && (activeTab === 'feed' || activeTab === 'summary'),
   });
@@ -151,6 +153,25 @@ export default function GroupDashboard() {
     } catch (err) {
       setAlertModal({ isOpen: true, message: "Failed to log settlement." });
     }
+  };
+  const handleEditTransaction = (tx: any) => {
+    setAmount(tx.amount.toString());
+    setDescription(tx.description);
+    setCategory(tx.category_id?.toString() || '');
+    setPaymentMode(tx.payment_mode || 'UPI');
+    setSplitType(tx.split_type);
+    
+    if (tx.split_details) {
+      const parsedDetails = typeof tx.split_details === 'string' ? JSON.parse(tx.split_details) : tx.split_details;
+      setSplitDetails(parsedDetails);
+      if (tx.split_type === 'equal') setSelectedMembers(Object.keys(parsedDetails));
+    } else {
+      setSplitDetails({});
+      setSelectedMembers([]);
+    }
+
+    setEditingTx(tx);
+    setIsLogModalOpen(true);
   };
 
   const handleLeaveGroup = () => {
@@ -244,27 +265,34 @@ export default function GroupDashboard() {
 
     setIsSubmitting(true);
     try {
-      await axios.post(`${API_URL}/groups/${selectedGroupId}/transactions`, {
+      const payload = {
         amount: numericAmount,
         description,
         user_id: user.id,
-        category,
+        category_id: parseInt(category),
         payment_mode: paymentMode,
         split_type: splitType,
         split_details: Object.keys(parsedSplitDetails).length > 0 ? parsedSplitDetails : null
-      });
+      };
+
+      if (editingTx) {
+        await axios.put(`${API_URL}/groups/transactions/${editingTx.id}?user_id=${user.id}`, payload);
+      } else {
+        await axios.post(`${API_URL}/groups/${selectedGroupId}/transactions`, payload);
+      }
       
       setAmount('');
       setDescription('');
       setCategory('');
       setSplitType('equal');
       setSplitDetails({});
+      setEditingTx(null);
       setIsLogModalOpen(false);
       
       queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
       queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
     } catch (err) {
-      setAlertModal({ isOpen: true, message: "Failed to log transaction. Ensure server is online." });
+      setAlertModal({ isOpen: true, message: "Failed to save transaction. Ensure server is online." });
     } finally {
       setIsSubmitting(false);
     }
@@ -451,15 +479,23 @@ export default function GroupDashboard() {
                     currentUserId={user.id} 
                     page={page} 
                     setPage={setPage} 
+                    limit={limit}
+                    onLimitChange={(newLimit) => {
+                        setLimit(newLimit); 
+                        setPage(1);
+                    }}
                     hasMore={txData?.length === limit} 
-                    onLogTransaction={() => setIsLogModalOpen(true)} 
+                    onLogTransaction={() => setIsLogModalOpen(true)}
+                    onEditTransaction={handleEditTransaction} 
                     onDeleteTransaction={handleDeleteTransaction}
                     actualMemberCount={members?.length || 1} 
                   />
                 )}
                 {activeTab === 'balances' && (settlementsLoading ? <BalancesSkeleton /> : <GroupBalances settlements={settlements} currentUserName={user.name} onSettle={handleSettleUpClick} />)}
                 {activeTab === 'members' && (membersLoading ? <BalancesSkeleton /> : <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />)}
-                {activeTab === 'summary' && !txLoading && <GroupSummary transactions={txData} />}
+                {activeTab === 'summary' && !txLoading && (
+                 <GroupSummary transactions={txData} />
+                )}
               </div>
             </>
           )}
@@ -498,7 +534,7 @@ export default function GroupDashboard() {
                         <select required value={category} onChange={(e) => setCategory(e.target.value)} className={`w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm font-medium outline-none focus:border-blue-500 appearance-none ${!category ? 'text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                           <option value="" disabled>Select category</option>
                           {globalCategories?.filter((c: any) => c.type === 'expense').map((c: any) => (
-                              <option key={c.id} value={c.name} className="text-slate-900 dark:text-white">{c.icon} {c.name}</option>
+                              <option key={c.id} value={c.id} className="text-slate-900 dark:text-white">{c.icon} {c.name}</option> 
                           ))}
                         </select>
                       </div>

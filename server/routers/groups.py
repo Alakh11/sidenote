@@ -13,9 +13,17 @@ class GroupTransactionCreate(BaseModel):
     amount: float
     description: str
     user_id: int
-    category: str = "general"
+    category_id: int 
     payment_mode: str = "upi"
     split_type: str = "equal"
+    split_details: Optional[Dict[str, float]] = None
+
+class GroupTransactionUpdate(BaseModel):
+    amount: float
+    description: str
+    category_id: int
+    payment_mode: str
+    split_type: str
     split_details: Optional[Dict[str, float]] = None
 
 def generate_invite_code():
@@ -196,19 +204,19 @@ def get_group_transactions(
     cursor = conn.cursor(dictionary=True)
     try:
         offset = (page - 1) * limit
-        
         cursor.execute("""
             SELECT 
                 t.id, t.amount, t.description, t.logged_at as date, 
                 u.name as paid_by, t.logged_by as paid_by_user_id, 
-                t.split_type, t.category
+                t.split_type, t.split_details, t.payment_mode,
+                t.category_id, gc.name as category, gc.icon as category_icon
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
+            LEFT JOIN global_categories gc ON t.category_id = gc.id
             WHERE t.group_id = %s
             ORDER BY t.logged_at DESC
             LIMIT %s OFFSET %s
         """, (group_id, limit, offset))
-        
         return cursor.fetchall()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -221,13 +229,40 @@ def create_group_transaction(group_id: int, payload: GroupTransactionCreate):
     cursor = conn.cursor()
     try:
         details_json = json.dumps(payload.split_details) if payload.split_details else None
-        
         cursor.execute("""
-            INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, category, payment_mode, split_details)
+            INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, category_id, payment_mode, split_details)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (group_id, payload.amount, payload.description, payload.user_id, payload.split_type, payload.category, payload.payment_mode, details_json))
+        """, (group_id, payload.amount, payload.description, payload.user_id, payload.split_type, payload.category_id, payload.payment_mode, details_json))
         conn.commit()
         return {"message": "Transaction logged successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.put("/groups/transactions/{tx_id}")
+def update_group_transaction(tx_id: int, payload: GroupTransactionUpdate, user_id: int = Query(...)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT logged_by FROM group_transactions WHERE id = %s", (tx_id,))
+        txn = cursor.fetchone()
+        if not txn: 
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        if txn['logged_by'] != user_id: 
+            raise HTTPException(status_code=403, detail="You can only edit your own transactions.")
+
+        details_json = json.dumps(payload.split_details) if payload.split_details else None
+        
+        cursor.execute("""
+            UPDATE group_transactions 
+            SET amount=%s, description=%s, category_id=%s, payment_mode=%s, split_type=%s, split_details=%s
+            WHERE id=%s
+        """, (payload.amount, payload.description, payload.category_id, payload.payment_mode, payload.split_type, details_json, tx_id))
+        
+        conn.commit()
+        return {"message": "Transaction updated successfully"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

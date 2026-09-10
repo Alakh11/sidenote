@@ -1,4 +1,4 @@
-import { Divide, Percent, ArrowUpRight, ChevronLeft, ChevronRight, Trash2, ReceiptText } from 'lucide-react';
+import { Divide, Percent, ArrowUpRight, ChevronLeft, ChevronRight, Trash2, ReceiptText, Edit2 } from 'lucide-react';
 import { usePreferences } from '../../../context/PreferencesContext';
 
 export interface Transaction {
@@ -9,7 +9,11 @@ export interface Transaction {
   paid_by: string;
   paid_by_user_id: number;
   split_type: string;
+  split_details?: any;
+  payment_mode?: string;
+  category_id?: number;
   category?: string;
+  category_icon?: string;
 }
 
 interface GroupFeedProps {
@@ -18,8 +22,11 @@ interface GroupFeedProps {
   currentUserId: number;
   page: number;
   setPage: (val: number | ((prev: number) => number)) => void;
+  limit: number;
+  onLimitChange: (limit: number) => void;
   hasMore: boolean;
   onLogTransaction: () => void;
+  onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction?: (txId: number) => void;
   actualMemberCount: number;
 }
@@ -50,9 +57,12 @@ export default function GroupFeed({
   group, 
   currentUserId, 
   page, 
-  setPage, 
+  setPage,
+  limit,
+  onLimitChange,
   hasMore, 
   onLogTransaction,
+   onEditTransaction,
   onDeleteTransaction,
   actualMemberCount
 }: GroupFeedProps) {
@@ -82,18 +92,10 @@ export default function GroupFeed({
     <div className="space-y-8 pb-24 animate-in fade-in duration-500">
       {Object.entries(groupedTxns).map(([dateLabel, txns]) => (
         <div key={dateLabel}>
-          <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-3 tracking-widest uppercase sticky top-0 bg-slate-50/90 dark:bg-[#121212]/90 backdrop-blur-md py-2 z-10">
-            {dateLabel}
-          </h3>
-          
+          <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-3 tracking-widest uppercase sticky top-0 bg-slate-50/90 dark:bg-[#121212]/90 backdrop-blur-md py-2 z-10">{dateLabel}</h3>
           <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 shadow-sm overflow-hidden">
             {txns.map((t, index) => (
-              <div 
-                key={t.id} 
-                className={`group relative p-4 transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${
-                  index !== txns.length - 1 ? 'border-b border-stone-100 dark:border-white/5' : ''
-                }`}
-              >
+              <div key={t.id} className={`group relative p-4 transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${index !== txns.length - 1 ? 'border-b border-stone-100 dark:border-white/5' : ''}`}>
                 <div className="flex justify-between items-start">
                   
                   <div className="flex gap-4">
@@ -112,8 +114,8 @@ export default function GroupFeed({
                           {new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {t.category && (
-                           <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-[9px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wider">
-                             {t.category}
+                           <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-[9px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wider flex items-center gap-1">
+                             {t.category_icon} {t.category}
                            </span>
                         )}
                       </div>
@@ -125,14 +127,25 @@ export default function GroupFeed({
                       {currency}{t.amount.toLocaleString()}
                     </div>
                     
-                    {t.paid_by_user_id === currentUserId && onDeleteTransaction && (
-                      <button 
-                        onClick={() => onDeleteTransaction(t.id)}
-                        className="absolute -top-1 -right-1 p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100"
-                        title="Delete Transaction"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                    {t.paid_by_user_id === currentUserId && (
+                      <div className="absolute -top-1 -right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all">
+                        <button 
+                          onClick={() => onEditTransaction(t)}
+                          className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors"
+                          title="Edit Transaction"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        {onDeleteTransaction && (
+                          <button 
+                            onClick={() => onDeleteTransaction(t.id)}
+                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors"
+                            title="Delete Transaction"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -172,21 +185,42 @@ export default function GroupFeed({
 
       {transactions?.length > 0 && (
         <div className="flex justify-between items-center mt-6 pt-4 border-t border-stone-100 dark:border-white/5">
-          <button 
-            disabled={page === 1} 
-            onClick={() => setPage((p: number) => Math.max(1, p - 1))}
-            className="p-2 rounded-xl bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors shadow-sm"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Page {page}</span>
-          <button 
-            disabled={!hasMore} 
-            onClick={() => setPage((p: number) => p + 1)}
-            className="p-2 rounded-xl bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors shadow-sm"
-          >
-            <ChevronRight size={20} />
-          </button>
+          
+          <div className="flex items-center gap-2">
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage((p: number) => Math.max(1, p - 1))}
+              className="p-2 rounded-xl bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors shadow-sm"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button 
+              disabled={!hasMore} 
+              onClick={() => setPage((p: number) => p + 1)}
+              className="p-2 rounded-xl bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors shadow-sm"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Page {page}</span>
+             <div className="flex items-center gap-2 text-xs text-slate-500 font-bold border-l border-stone-200 dark:border-slate-700 pl-3">
+                <select 
+                  value={limit} 
+                  onChange={(e) => onLimitChange(Number(e.target.value))} 
+                  className="bg-white dark:bg-[#1a1a1a] border border-stone-200 dark:border-slate-700 rounded-lg p-1 outline-none text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                </select>
+                <span className="hidden sm:inline">per page</span>
+             </div>
+          </div>
+
         </div>
       )}
 

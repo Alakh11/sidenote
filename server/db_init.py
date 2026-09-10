@@ -339,11 +339,12 @@ def initialize_database():
                 split_type ENUM('equal', 'subset', 'percentage', 'ratio') DEFAULT 'equal',
                 split_data JSON,
                 logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                category VARCHAR(50) DEFAULT 'general',
+                category_id INT,
                 payment_mode VARCHAR(50) DEFAULT 'upi',
                 split_details JSON,
                 FOREIGN KEY (group_id) REFERENCES expense_groups(id) ON DELETE CASCADE,
-                FOREIGN KEY (logged_by) REFERENCES users(id) ON DELETE CASCADE
+                FOREIGN KEY (logged_by) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (category_id) REFERENCES global_categories(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
             """
@@ -416,6 +417,12 @@ def initialize_database():
         logger.info(f"Executing {len(queries)} table creation queries...")
         for query in queries:
             cursor.execute(query)
+        try:
+            cursor.execute("ALTER TABLE group_transactions ADD COLUMN category_id INT;")
+            cursor.execute("ALTER TABLE group_transactions ADD FOREIGN KEY (category_id) REFERENCES global_categories(id) ON DELETE SET NULL;")
+            logger.info("Successfully migrated group_transactions to use category_id.")
+        except Exception as e:
+            pass
             
         conn.commit()
         logger.info("Database schema successfully validated and initialized.")
