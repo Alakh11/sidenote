@@ -304,11 +304,30 @@ export default function GroupDashboard() {
 
   if (groupsLoading) {
     return (
-      <div className="max-w-3xl mx-auto w-full space-y-4 animate-pulse">
-        <div className="h-10 w-48 bg-slate-200 dark:bg-white/10 rounded-xl mb-8"></div>
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-24 bg-slate-100 dark:bg-white/5 rounded-3xl w-full"></div>
-        ))}
+      <div className="max-w-3xl mx-auto w-full pb-24 animate-pulse">
+        <div className="flex justify-between items-center mb-6 px-2">
+          <div>
+            <div className="h-8 w-32 bg-slate-200 dark:bg-slate-800 rounded-lg mb-2"></div>
+            <div className="h-4 w-48 bg-slate-100 dark:bg-slate-800/50 rounded-lg"></div>
+          </div>
+          <div className="h-10 w-24 bg-slate-200 dark:bg-slate-800 rounded-full"></div>
+        </div>
+        
+        <div className="flex flex-col gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex items-center justify-between p-5 rounded-3xl bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-white/5 border border-stone-100 dark:border-white/5 shrink-0"></div>
+                <div className="space-y-2">
+                  <div className="h-5 w-32 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                  <div className="h-3 w-20 bg-slate-100 dark:bg-slate-800/50 rounded-lg"></div>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-white/5"></div>
+            </div>
+          ))}
+        </div>
+        
       </div>
     );
   }
