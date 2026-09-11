@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Bell } from 'lucide-react';
 import { usePreferences } from '../../../context/PreferencesContext';
 
 export interface Settlement {
@@ -11,11 +11,12 @@ interface GroupBalancesProps {
   settlements: { settlements: Settlement[] } | null;
   currentUserName: string;
   onSettle?: (targetName: string, settleAmount: number) => void;
+  onRemind?: (targetName: string, amount: number) => void;
 }
 
 const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
 
-export default function GroupBalances({ settlements, currentUserName, onSettle }: GroupBalancesProps) {
+export default function GroupBalances({ settlements, currentUserName, onSettle, onRemind }: GroupBalancesProps) {
   const { currency } = usePreferences();
 
   if (!settlements || settlements.settlements.length === 0) {
@@ -67,7 +68,7 @@ export default function GroupBalances({ settlements, currentUserName, onSettle }
                       <strong className="text-slate-900 dark:text-white">{isMeOwe ? 'You' : s.from}</strong> owes <strong className="text-slate-900 dark:text-white">{isMeOwed ? 'You' : s.to}</strong>
                     </span>
                     <span className="text-xs font-medium text-slate-500 mt-0.5 flex items-center gap-1">
-                      Pay now <ArrowRight size={10} />
+                      {isMeOwe ? <><ArrowRight size={10} className="text-rose-500" /> Pay now</> : <><CheckCircle2 size={10} className="text-emerald-500" /> To receive</>}
                     </span>
                   </div>
                 </div>
@@ -83,6 +84,14 @@ export default function GroupBalances({ settlements, currentUserName, onSettle }
                       className="text-xs font-bold bg-slate-900 hover:bg-black text-white dark:bg-white dark:hover:bg-slate-200 dark:text-slate-900 px-4 py-2 rounded-xl transition-all active:scale-95 shadow-sm"
                     >
                       Settle Up
+                    </button>
+                  )}
+                  {isMeOwed && onRemind && (
+                    <button 
+                      onClick={() => onRemind(s.from, s.amount)}
+                      className="flex items-center gap-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:text-blue-400 px-4 py-2 rounded-xl transition-all active:scale-95 shadow-sm"
+                    >
+                      <Bell size={14} /> Remind
                     </button>
                   )}
                 </div>

@@ -79,7 +79,7 @@ export default function GroupFeed({
   }
 
   return (
-    <div className="space-y-8 pb-24 animate-in fade-in duration-500">
+    <div className="space-y-8 pb-32 sm:pb-24 animate-in fade-in duration-500">
       {Object.entries(groupedTxns).map(([dateLabel, txns]) => (
         <div key={dateLabel}>
           <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-3 tracking-widest uppercase sticky top-0 bg-slate-50/90 dark:bg-[#121212]/90 backdrop-blur-md py-2 z-10">
@@ -90,93 +90,85 @@ export default function GroupFeed({
             {txns.map((t, index) => (
               <div 
                 key={t.id} 
-                className={`group p-4 transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${
+                className={`group p-3 sm:p-4 transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${
                   index !== txns.length - 1 ? 'border-b border-stone-100 dark:border-white/5' : ''
                 }`}
               >
-                <div className="flex justify-between items-start">
+                <div className="flex gap-3 sm:gap-4 items-start">
                   
-                  <div className="flex gap-4">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-200 dark:border-white/5">
-                      {getInitials(t.paid_by)}
-                    </div>
-                    <div>
-                      <div className="text-sm text-slate-800 dark:text-slate-200 leading-tight">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-200 dark:border-white/5">
+                    {getInitials(t.paid_by)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-tight truncate">
                         <span className="font-bold text-slate-900 dark:text-white">{t.paid_by === "You" || t.paid_by_user_id === currentUserId ? "You" : t.paid_by}</span> {isSplit ? 'split' : 'logged'}
                       </div>
-                      <div className="text-base font-medium text-slate-900 dark:text-white mt-0.5 capitalize tracking-tight">
-                        {t.description}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                          {new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        {t.category && (
-                           <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-[9px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wider flex items-center gap-1">
-                             {t.category_icon} {t.category}
-                           </span>
-                        )}
+                      <div className="font-black text-slate-900 dark:text-white text-base sm:text-lg tracking-tight shrink-0">
+                        {currency}{t.amount.toLocaleString()}
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <div className="font-black text-slate-900 dark:text-white text-lg tracking-tight">
-                      {currency}{t.amount.toLocaleString()}
+                    <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mt-0.5 capitalize tracking-tight truncate">
+                      {t.description}
                     </div>
-                  </div>
-                </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 ml-16">
-                  <div className="flex flex-wrap gap-2">
-                    {isSplit && (
-                      <>
-                        {t.split_type === 'percentage' ? (
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                              <Percent size={10} /> Percentage
-                          </div>
-                        ) : t.split_type === 'exact' ? (
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                              Exact
-                          </div>
-                        ) : t.split_type === 'ratio' ? (
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                              Ratio
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                            <Divide size={10} /> Equal · {actualMemberCount}
-                          </div>
-                        )}
-                        
-                        {t.paid_by_user_id !== currentUserId && t.split_type === 'equal' && (
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-900/30 px-2.5 py-1 rounded-md uppercase tracking-wider">
-                            You owe {currency}{Math.round(t.amount / (actualMemberCount || 1)).toLocaleString()}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {t.paid_by_user_id === currentUserId && (
-                    <div className="flex items-center gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => onEditTransaction(t)}
-                        className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 dark:bg-white/5 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg uppercase tracking-wider transition-colors active:scale-95"
-                      >
-                        <Edit2 size={12} /> Edit
-                      </button>
-                      {onDeleteTransaction && (
-                        <button 
-                          onClick={() => onDeleteTransaction(t.id)}
-                          className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 dark:bg-white/5 dark:hover:bg-rose-900/20 px-3 py-1.5 rounded-lg uppercase tracking-wider transition-colors active:scale-95"
-                        >
-                          <Trash2 size={12} /> Delete
-                        </button>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <span className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-medium">
+                        {new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {t.category && (
+                         <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wider flex items-center gap-1 max-w-[120px] truncate">
+                           {t.category_icon} {t.category}
+                         </span>
                       )}
                     </div>
-                  )}
 
+                    {(isSplit || t.paid_by_user_id === currentUserId) && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-stone-100 dark:border-white/5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {isSplit && (
+                            <>
+                              <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 px-2 py-1 rounded uppercase tracking-wider">
+                                {t.split_type === 'percentage' ? <><Percent size={10}/> %</> 
+                                 : t.split_type === 'exact' ? 'EXACT' 
+                                 : t.split_type === 'ratio' ? 'RATIO' 
+                                 : <><Divide size={10}/> EQ · {actualMemberCount}</>}
+                              </div>
+                              
+                              {t.paid_by_user_id !== currentUserId && t.split_type === 'equal' && (
+                                <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-900/30 px-2 py-1 rounded uppercase tracking-wider">
+                                  You owe {currency}{Math.round(t.amount / (actualMemberCount || 1)).toLocaleString()}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {t.paid_by_user_id === currentUserId && (
+                          <div className="flex items-center gap-1.5 shrink-0 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => onEditTransaction(t)}
+                              className="p-1.5 sm:px-3 sm:py-1.5 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 dark:bg-white/5 dark:hover:bg-blue-900/20 rounded-md sm:rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
+                              title="Edit Transaction"
+                            >
+                              <Edit2 size={14} />
+                              <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider">Edit</span>
+                            </button>
+                            {onDeleteTransaction && (
+                              <button 
+                                onClick={() => onDeleteTransaction(t.id)}
+                                className="p-1.5 sm:px-3 sm:py-1.5 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 dark:bg-white/5 dark:hover:bg-rose-900/20 rounded-md sm:rounded-lg transition-colors active:scale-95 flex items-center gap-1.5"
+                                title="Delete Transaction"
+                              >
+                                <Trash2 size={14} />
+                                <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider">Delete</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -225,11 +217,11 @@ export default function GroupFeed({
 
       <button 
         onClick={onLogTransaction}
-        className="fixed bottom-24 right-6 sm:static sm:w-full sm:mt-6 py-4 px-6 rounded-full sm:rounded-2xl bg-blue-600 text-white hover:bg-blue-700 shadow-xl sm:shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 z-40 group"
+        className="fixed bottom-8 left-1/2 -translate-x-1/2 sm:static sm:translate-x-0 sm:w-full sm:mt-6 py-3.5 px-8 sm:px-6 rounded-full sm:rounded-2xl bg-blue-600 text-white hover:bg-blue-700 shadow-2xl sm:shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 z-40 group whitespace-nowrap"
       >
-         <span className="hidden sm:inline font-bold">Log a transaction</span> 
-         <ArrowUpRight size={20} className="sm:hidden group-hover:scale-110 transition-transform" />
-         <ArrowUpRight size={18} className="hidden sm:block" />
+         <span className="font-bold text-sm">Log a transaction</span> 
+         <ArrowUpRight size={18} className="sm:hidden" />
+         <ArrowUpRight size={18} className="hidden sm:block group-hover:scale-110 transition-transform" />
       </button>
     </div>
   );
