@@ -6,18 +6,18 @@ interface GroupHeaderProps {
   settlements: { settlements: any[]; total_spend: number } | null;
   totalSpend: number;
   members: { id: number; name: string; email: string }[];
-  currentUserName: string;
+  currentUserId: number;
 }
 
-export default function GroupHeader({ group, settlements, totalSpend, members, currentUserName }: GroupHeaderProps) {
+export default function GroupHeader({ group, settlements, totalSpend, members, currentUserId }: GroupHeaderProps) {
   const { currency } = usePreferences();
   const isSplit = group.type === 'split';
 
   let userBalance = 0;
   if (isSplit && settlements?.settlements) {
     settlements.settlements.forEach((s: any) => {
-      if (s.from === currentUserName) userBalance -= s.amount;
-      if (s.to === currentUserName) userBalance += s.amount;
+      if (s.from_id === currentUserId) userBalance -= s.amount;
+      if (s.to_id === currentUserId) userBalance += s.amount;
     });
   }
 
