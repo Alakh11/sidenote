@@ -620,7 +620,7 @@ export default function GroupDashboard() {
           {selectedGroup && (
             <>
               <div className="mb-2">
-                <GroupHeader group={selectedGroup} settlements={settlements} totalSpend={settlements?.total_spend || 0} members={members} currentUserName={user.name} />
+                <GroupHeader group={selectedGroup} settlements={settlements} totalSpend={settlements?.total_spend || 0} members={members} currentUserId={user.id} />
               </div>
 
               <GroupTabs activeTab={activeTab} setActiveTab={setActiveTab} isSplit={selectedGroup.type === 'split'} />
