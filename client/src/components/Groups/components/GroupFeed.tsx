@@ -117,7 +117,7 @@ export default function GroupFeed({
                         {new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       {t.category && (
-                         <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wider flex items-center gap-1 max-w-[120px] truncate">
+                         <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wider flex items-center gap-1 max-w-[150px] truncate">
                            {t.category_icon} {t.category}
                          </span>
                       )}
