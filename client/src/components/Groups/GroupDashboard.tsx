@@ -163,6 +163,24 @@ export default function GroupDashboard() {
       }
     });
   };
+  const handleRemoveMember = (targetId: number, targetName: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Remove Member",
+      message: `Are you sure you want to remove ${targetName} from the group? They can only be removed if they have no pending balances.`,
+      actionText: "Remove",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await axios.delete(`${API_URL}/groups/${selectedGroupId}/members/${targetId}?user_id=${user.id}`);
+          queryClient.invalidateQueries({ queryKey: ['group-members', selectedGroupId] });
+          setAlertModal({ isOpen: true, message: `${targetName} has been removed from the group.` });
+        } catch (err: any) {
+          setAlertModal({ isOpen: true, message: err.response?.data?.detail || "Failed to remove member." });
+        }
+      }
+    });
+  };
 
   const handleSettleUpClick = (targetId: number, targetName: string, settleAmount: number) => {
     setSettlePaymentMode('UPI');
@@ -640,7 +658,7 @@ export default function GroupDashboard() {
 
                 {activeTab === 'members' && (
                   membersLoading ? <MembersSkeleton /> : 
-                  <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} />
+                  <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} onRemoveMember={handleRemoveMember} />
                 )}
 
                 {activeTab === 'summary' && (

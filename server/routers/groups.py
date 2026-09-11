@@ -410,3 +410,53 @@ async def send_settlement_reminder(group_id: int, payload: RemindPayload):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+        
+@router.delete("/groups/{group_id}/members/{target_user_id}")
+def remove_group_member(group_id: int, target_user_id: int, user_id: int = Query(...)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT role FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
+        requester = cursor.fetchone()
+        if not requester or requester['role'] != 'admin':
+            raise HTTPException(status_code=403, detail="Only group admins can remove members.")
+        
+        if user_id == target_user_id:
+            raise HTTPException(status_code=400, detail="You cannot remove yourself. Use the 'Leave Group' option instead.")
+
+        cursor.execute("SELECT COUNT(*) as member_count FROM group_members WHERE group_id = %s", (group_id,))
+        m_count = cursor.fetchone()['member_count']
+        
+        cursor.execute("SELECT amount, logged_by, split_type, split_details FROM group_transactions WHERE group_id = %s", (group_id,))
+        transactions = cursor.fetchall()
+        
+        balance = 0.0
+        for tx in transactions:
+            payer = tx['logged_by']
+            amount = float(tx['amount'])
+            
+            if payer == target_user_id:
+                balance += amount
+                
+            if tx['split_details']:
+                details = json.loads(tx['split_details'])
+                if str(target_user_id) in details:
+                    balance -= float(details[str(target_user_id)])
+            elif tx['split_type'] == 'equal':
+                balance -= (amount / m_count)
+        
+        if abs(balance) > 0.05:
+            raise HTTPException(status_code=400, detail="Cannot remove this member because they still have unsettled balances in the group.")
+
+        cursor.execute("DELETE FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, target_user_id))
+        conn.commit()
+        
+        return {"message": "Member removed successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
