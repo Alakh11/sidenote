@@ -164,23 +164,23 @@ export default function GroupDashboard() {
     });
   };
 
-  const handleSettleUpClick = (targetName: string, settleAmount: number) => {
-    const targetUser = members?.find((m: Member) => m.name === targetName || m.nickname === targetName);
-    if(!targetUser) return setAlertModal({ isOpen: true, message: "Could not find member details." });
-
+  const handleSettleUpClick = (targetId: number, targetName: string, settleAmount: number) => {
     setSettlePaymentMode('UPI');
     setSettleAmountInput(settleAmount.toString());
-    setSettleModal({ isOpen: true, targetName, targetId: targetUser.id, amount: settleAmount });
+    setSettleModal({ isOpen: true, targetName, targetId, amount: settleAmount });
   };
 
-    const handleRemindClick = (targetName: string, amount: number) => {
-    const groupAlias = selectedGroup?.name.split(' ')[0].toLowerCase() || '';
-    const myAlias = user.name.split(' ')[0].toLowerCase();
-    const firstName = targetName.split(' ')[0]; 
-    
-    const msg = `Hey ${firstName}! Just a quick reminder to settle up ${currency}${amount} in our SideNote group "${selectedGroup?.name}".\n\nYou can reply to the bot with:\n*@${groupAlias} settle @${myAlias}*`;
-    
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  const handleRemindClick = async (targetId: number, targetName: string, amount: number) => {
+    try {
+      await axios.post(`${API_URL}/groups/${selectedGroupId}/remind`, {
+        target_user_id: targetId,
+        amount: amount,
+        from_user_id: user.id
+      });
+      setAlertModal({ isOpen: true, message: `A WhatsApp reminder has been sent to ${targetName}!` });
+    } catch (err: any) {
+      setAlertModal({ isOpen: true, message: err.response?.data?.detail || "Failed to send reminder." });
+    }
   };
 
   const confirmSettleUp = async () => {
@@ -632,7 +632,7 @@ export default function GroupDashboard() {
                   settlementsLoading ? <BalancesSkeleton /> : 
                   <GroupBalances 
                     settlements={settlements} 
-                    currentUserName={user.name} 
+                    currentUserId={user.id}
                     onSettle={handleSettleUpClick} 
                     onRemind={handleRemindClick}
                   />

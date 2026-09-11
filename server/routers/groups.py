@@ -3,6 +3,7 @@ from typing import Dict, Optional, Any
 from database import get_db
 import random, string, json
 from pydantic import BaseModel
+from whatsapp_service import send_whatsapp_text
 
 router = APIRouter(tags=["Groups & Splitting"])
 
@@ -25,6 +26,11 @@ class GroupTransactionUpdate(BaseModel):
     payment_mode: str
     split_type: str
     split_details: Optional[Dict[str, float]] = None
+
+class RemindPayload(BaseModel):
+    target_user_id: int
+    amount: float
+    from_user_id: int
 
 def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -371,5 +377,34 @@ def get_group_members(group_id: int):
             WHERE gm.group_id = %s ORDER BY gm.role ASC, u.name ASC
         """, (group_id,))
         return cursor.fetchall()
+    finally:
+        conn.close()
+
+@router.post("/groups/{group_id}/remind")
+async def send_settlement_reminder(group_id: int, payload: RemindPayload):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT name, mobile FROM users WHERE id = %s", (payload.target_user_id,))
+        target_user = cursor.fetchone()
+        cursor.execute("SELECT name FROM users WHERE id = %s", (payload.from_user_id,))
+        from_user = cursor.fetchone()
+        cursor.execute("SELECT name FROM expense_groups WHERE id = %s", (group_id,))
+        group = cursor.fetchone()
+
+        if not target_user or not target_user['mobile']:
+            raise HTTPException(status_code=400, detail="This user does not have a registered WhatsApp number.")
+
+        group_alias = group['name'].split()[0].lower()
+        my_alias = from_user['name'].split()[0].lower()
+        first_name = target_user['name'].split()[0]
+
+        msg = f"🔔 *Payment Reminder*\n\nHey {first_name}! Just a quick reminder to settle up ₹{payload.amount:g} with {from_user['name']} in *{group['name']}*.\n\nYou can reply here with:\n*@{group_alias} settle @{my_alias}*"
+
+        await send_whatsapp_text(target_user['mobile'], msg)
+        return {"message": "Reminder sent via WhatsApp"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
