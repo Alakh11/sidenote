@@ -129,7 +129,10 @@ def calculate_settlements(group_id: int):
                 balances[payer]['balance'] += amount
                 
             if tx['split_details']:
-                details = json.loads(tx['split_details'])
+                details = tx['split_details']
+                if isinstance(details, str):
+                    details = json.loads(details)
+                    
                 for uid, owed in details.items():
                     uid = int(uid)
                     if uid in balances:
@@ -138,7 +141,7 @@ def calculate_settlements(group_id: int):
                 share = amount / len(members)
                 for m in members:
                     balances[m['id']]['balance'] -= share
-            
+        
         debtors = [{"id": k, "name": v["name"], "amount": abs(v["balance"])} for k, v in balances.items() if v["balance"] < -0.01]
         creditors = [{"id": k, "name": v["name"], "amount": v["balance"]} for k, v in balances.items() if v["balance"] > 0.01]
         
@@ -149,6 +152,7 @@ def calculate_settlements(group_id: int):
             creditor = creditors[j]
             
             settle_amount = min(debtor['amount'], creditor['amount'])
+            
             settlements.append({
                 "from_id": debtor['id'],
                 "from_name": debtor['name'],
@@ -165,6 +169,10 @@ def calculate_settlements(group_id: int):
             
         split_share = total_group_spend / len(members) if len(members) > 0 else 0
         return {"total_spend": total_group_spend, "per_person": round(split_share, 2), "settlements": settlements}
+        
+    except Exception as e:
+        print(f"Settlement Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
 
