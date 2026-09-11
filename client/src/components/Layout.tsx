@@ -47,11 +47,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/budget', label: 'Budgets', icon: Target },
     { to: '/analytics', label: 'Analytics', icon: PieChart },
     { to: '/goals', label: 'Savings Goals', icon: Trophy },
-    { to: '/groups', label: 'Groups', icon: Users, comingSoon: !isSuperAdmin },
-    { to: '/debts', label: 'Debts Tracker', icon: HandCoins, comingSoon: !isSuperAdmin },
-    { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee, comingSoon: !isSuperAdmin },
-    { to: '/recurring', label: 'Recurring Bills', icon: Repeat, comingSoon: !isSuperAdmin },
-    { to: '/categories', label: 'Categories', icon: Settings, comingSoon: !isSuperAdmin },
+    { to: '/groups', label: 'Groups', icon: Users, comingSoon: !isSuperAdmin || !isAdmin },
+    { to: '/debts', label: 'Debts Tracker', icon: HandCoins, comingSoon: !isSuperAdmin || !isAdmin },
+    { to: '/loans', label: 'Loan Tracker', icon: ReceiptIndianRupee, comingSoon: !isSuperAdmin || !isAdmin },
+    { to: '/recurring', label: 'Recurring Bills', icon: Repeat, comingSoon: !isSuperAdmin || !isAdmin },
+    { to: '/categories', label: 'Categories', icon: Settings, comingSoon: !isSuperAdmin || !isAdmin },
   ];
 
   const NavItem = ({ item, onClick }: any) => {
