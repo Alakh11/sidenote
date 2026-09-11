@@ -203,7 +203,7 @@ const categoriesRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/categories',
   beforeLoad: ({ context }) => { 
-    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+    if (context.user?.role !== 'superadmin' && context.user?.role !== 'admin') throw redirect({ to: '/dashboard' }); 
   },
   loader: async ({ context }) => {
     const userId = context.user!.id;
@@ -218,7 +218,7 @@ const loansRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/loans',
   beforeLoad: ({ context }) => { 
-    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+    if (context.user?.role !== 'superadmin' && context.user?.role !== 'admin') throw redirect({ to: '/dashboard' }); 
   },
   loader: async ({ context }) => {
     const userId = context.user!.id;
@@ -233,7 +233,7 @@ const debtsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/debts',
   beforeLoad: ({ context }) => { 
-    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+    if (context.user?.role !== 'superadmin' && context.user?.role !== 'admin') throw redirect({ to: '/dashboard' }); 
   },
   loader: async ({ context }) => {
     const userId = context.user!.id;
@@ -264,7 +264,7 @@ const groupsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/groups',
   beforeLoad: ({ context }) => { 
-    if (context.user?.role !== 'superadmin') throw redirect({ to: '/dashboard' }); 
+    if (context.user?.role !== 'superadmin' && context.user?.role !== 'admin') throw redirect({ to: '/dashboard' }); 
   },
   component: GroupDashboard,
 });
