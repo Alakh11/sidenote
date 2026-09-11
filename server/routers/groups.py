@@ -150,8 +150,10 @@ def calculate_settlements(group_id: int):
             
             settle_amount = min(debtor['amount'], creditor['amount'])
             settlements.append({
-                "from": debtor['name'],
-                "to": creditor['name'],
+                "from_id": debtor['id'],
+                "from_name": debtor['name'],
+                "to_id": creditor['id'],
+                "to_name": creditor['name'],
                 "amount": round(settle_amount, 2)
             })
             
