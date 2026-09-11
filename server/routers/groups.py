@@ -14,7 +14,7 @@ class GroupTransactionCreate(BaseModel):
     amount: float
     description: str
     user_id: int
-    category_id: int 
+    category_id: Optional[int] = None
     payment_mode: str = "upi"
     split_type: str = "equal"
     split_details: Optional[Dict[str, float]] = None
@@ -22,7 +22,7 @@ class GroupTransactionCreate(BaseModel):
 class GroupTransactionUpdate(BaseModel):
     amount: float
     description: str
-    category_id: int
+    category_id: Optional[int] = None
     payment_mode: str
     split_type: str
     split_details: Optional[Dict[str, float]] = None
