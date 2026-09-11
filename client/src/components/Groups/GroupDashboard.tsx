@@ -40,18 +40,23 @@ export default function GroupDashboard() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'feed' | 'balances' | 'summary' | 'members'>('feed');
   const [page, setPage] = useState(1);
-  
+
   // Base Modals
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
+  const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
+  const [newGroupTab, setNewGroupTab] = useState<'create' | 'join'>('create');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupType, setNewGroupType] = useState('split');
+  const [joinCode, setJoinCode] = useState('');
+
   // Custom Action Modals
   const [editingTx, setEditingTx] = useState<any>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, actionText: string, isDanger: boolean, onConfirm: () => void } | null>(null);
   const [promptModal, setPromptModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: (val: string) => void } | null>(null);
   const [promptInputValue, setPromptInputValue] = useState(""); 
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean, message: string } | null>(null);
-  
+
   // Settle Up Modal
   const [settleModal, setSettleModal] = useState<{ isOpen: boolean, targetName: string, targetId: number, amount: number } | null>(null);
   const [settlePaymentMode, setSettlePaymentMode] = useState('UPI');
@@ -82,7 +87,7 @@ export default function GroupDashboard() {
   });
 
   const [limit, setLimit] = useState(15);
-  
+
   const { data: txData, isLoading: txLoading } = useQuery({
     queryKey: ['group-transactions', selectedGroupId, page, limit],
     queryFn: async () => (await axios.get(`${API_URL}/groups/${selectedGroupId}/transactions?page=${page}&limit=${limit}`)).data,
@@ -107,7 +112,38 @@ export default function GroupDashboard() {
     }
   }, [isLogModalOpen, members, splitType]);
 
-  // Actions
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return setAlertModal({ isOpen: true, message: "Group name is required." });
+    setIsSubmitting(true);
+    try {
+      await axios.post(`${API_URL}/groups/create?name=${encodeURIComponent(newGroupName)}&user_id=${user.id}&type=${newGroupType}`);
+      setIsNewGroupOpen(false);
+      setNewGroupName('');
+      queryClient.invalidateQueries({ queryKey: ['groups', user.id] });
+    } catch (err) {
+      setAlertModal({ isOpen: true, message: "Failed to create group." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleJoinGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode.trim()) return setAlertModal({ isOpen: true, message: "Invite code is required." });
+    setIsSubmitting(true);
+    try {
+      await axios.post(`${API_URL}/groups/join?invite_code=${encodeURIComponent(joinCode.toUpperCase())}&user_id=${user.id}`);
+      setIsNewGroupOpen(false);
+      setJoinCode('');
+      queryClient.invalidateQueries({ queryKey: ['groups', user.id] });
+    } catch (err: any) {
+      setAlertModal({ isOpen: true, message: err.response?.data?.detail || "Invalid or expired invite code." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDeleteTransaction = (txId: number) => {
     setConfirmModal({
       isOpen: true,
@@ -130,7 +166,7 @@ export default function GroupDashboard() {
   const handleSettleUpClick = (targetName: string, settleAmount: number) => {
     const targetUser = members?.find((m: Member) => m.name === targetName || m.nickname === targetName);
     if(!targetUser) return setAlertModal({ isOpen: true, message: "Could not find member details." });
-    
+
     setSettlePaymentMode('UPI');
     setSettleModal({ isOpen: true, targetName, targetId: targetUser.id, amount: settleAmount });
   };
@@ -154,13 +190,14 @@ export default function GroupDashboard() {
       setAlertModal({ isOpen: true, message: "Failed to log settlement." });
     }
   };
+
   const handleEditTransaction = (tx: any) => {
     setAmount(tx.amount.toString());
     setDescription(tx.description);
     setCategory(tx.category_id?.toString() || '');
     setPaymentMode(tx.payment_mode || 'UPI');
     setSplitType(tx.split_type);
-    
+
     if (tx.split_details) {
       const parsedDetails = typeof tx.split_details === 'string' ? JSON.parse(tx.split_details) : tx.split_details;
       setSplitDetails(parsedDetails);
@@ -223,7 +260,7 @@ export default function GroupDashboard() {
   const handleLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || !description || !category) return setAlertModal({ isOpen: true, message: "Please fill all required fields." });
-    
+
     let parsedSplitDetails: Record<string, number> = {};
     const numericAmount = parseFloat(amount) || 0;
 
@@ -246,7 +283,7 @@ export default function GroupDashboard() {
         let totalShares = 0;
         Object.keys(splitDetails).forEach(id => totalShares += (parseFloat(splitDetails[id]) || 0));
         if (totalShares <= 0) return setAlertModal({ isOpen: true, message: "Total ratio shares must be greater than 0." });
-        
+
         Object.keys(splitDetails).forEach(id => {
           const shares = parseFloat(splitDetails[id]) || 0;
           parsedSplitDetails[id] = (shares / totalShares) * numericAmount;
@@ -280,7 +317,7 @@ export default function GroupDashboard() {
       } else {
         await axios.post(`${API_URL}/groups/${selectedGroupId}/transactions`, payload);
       }
-      
+
       setAmount('');
       setDescription('');
       setCategory('');
@@ -288,7 +325,7 @@ export default function GroupDashboard() {
       setSplitDetails({});
       setEditingTx(null);
       setIsLogModalOpen(false);
-      
+
       queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
       queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
     } catch (err) {
@@ -312,7 +349,6 @@ export default function GroupDashboard() {
           </div>
           <div className="h-10 w-24 bg-slate-200 dark:bg-slate-800 rounded-full"></div>
         </div>
-        
         <div className="flex flex-col gap-4">
           {[1, 2, 3].map(i => (
             <div key={i} className="flex items-center justify-between p-5 rounded-3xl bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 shadow-sm">
@@ -327,7 +363,6 @@ export default function GroupDashboard() {
             </div>
           ))}
         </div>
-        
       </div>
     );
   }
@@ -347,8 +382,64 @@ export default function GroupDashboard() {
 
   return (
     <div className="max-w-3xl mx-auto w-full pb-24">
-      
-      {/* Custom Reusable Modals */}
+      {isNewGroupOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center sm:p-4">
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-t-[2rem] sm:rounded-[2rem] w-full max-w-md p-6 sm:p-8 shadow-2xl animate-in slide-in-from-bottom-8 duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">Add Group</h3>
+              <button onClick={() => setIsNewGroupOpen(false)} className="p-2 bg-slate-50 dark:bg-white/5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex bg-slate-100 dark:bg-white/5 p-1 rounded-xl mb-6">
+              <button 
+                onClick={() => setNewGroupTab('create')} 
+                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newGroupTab === 'create' ? 'bg-white dark:bg-[#2a2a2a] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+              >
+                Create New
+              </button>
+              <button 
+                onClick={() => setNewGroupTab('join')} 
+                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newGroupTab === 'join' ? 'bg-white dark:bg-[#2a2a2a] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+              >
+                Join Existing
+              </button>
+            </div>
+
+            {newGroupTab === 'create' ? (
+              <form onSubmit={handleCreateGroup} className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Group Name</label>
+                  <input type="text" required value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3.5 text-slate-900 dark:text-white font-medium outline-none focus:border-blue-500 transition-colors" placeholder="e.g., Goa Trip, Flatmates" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Group Type</label>
+                  <select value={newGroupType} onChange={(e) => setNewGroupType(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3.5 text-sm text-slate-900 dark:text-white font-medium outline-none focus:border-blue-500 appearance-none">
+                    <option value="split">✂️ Split Group (Shared Expenses)</option>
+                    <option value="family">🏡 Family (Tracking Only)</option>
+                    <option value="couple">❤️ Couple (Tracking Only)</option>
+                  </select>
+                </div>
+                <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors shadow-md mt-2">
+                  {isSubmitting ? 'Creating...' : 'Create Group'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleJoinGroup} className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Invite Code</label>
+                  <input type="text" required value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} maxLength={6} className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-center text-2xl font-mono text-slate-900 dark:text-white font-black outline-none focus:border-blue-500 transition-colors tracking-widest uppercase" placeholder="XXXXXX" />
+                </div>
+                <button type="submit" disabled={isSubmitting || joinCode.length < 6} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors shadow-md mt-2">
+                  {isSubmitting ? 'Joining...' : 'Join Group'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {confirmModal?.isOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1a1a1a] rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -387,7 +478,7 @@ export default function GroupDashboard() {
           <div className="bg-white dark:bg-[#1a1a1a] rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Settle Up</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Record a payment to <strong>{settleModal.targetName}</strong> for {currency}{settleModal.amount.toLocaleString()}</p>
-            
+
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Payment Mode</label>
             <select 
               value={settlePaymentMode} 
@@ -425,9 +516,11 @@ export default function GroupDashboard() {
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white">My Groups</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">Manage your shared expenses</p>
             </div>
-            <button className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:text-blue-400 px-4 py-2.5 rounded-full font-bold text-sm transition-colors shadow-sm">
+            
+            <button onClick={() => setIsNewGroupOpen(true)} className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:text-blue-400 px-4 py-2.5 rounded-full font-bold text-sm transition-colors shadow-sm">
               <Plus size={18} /> New
             </button>
+            
           </div>
 
           {!groups || groups.length === 0 ? (
@@ -464,7 +557,7 @@ export default function GroupDashboard() {
       ) : (
 
         <div className="bg-slate-50 dark:bg-[#121212] rounded-[2.5rem] border border-stone-100 dark:border-white/5 p-4 sm:p-8 flex flex-col min-h-[600px] relative shadow-sm animate-in slide-in-from-right-4 duration-300">
-          
+
           <div className="flex justify-between items-center mb-6">
             <button 
               onClick={() => setSelectedGroupId(null)}
@@ -480,7 +573,7 @@ export default function GroupDashboard() {
               <Settings size={18} />
             </button>
           </div>
-          
+
           {selectedGroup && (
             <>
               <div className="mb-2">
@@ -539,10 +632,10 @@ export default function GroupDashboard() {
                     <X size={16} />
                   </button>
                 </div>
-                
+
                 <div className="p-6 overflow-y-auto custom-scrollbar">
                   <form onSubmit={handleLogSubmit} className="space-y-5 mb-6">
-                    
+
                     <div className="flex gap-3">
                       <div className="w-1/3">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Amount</label>
@@ -592,12 +685,12 @@ export default function GroupDashboard() {
                             </button>
                           ))}
                         </div>
-                        
+
                         <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
                           {members?.map((m: Member) => {
                             const isMe = m.id === user.id;
                             const isSelected = selectedMembers.includes(m.id.toString());
-                            
+
                             if (splitType === 'equal') {
                                return (
                                  <label key={m.id} className="flex justify-between items-center cursor-pointer group">
@@ -621,7 +714,7 @@ export default function GroupDashboard() {
                                  </label>
                                );
                             }
-                            
+
                             return (
                               <div key={m.id} className="flex justify-between items-center">
                                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{m.name} {isMe && <span className="text-[9px] text-slate-500 ml-1">(You)</span>}</span>
@@ -672,14 +765,14 @@ export default function GroupDashboard() {
           {isSettingsOpen && selectedGroup && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white dark:bg-[#1e1e1e] rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                
+
                 <div className="px-6 py-5 border-b border-stone-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-white/5">
                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">Group Settings</h3>
                   <button onClick={() => setIsSettingsOpen(false)} className="p-2 bg-white dark:bg-white/10 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
                     <X size={16} />
                   </button>
                 </div>
-                
+
                 <div className="p-4">
                   <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">General</div>
                   <button onClick={() => { setIsSettingsOpen(false); handleRenameGroup(); }} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-700 dark:text-slate-200 font-medium text-left">
@@ -690,7 +783,7 @@ export default function GroupDashboard() {
                     <div className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Users size={18} /></div>
                     Manage Members & Invites
                   </button>
-                  
+
                   <div className="px-4 py-2 mt-6 text-[10px] font-bold text-rose-400/70 uppercase tracking-wider mb-2">Danger Zone</div>
                   <button onClick={() => { setIsSettingsOpen(false); handleLeaveGroup(); }} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-2xl transition-colors text-rose-600 dark:text-rose-500 font-bold text-left">
                     <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl"><LogOut size={18} /></div>
