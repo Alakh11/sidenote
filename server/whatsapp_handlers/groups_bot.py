@@ -8,7 +8,9 @@ from whatsapp_service import send_whatsapp_text, send_whatsapp_interactive_butto
 from whatsapp_handlers.bot_utils import get_user_id, db_semaphore, match_category_from_text
 import json
 from whatsapp_handlers.groups_search import handle_group_search_command
-from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError
+from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError          
+from whatsapp_handlers.search_handlers import create_expense_pie_chart
+from whatsapp_service import upload_whatsapp_media, send_whatsapp_media
 import asyncio
 
 def generate_invite_code():
@@ -501,10 +503,6 @@ async def handle_group_chart_command(phone: str, group_alias: str):
 
             await send_whatsapp_text(phone, f"📊 Generating chart for *{group['name']}*...")
             
-            # Reusing the existing image generation logic
-            from whatsapp_handlers.search_handlers import create_expense_pie_chart
-            from whatsapp_service import upload_whatsapp_media, send_whatsapp_media
-            
             chart_bytes = create_expense_pie_chart(cat_data, group['name'])
             media_id = await upload_whatsapp_media(chart_bytes, "image/png", f"{group_alias}_analytics.png")
             
@@ -530,6 +528,7 @@ async def handle_group_chart_command(phone: str, group_alias: str):
             cursor.close()
             conn.close()
     return True
+
 async def process_group_query(phone: str, group_alias: str, cmd: str, page: int = 1):
     print(f"Executing Process Query: Alias={group_alias}, Cmd={cmd}, Page={page}")
     is_all = "all" in cmd
