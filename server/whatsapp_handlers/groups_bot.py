@@ -451,12 +451,85 @@ async def handle_group_commands(phone: str, text: str) -> bool:
             await process_group_query(phone, group_alias, base_cmd, page)
             return True
         
+        # E) Chart/Analytics Command
+        if base_cmd in ["chart", "data", "analytics"]:
+            await handle_group_chart_command(phone, group_alias)
+            return True
+        
         await send_whatsapp_text(phone, f"❌ Unknown command for @{group_alias}. Try: history, total, or undo.")
         return True
 
     return False
 
+async def handle_group_chart_command(phone: str, group_alias: str):
+    async with db_semaphore:
+        conn = get_db()
+        std_cursor = conn.cursor()
+        user_id = get_user_id(std_cursor, phone)
+        std_cursor.close()
 
+        if not user_id: return True
+
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT g.id, g.name FROM expense_groups g
+                JOIN group_members gm ON g.id = gm.group_id
+                WHERE gm.user_id = %s AND g.status = 'active' AND LOWER(g.name) LIKE %s LIMIT 1
+            """, (user_id, f"%{group_alias}%"))
+            group = cursor.fetchone()
+
+            if not group:
+                await send_whatsapp_text(phone, f"❌ You are not in an active group matching '{group_alias}'.")
+                return True
+
+            # Get Category Totals for the Group
+            cursor.execute("""
+                SELECT c.name as category, SUM(gt.amount) as total
+                FROM group_transactions gt
+                LEFT JOIN categories c ON gt.category_id = c.id
+                WHERE gt.group_id = %s AND gt.split_type != 'settlement'
+                GROUP BY c.id, c.name
+                ORDER BY total DESC
+            """, (group['id'],))
+            
+            cat_data = cursor.fetchall()
+            
+            if not cat_data:
+                await send_whatsapp_text(phone, f"📭 I couldn't find any expenses in *{group['name']}* to build a chart.")
+                return True
+
+            await send_whatsapp_text(phone, f"📊 Generating chart for *{group['name']}*...")
+            
+            # Reusing the existing image generation logic
+            from whatsapp_handlers.search_handlers import create_expense_pie_chart
+            from whatsapp_service import upload_whatsapp_media, send_whatsapp_media
+            
+            chart_bytes = create_expense_pie_chart(cat_data, group['name'])
+            media_id = await upload_whatsapp_media(chart_bytes, "image/png", f"{group_alias}_analytics.png")
+            
+            total_spend = sum(float(row['total']) for row in cat_data)
+            
+            caption = f"*Analytics for {group['name']}*\n\n"
+            caption += f"Total Group Expense: ₹{total_spend:g}\n\n"
+            caption += "*Category Breakdown:*\n"
+            for cat in cat_data:
+                c_name = str(cat['category']).capitalize() if cat.get('category') else 'Other'
+                c_total = float(cat['total'])
+                caption += f"• {c_name}: ₹{c_total:g}\n"
+            
+            if media_id:
+                await send_whatsapp_media(phone, media_type="image", media_id=media_id, caption=caption)
+            else:
+                await send_whatsapp_text(phone, caption + "\n\n_(Could not generate the chart image at this time)_")
+            
+        except Exception as e:
+            print(f"Group Chart Error: {e}")
+            await send_whatsapp_text(phone, "⚠️ Failed to generate group analytics.")
+        finally:
+            cursor.close()
+            conn.close()
+    return True
 async def process_group_query(phone: str, group_alias: str, cmd: str, page: int = 1):
     print(f"Executing Process Query: Alias={group_alias}, Cmd={cmd}, Page={page}")
     is_all = "all" in cmd

@@ -1,5 +1,6 @@
 import { usePreferences } from '../../../context/PreferencesContext';
-import { PieChart } from 'lucide-react';
+import { PieChart as PieChartIcon } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 export interface SummaryTransaction {
   amount: number | string;
@@ -12,6 +13,8 @@ interface GroupSummaryProps {
   transactions: SummaryTransaction[] | null | undefined;
 }
 
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+
 export default function GroupSummary({ transactions }: GroupSummaryProps) {
   const { currency } = usePreferences();
 
@@ -19,7 +22,7 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
     return (
       <div className="flex flex-col items-center justify-center mt-12 bg-slate-50 dark:bg-white/5 p-8 rounded-[2rem] border border-stone-100 dark:border-white/5 text-center animate-in fade-in duration-500">
         <div className="w-16 h-16 bg-white dark:bg-black/20 rounded-full flex items-center justify-center mb-4 shadow-sm">
-          <PieChart className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+          <PieChartIcon className="w-8 h-8 text-slate-300 dark:text-slate-600" />
         </div>
         <h3 className="text-lg font-bold text-slate-700 dark:text-white mb-1">No Data Yet</h3>
         <p className="text-sm font-medium text-slate-500">Log some transactions to see your spending breakdown.</p>
@@ -44,6 +47,11 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
   });
 
   const sortedCategories = Object.entries(categories).sort((a, b) => b[1].amount - a[1].amount);
+  
+  const chartData = sortedCategories.map(([name, data]) => ({
+    name,
+    value: data.amount
+  }));
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
@@ -82,6 +90,37 @@ export default function GroupSummary({ transactions }: GroupSummaryProps) {
             </div>
           );
         })}
+      </div>
+      
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-[1.5rem] border border-stone-100 dark:border-white/5 p-6 shadow-sm mt-6">
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={4}
+                dataKey="value"
+                stroke="none"
+              >
+                {chartData.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value: any, name: any) => [
+                  `${currency}${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
+                  name
+                ]}
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' }}
+                itemStyle={{ fontWeight: 'bold' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
