@@ -3,6 +3,8 @@ from typing import Dict, Optional, Any
 from database import get_db
 import random, string, json
 from pydantic import BaseModel
+from whatsapp_handlers.bot_utils import extract_transaction_details, match_category_from_text
+from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError
 from whatsapp_service import send_whatsapp_text
 
 router = APIRouter(tags=["Groups & Splitting"])
@@ -31,6 +33,10 @@ class RemindPayload(BaseModel):
     target_user_id: int
     amount: float
     from_user_id: int
+
+class GroupQuickAddPayload(BaseModel):
+    text: str
+    user_id: int
 
 def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -214,13 +220,25 @@ def get_user_groups(user_id: int):
 def get_group_transactions(
     group_id: int, 
     page: int = Query(1, ge=1), 
-    limit: int = Query(15, ge=1, le=100)
+    limit: int = Query(15, ge=1, le=100),
+    search: Optional[str] = None
 ):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         offset = (page - 1) * limit
-        cursor.execute("""
+        
+        where_clause = "t.group_id = %s"
+        params: list[Any] = [group_id]
+        
+        if search:
+            search_term = f"%{search.lower()}%"
+            where_clause += " AND (LOWER(t.description) LIKE %s OR LOWER(u.name) LIKE %s OR t.amount LIKE %s)"
+            params.extend([search_term, search_term, search_term])
+            
+        params.extend([limit, offset])
+
+        cursor.execute(f"""
             SELECT 
                 t.id, t.amount, t.description, t.logged_at as date, 
                 u.name as paid_by, t.logged_by as paid_by_user_id, 
@@ -229,10 +247,10 @@ def get_group_transactions(
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.group_id = %s
+            WHERE {where_clause}
             ORDER BY t.logged_at DESC
             LIMIT %s OFFSET %s
-        """, (group_id, limit, offset))
+        """, params)
         return cursor.fetchall()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -253,6 +271,102 @@ def create_group_transaction(group_id: int, payload: GroupTransactionCreate):
         return {"message": "Transaction logged successfully"}
     except Exception as e:
         conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.post("/groups/{group_id}/transactions/quick-add")
+def quick_add_group_transaction(group_id: int, payload: GroupQuickAddPayload):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT u.id, u.name, u.nickname 
+            FROM group_members gm JOIN users u ON u.id = gm.user_id 
+            WHERE gm.group_id = %s
+        """, (group_id,))
+        members = cursor.fetchall()
+        
+        if not members:
+            raise HTTPException(status_code=404, detail="Group members not found")
+
+        amount, item_raw, explicit_inc, payment_mode = extract_transaction_details(payload.text)
+        
+        if not amount or amount <= 0:
+            raise HTTPException(status_code=400, detail="Could not detect a valid amount. Example: '500 dinner 50% @john'")
+
+        try:
+            desc, split_type, shares = parse_and_compute_split(amount, item_raw, members, payload.user_id)
+        except SplitError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        category_id = match_category_from_text(cursor, payload.user_id, desc, 'expense')
+        
+        details_json = json.dumps(shares)
+        cursor.execute("""
+            INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, category_id, payment_mode, split_details)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (group_id, amount, desc, payload.user_id, split_type, category_id, payment_mode, details_json))
+        conn.commit()
+        
+        return {
+            "message": "Transaction logged via AI text parsing!", 
+            "parsed_data": {
+                "amount": amount,
+                "description": desc,
+                "split_type": split_type,
+                "shares": shares
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.get("/groups/{group_id}/analytics")
+def get_group_analytics(group_id: int):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT c.name as category, c.icon as category_icon, SUM(gt.amount) as total
+            FROM group_transactions gt
+            LEFT JOIN categories c ON gt.category_id = c.id
+            WHERE gt.group_id = %s AND gt.split_type != 'settlement'
+            GROUP BY c.id, c.name, c.icon
+            ORDER BY total DESC
+        """, (group_id,))
+        categories = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT u.id, u.name, SUM(gt.amount) as total_paid
+            FROM group_transactions gt
+            JOIN users u ON gt.logged_by = u.id
+            WHERE gt.group_id = %s AND gt.split_type != 'settlement'
+            GROUP BY u.id, u.name
+            ORDER BY total_paid DESC
+        """, (group_id,))
+        members = cursor.fetchall()
+        
+        cursor.execute("""
+            SELECT DATE_FORMAT(logged_at, '%b %Y') as month, SUM(amount) as total
+            FROM group_transactions
+            WHERE group_id = %s AND split_type != 'settlement'
+            GROUP BY YEAR(logged_at), MONTH(logged_at)
+            ORDER BY YEAR(logged_at) DESC, MONTH(logged_at) DESC
+            LIMIT 6
+        """, (group_id,))
+        trends = cursor.fetchall()
+
+        return {
+            "categories": categories,
+            "members": members,
+            "trends": list(reversed(trends))
+        }
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
