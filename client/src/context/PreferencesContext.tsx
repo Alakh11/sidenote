@@ -40,7 +40,7 @@ export const PreferencesProvider = ({ children, user }: { children: React.ReactN
 
     const savePreferences = async () => {
         try {
-            await axios.put(`https://api.sidenote.in/auth/preferences`, {
+            await axios.put(`${import.meta.env.VITE_API_URL}/auth/preferences`, {
                 currency,
                 month_start_date: monthStart
             });

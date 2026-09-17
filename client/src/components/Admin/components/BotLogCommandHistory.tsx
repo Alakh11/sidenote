@@ -36,7 +36,7 @@ export default function BotLogCommandHistory() {
             setLoading(true);
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get('https://api.sidenote.in/admin/engagement/commands', {
+                const res = await axios.get('${import.meta.env.VITE_API_URL}/admin/engagement/commands', {
                     headers: { Authorization: `Bearer ${token}` },
                     params: { 
                         search: debouncedSearch || undefined,

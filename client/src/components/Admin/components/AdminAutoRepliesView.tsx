@@ -26,7 +26,7 @@ export default function AdminAutoRepliesView() {
     const fetchReplies = async () => {
         setLoading(true);
         try {
-            const res = await axios.get("https://api.sidenote.in/admin/auto-replies", {
+            const res = await axios.get("${import.meta.env.VITE_API_URL}/admin/auto-replies", {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             setReplies(res.data);
@@ -52,9 +52,9 @@ export default function AdminAutoRepliesView() {
             const config = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
 
             if (editingId) {
-                await axios.put(`https://api.sidenote.in/admin/auto-replies/${editingId}`, payload, config);
+                await axios.put(`${import.meta.env.VITE_API_URL}/admin/auto-replies/${editingId}`, payload, config);
             } else {
-                await axios.post("https://api.sidenote.in/admin/auto-replies", payload, config);
+                await axios.post("${import.meta.env.VITE_API_URL}/admin/auto-replies", payload, config);
             }
             
             handleCancel();
@@ -253,7 +253,7 @@ export default function AdminAutoRepliesView() {
                                         <button onClick={() => handleEdit(r)} className="text-stone-400 hover:text-indigo-600 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition" title="Edit Rule">
                                             <Edit size={18}/>
                                         </button>
-                                        <button onClick={async () => { if(confirm("Delete this rule permanently?")) { await axios.delete(`https://api.sidenote.in/admin/auto-replies/${r.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }); fetchReplies(); } }} className="text-stone-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition" title="Delete Rule">
+                                        <button onClick={async () => { if(confirm("Delete this rule permanently?")) { await axios.delete(`${import.meta.env.VITE_API_URL}/admin/auto-replies/${r.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }); fetchReplies(); } }} className="text-stone-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition" title="Delete Rule">
                                             <Trash2 size={18}/>
                                         </button>
                                     </div>

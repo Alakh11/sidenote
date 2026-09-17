@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, APIRouter, Depends, Query, HTTPException, Response, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.datastructures import Headers
+import uvicorn
 import logging, json, os, hmac, hashlib, threading, time
 from database import get_db
 from routers import auth, transactions, features, analytics, admin, groups, help
@@ -16,6 +18,7 @@ from starlette.background import BackgroundTask
 from zoneinfo import ZoneInfo
 from utils import is_country_allowed, get_client_ip, fetch_geoip_data, get_allowed_countries_from_db 
 from db_init import initialize_database
+from encryption import encrypt_payload, decrypt_payload
 
 blocked_notified_cache = {}
 logging.basicConfig(level=logging.INFO)
@@ -49,6 +52,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # --- Include Routers ---
@@ -502,9 +506,71 @@ async def geo_ip_block_middleware(request: Request, call_next):
 
     return await call_next(request)
 
+@app.middleware("http")
+async def payload_encryption_middleware(request: Request, call_next):
+    exempt_prefixes = (
+        "/webhook", 
+        "/docs", 
+        "/openapi.json", 
+        "/redoc", 
+        "/admin/broadcast/upload-media", 
+        "/admin/broadcast/parse-mis"
+    )
+    if request.url.path.startswith(exempt_prefixes):
+        return await call_next(request)
+
+    is_encrypted = request.headers.get("X-Encrypted") == "true"
+
+    if is_encrypted and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        body = await request.body()
+        if body:
+            try:
+                decrypted_json_str = decrypt_payload(body.decode('utf-8'))
+
+                async def receive():
+                    return {"type": "http.request", "body": decrypted_json_str.encode('utf-8')}
+                request._receive = receive
+
+                new_headers = []
+                for k, v in request.scope.get("headers", []):
+                    if k.lower() == b"content-type":
+                        new_headers.append((b"content-type", b"application/json"))
+                    else:
+                        new_headers.append((k, v))
+                request.scope["headers"] = new_headers
+                request._headers = Headers(scope=request.scope)
+
+            except Exception as e:
+                logger.error(f"Decryption failed: {e}")
+                return JSONResponse(status_code=400, content={"detail": "Payload decryption failed."})
+
+    response = await call_next(request)
+
+    content_type = response.headers.get("content-type", "")
+    if is_encrypted and "application/json" in content_type:
+        response_body = [chunk async for chunk in response.body_iterator]
+        raw_content = b"".join(response_body)
+
+        try:
+            encrypted_response = encrypt_payload(raw_content.decode('utf-8'))
+            
+            headers = dict(response.headers)
+            headers.pop("content-length", None)
+            headers["content-type"] = "text/plain; charset=utf-8"
+            headers["X-Encrypted"] = "true"
+
+            return Response(
+                content=encrypted_response,
+                status_code=response.status_code,
+                headers=headers,
+                media_type="text/plain"
+            )
+        except Exception as e:
+            logger.error(f"Response encryption failed: {e}")
+            return Response(content=raw_content, status_code=response.status_code, media_type="application/json")
+
+    return response
+
 if __name__ == "__main__":
-    import uvicorn
-    # Render provides PORT, default to 10000 for local dev
     port = int(os.environ.get("PORT", 10000))
-    # Host MUST be 0.0.0.0 for external access
     uvicorn.run(app, host="0.0.0.0", port=port)

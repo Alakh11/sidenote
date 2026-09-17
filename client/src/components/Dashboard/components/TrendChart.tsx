@@ -17,7 +17,7 @@ export default function TrendChart({ userId }: { userId: number }) {
 
     useEffect(() => {
         setLoading(true);
-        axios.get(`https://api.sidenote.in/trends/${userId}?view_by=${trendView}`)
+        axios.get(`${import.meta.env.VITE_API_URL}/trends/${userId}?view_by=${trendView}`)
              .then(res => setData(res.data))
              .finally(() => setLoading(false));
     }, [trendView, userId]);

@@ -12,7 +12,7 @@ export default function AdminCategoriesView() {
     const fetchCategories = async () => {
         setLoading(true);
         try {
-            const res = await axios.get("https://api.sidenote.in/admin/global-categories", {
+            const res = await axios.get("${import.meta.env.VITE_API_URL}/admin/global-categories", {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             setCategories(res.data);
@@ -26,9 +26,9 @@ export default function AdminCategoriesView() {
         try {
             const config = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
             if (editingId) {
-                await axios.put(`https://api.sidenote.in/admin/global-categories/${editingId}`, newEntry, config);
+                await axios.put(`${import.meta.env.VITE_API_URL}/admin/global-categories/${editingId}`, newEntry, config);
             } else {
-                await axios.post("https://api.sidenote.in/admin/global-categories", newEntry, config);
+                await axios.post("${import.meta.env.VITE_API_URL}/admin/global-categories", newEntry, config);
             }
             handleCancel();
             fetchCategories();
@@ -122,7 +122,7 @@ export default function AdminCategoriesView() {
                             </div>
                             <div className="flex items-center gap-1 justify-end mt-4 pt-4 border-t border-stone-100 dark:border-slate-800">
                                 <button onClick={() => handleEdit(cat)} className="text-stone-400 hover:text-indigo-600 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition"><Edit size={16}/></button>
-                                <button onClick={async () => { if(confirm("Delete global category?")) { await axios.delete(`https://api.sidenote.in/admin/global-categories/${cat.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }); fetchCategories(); } }} className="text-stone-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition"><Trash2 size={16}/></button>
+                                <button onClick={async () => { if(confirm("Delete global category?")) { await axios.delete(`${import.meta.env.VITE_API_URL}/admin/global-categories/${cat.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }); fetchCategories(); } }} className="text-stone-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition"><Trash2 size={16}/></button>
                             </div>
                         </div>
                     ))}

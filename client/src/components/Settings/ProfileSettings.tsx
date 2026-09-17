@@ -160,7 +160,7 @@ export default function ProfileSettings() {
     try {
         setLoading(true);
         const token = localStorage.getItem('token');
-        await axios.delete('https://api.sidenote.in/auth/account/delete', {
+        await axios.delete('${import.meta.env.VITE_API_URL}/auth/account/delete', {
             headers: { Authorization: `Bearer ${token}` }
         });
         

@@ -8,24 +8,72 @@ import ErrorPage from './components/Error/ErrorPage';
 import { ThemeProvider } from './context/ThemeContext';
 import { PreferencesProvider } from './context/PreferencesContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import CryptoJS from 'crypto-js';
 
 const queryClient = new QueryClient();
+const SECRET_KEY = CryptoJS.enc.Utf8.parse(import.meta.env.VITE_API_ENCRYPTION_KEY);
+
+const encryptPayload = (data: any) => {
+  const iv = CryptoJS.lib.WordArray.random(16);
+  const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY, {
+    iv: iv,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7
+  });
+  const combined = iv.clone().concat(encrypted.ciphertext);
+  return CryptoJS.enc.Base64.stringify(combined);
+};
+
+const decryptPayload = (encryptedBase64: string) => {
+  const combined = CryptoJS.enc.Base64.parse(encryptedBase64);
+  const iv = CryptoJS.lib.WordArray.create(combined.words.slice(0, 4));
+  const ciphertext = CryptoJS.lib.WordArray.create(combined.words.slice(4));
+  
+  const cipherParams = CryptoJS.lib.CipherParams.create({ ciphertext: ciphertext });
+  
+  const decrypted = CryptoJS.AES.decrypt(cipherParams, SECRET_KEY, {
+    iv: iv,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7
+  });
+  return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+};
 
 function App() {
   const [serverError, setServerError] = useState<{code: number, message?: string} | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const CURRENT_FRONTEND_VERSION = "1.0.0";
+  
   axios.defaults.headers.common['Content-Type'] = 'application/json';
 
   useEffect(() => {
-    const interceptor = axios.interceptors.response.use(
+    const reqInterceptor = axios.interceptors.request.use((config) => {
+      config.headers['X-Encrypted'] = 'true';
+      
+      if (config.data && !(config.data instanceof FormData)) {
+        config.data = encryptPayload(config.data);
+        config.headers['Content-Type'] = 'text/plain'; 
+      }
+      return config;
+    });
+
+    const resInterceptor = axios.interceptors.response.use(
       (response) => {
         const serverVersion = response.headers['x-app-version'];
         if (serverVersion && serverVersion !== CURRENT_FRONTEND_VERSION) {
             console.warn("New version detected. Force reloading...");
             window.location.reload(); 
         }
+
+        if (response.config.headers['X-Encrypted'] === 'true' && typeof response.data === 'string') {
+          try {
+            response.data = decryptPayload(response.data);
+          } catch (err) {
+            console.error("API Decryption failed", err);
+          }
+        }
+
         return response;
       },
       (error) => {
@@ -70,7 +118,11 @@ function App() {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
     setIsLoaded(true);
-    return () => axios.interceptors.response.eject(interceptor);
+
+    return () => {
+      axios.interceptors.request.eject(reqInterceptor);
+      axios.interceptors.response.eject(resInterceptor);
+    };
   }, []);
 
   if (serverError) {
