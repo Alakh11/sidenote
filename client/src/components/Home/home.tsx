@@ -137,10 +137,7 @@ export default function Home() {
       {/* --- Hero Section --- */}
       <section className="max-w-7xl mx-auto px-6 py-10 md:py-24 flex flex-col md:grid md:grid-cols-2 gap-12 items-center text-center md:text-left">
         <div className="max-w-xl relative z-10 flex flex-col items-center md:items-start">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-6">
-            <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
-            Live on WhatsApp
-          </div>
+          
           <h1 className="text-5xl md:text-5xl lg:text-5xl font-extrabold tracking-tight leading-[1.05] mb-6">
             Track Expenses on <br/>
             <span className="text-[#25D366]">WhatsApp</span><br/>
@@ -149,6 +146,10 @@ export default function Home() {
             Just type it and it's noted. <br className="hidden md:block" />
             No apps. No categories. No login.
           </p>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-6">
+            <span className="w-2 h-2 rounded-full bg-[#25D366]"></span>
+            Live on WhatsApp
+          </div>
           <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
             <a 
               href={WHATSAPP_URL} target="_blank" rel="noreferrer"
