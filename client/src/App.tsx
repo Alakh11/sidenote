@@ -73,7 +73,6 @@ function App() {
             console.error("API Decryption failed", err);
           }
         }
-
         return response;
       },
       (error) => {
@@ -85,11 +84,28 @@ function App() {
                 window.location.reload();
             }
 
+            if (error.response.config?.headers['X-Encrypted'] === 'true' && typeof error.response.data === 'string') {
+              try {
+                error.response.data = decryptPayload(error.response.data);
+              } catch (err) {
+                console.error("API Error Decryption failed", err);
+              }
+            }
+
+            let errorMessage = error.message;
+            if (error.response.data) {
+                const detail = error.response.data.detail;
+                if (Array.isArray(detail)) {
+                    errorMessage = detail.map((err: any) => `${err.loc[err.loc.length - 1]}: ${err.msg}`).join(', ');
+                } else if (typeof detail === 'string') {
+                    errorMessage = detail;
+                } else if (error.response.data.message) {
+                    errorMessage = error.response.data.message;
+                }
+            }
+
             if (status === 403) {
-                setServerError({
-                    code: 403,
-                    message: error.response.data?.detail || "Access Restricted: SideNote is not available in your region."
-                });
+                setServerError({ code: 403, message: errorMessage || "Access Restricted: SideNote is not available in your region." });
             } else if (status === 503) {
                 setServerError({ code: 503 });
             } else if (status === 410) {
@@ -100,6 +116,8 @@ function App() {
                 localStorage.removeItem('user_data');
                 delete axios.defaults.headers.common['Authorization'];
                 window.location.href = '/login'; 
+            } else {
+                setServerError({ code: status, message: errorMessage });
             }
         } else if (error.message === 'Network Error') {
             setServerError({ code: 500, message: "Network Error: Could not connect to the API." });

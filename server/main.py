@@ -519,30 +519,40 @@ async def payload_encryption_middleware(request: Request, call_next):
     if request.url.path.startswith(exempt_prefixes):
         return await call_next(request)
 
-    is_encrypted = request.headers.get("X-Encrypted") == "true"
+    is_encrypted = request.headers.get("x-encrypted") == "true"
 
     if is_encrypted and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
         body = await request.body()
         if body:
             try:
-                decrypted_json_str = decrypt_payload(body.decode('utf-8'))
+                decrypted_json_str = decrypt_payload(body.decode('utf-8')).strip('\x00\r\n\t ')
+                decrypted_bytes = decrypted_json_str.encode('utf-8')
 
+                request._body = decrypted_bytes
+                body_sent = False
                 async def receive():
-                    return {"type": "http.request", "body": decrypted_json_str.encode('utf-8')}
+                    nonlocal body_sent
+                    if not body_sent:
+                        body_sent = True
+                        return {"type": "http.request", "body": decrypted_bytes, "more_body": False}
+                    return {"type": "http.request", "body": b"", "more_body": False}
+
                 request._receive = receive
 
                 new_headers = []
                 for k, v in request.scope.get("headers", []):
                     if k.lower() == b"content-type":
                         new_headers.append((b"content-type", b"application/json"))
+                    elif k.lower() == b"content-length":
+                        new_headers.append((b"content-length", str(len(decrypted_bytes)).encode('utf-8')))
                     else:
                         new_headers.append((k, v))
+                        
                 request.scope["headers"] = new_headers
-                request._headers = Headers(scope=request.scope)
 
             except Exception as e:
                 logger.error(f"Decryption failed: {e}")
-                return JSONResponse(status_code=400, content={"detail": "Payload decryption failed."})
+                return JSONResponse(status_code=400, content={"detail": f"Payload decryption failed: {str(e)}"})
 
     response = await call_next(request)
 
