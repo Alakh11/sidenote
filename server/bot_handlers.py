@@ -88,7 +88,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
                 if not await handle_dynamic_replies(phone, text):
                     await handle_fallback(phone, text)
 
-async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User"):
+async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, message_id: Optional[str] = None, sender_name: str = "WhatsApp User", caption: Optional[str] = None):
     if is_duplicate(message_id): return
     
     await ensure_user_exists(phone, sender_name)
@@ -104,7 +104,12 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, mess
     
     if receipt_data and 'amount' in receipt_data and 'item' in receipt_data:
         amount = float(receipt_data['amount'])
-        item = str(receipt_data['item'])
+        
+        if caption and caption.strip():
+            item = caption.strip()
+        else:
+            item = str(receipt_data['item'])
+            
         print(f"Data Successfully Extracted: ₹{amount} for {item}")
         await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
     else:

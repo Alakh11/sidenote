@@ -179,8 +179,9 @@ async def process_incoming_message(message: dict, sender_phone: str, message_id:
             media_type = message['type'] 
             media_id = str(message[media_type]['id'])
             mime_type = str(message[media_type]['mime_type'])
+            caption = message[media_type].get('caption') 
             print(f"📄 {media_type.capitalize()} received from {sender_name} ({sender_phone}). Processing ...")
-            await process_whatsapp_image(sender_phone, media_id, mime_type, message_id, sender_name)
+            await process_whatsapp_image(sender_phone, media_id, mime_type, message_id, sender_name, caption)
         
         elif message['type'] == 'audio':
             media_id = str(message['audio']['id'])
