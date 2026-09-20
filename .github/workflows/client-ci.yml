@@ -1,0 +1,41 @@
+name: Client CI Check
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'client/**'
+
+jobs:
+  build-client:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+      
+    defaults:
+      run:
+        working-directory: ./client
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Dummy .env for Build
+        run: |
+          echo "VITE_API_URL=http://localhost:8000" > .env
+          echo "VITE_GOOGLE_CLIENT_ID=dummy_client_id" >> .env
+          echo "VITE_API_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef" >> .env
+
+      - name: Type Check & Build
+        run: |
+          npx tsc -b
+          npm run build
