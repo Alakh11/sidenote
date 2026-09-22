@@ -204,6 +204,25 @@ async def run_daily_nudges(target_rule: str = "all"):
                             cursor.execute("SELECT c.name FROM transactions t JOIN categories c ON t.category_id = c.id WHERE t.user_id = %s ORDER BY t.date DESC LIMIT 1", (user_id,))
                             c_row = cursor.fetchone()
                             variables_payload.append(str(c_row['name']) if c_row else "Various")
+                        elif v_key == 'streak':
+                            cursor.execute("SELECT DISTINCT DATE(date) as tx_date FROM transactions WHERE user_id = %s ORDER BY tx_date DESC LIMIT 365", (user_id,))
+                            dates = [row['tx_date'] for row in cursor.fetchall()]
+                            
+                            current_streak = 0
+                            expected_date = today
+                            
+                            if dates and dates[0] < today:
+                                expected_date = today - timedelta(days=1)
+                                
+                            for d in dates:
+                                if d == expected_date:
+                                    current_streak += 1
+                                    expected_date -= timedelta(days=1)
+                                else:
+                                    break
+                                    
+                            variables_payload.append(str(current_streak))
+                            
                         else:
                             variables_payload.append("")
                             

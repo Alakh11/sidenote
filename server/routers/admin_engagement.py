@@ -150,7 +150,7 @@ def get_user_activity_stats(
                 FROM RankedDates
                 GROUP BY user_id, DATE_SUB(tx_date, INTERVAL rnk DAY)
             ),
-            MaxStreaks AS (
+            CurrentStreaks AS (
                 SELECT g.user_id, g.streak_len
                 FROM GroupedStreaks g
                 INNER JOIN (
@@ -158,6 +158,7 @@ def get_user_activity_stats(
                     FROM UserDates
                     GROUP BY user_id
                 ) m ON g.user_id = m.user_id AND g.max_date = m.last_date
+                WHERE m.last_date >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
             )
             SELECT 
                 f.user_id,
@@ -169,7 +170,7 @@ def get_user_activity_stats(
                 DATEDIFF(NOW(), MAX(f.created_at)) as days_since_joining,
                 COALESCE(MAX(s.streak_len), 0) as streak
             FROM FilteredTx f
-            LEFT JOIN MaxStreaks s ON f.user_id = s.user_id
+            LEFT JOIN CurrentStreaks s ON f.user_id = s.user_id
             GROUP BY f.user_id
             ORDER BY COUNT(f.date) = 0 ASC, {db_sort} {order}
             LIMIT %s OFFSET %s
