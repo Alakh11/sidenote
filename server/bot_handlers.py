@@ -111,8 +111,10 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, mess
         else:
             item = str(receipt_data['item'])
             
-        print(f"Data Successfully Extracted: ₹{amount} for {item}")
-        await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
+        p_mode = receipt_data.get('payment_mode', 'UPI').lower()
+        
+        print(f"Data Successfully Extracted: ₹{amount} for {item} via {p_mode}")
+        await handle_transaction_entry(phone, amount, item, sender_name=sender_name, payment_mode=p_mode)
     else:
         await send_whatsapp_text(phone, "❌ Sorry, I couldn't clearly read that receipt.")
 
