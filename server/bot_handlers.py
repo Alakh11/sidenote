@@ -135,8 +135,9 @@ async def process_whatsapp_audio(phone: str, media_id: str, message_id: Optional
     if voice_data and voice_data.get('amount', 0) > 0:
         amount = float(voice_data['amount'])
         item = str(voice_data['item'])
-        print(f"🎙️ Voice Extracted: ₹{amount} for {item}")
-        await handle_transaction_entry(phone, amount, item, sender_name=sender_name)
+        p_mode = voice_data.get('payment_mode', 'UPI').lower()
+        print(f"🎙️ Voice Extracted: ₹{amount}, {p_mode} for {item}")
+        await handle_transaction_entry(phone, amount, item, payment_mode=p_mode, sender_name=sender_name)
     else:
         await send_whatsapp_text(phone, "❓ I couldn't hear a specific amount or item. Could you try speaking a bit clearer?")   
 

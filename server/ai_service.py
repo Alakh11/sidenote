@@ -21,8 +21,9 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
         )
         
         prompt = (
-            "Analyze this receipt or invoice. Find the final total amount and the name of the merchant/service. "
-            "Return ONLY a raw, valid JSON object with two keys: 'amount' (a float) and 'item' (a string). "
+            "Analyze this receipt or invoice. Find the final total amount, the payment method, and the name of the merchant/service. "
+            "Return ONLY a raw, valid JSON object with EXACTLY three keys: 'amount' (a float), 'payment_mode' (a string), and 'item' (a string). "
+            "For 'payment_mode', strictly map the detected method to one of these exact words: 'card', 'upi', 'cash', or 'netbanking'. (e.g., Rupay/Visa/Credit -> 'card', GPay/PhonePe -> 'upi'). If completely unknown, use 'upi'. "
             "Do not include any markdown formatting, backticks, or extra text."
         )
         
@@ -53,15 +54,16 @@ def extract_receipt_data(file_bytes: bytes, mime_type: str) -> dict | None:
         return None
     
 def extract_voice_data(audio_bytes: bytes, mime_type: str = "audio/ogg") -> dict | None:
-    """Listens to a WhatsApp voice note and extracts the expense details."""
     api_key = os.getenv("GEMINI_API_KEY")
     try:
         client = genai.Client(api_key=api_key, http_options={'api_version': 'v1'})
         
         prompt = (
-            "Listen to this voice note carefully. Identify the amount spent and the item or service mentioned. "
-            "Return ONLY a raw, valid JSON object with two keys: 'amount' (a float) and 'item' (a string). "
-            "If no expense or income is mentioned, return {'amount': 0, 'item': 'none'}."
+            "Listen to this voice note carefully. Identify the amount spent, the payment method, and the item or service mentioned. "
+            "Return ONLY a raw, valid JSON object with EXACTLY three keys: 'amount' (a float), 'payment_mode' (a string), and 'item' (a string). "
+            "For 'payment_mode', strictly map the spoken method to one of these exact words: 'card', 'upi', 'cash', or 'netbanking'. If not mentioned, default to 'upi'. "
+            "If no expense or income is mentioned, return {'amount': 0, 'payment_mode': 'upi', 'item': 'none'}. "
+            "Do not include any markdown formatting or backticks."
         )
         
         response = client.models.generate_content(
