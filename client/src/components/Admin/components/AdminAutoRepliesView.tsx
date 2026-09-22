@@ -26,7 +26,7 @@ export default function AdminAutoRepliesView() {
     const fetchReplies = async () => {
         setLoading(true);
         try {
-            const res = await axios.get("${import.meta.env.VITE_API_URL}/admin/auto-replies", {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/admin/auto-replies`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             setReplies(res.data);
@@ -54,7 +54,7 @@ export default function AdminAutoRepliesView() {
             if (editingId) {
                 await axios.put(`${import.meta.env.VITE_API_URL}/admin/auto-replies/${editingId}`, payload, config);
             } else {
-                await axios.post("${import.meta.env.VITE_API_URL}/admin/auto-replies", payload, config);
+                await axios.post(`${import.meta.env.VITE_API_URL}/admin/auto-replies`, payload, config);
             }
             
             handleCancel();

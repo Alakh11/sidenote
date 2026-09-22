@@ -12,7 +12,7 @@ export default function AdminCategoriesView() {
     const fetchCategories = async () => {
         setLoading(true);
         try {
-            const res = await axios.get("${import.meta.env.VITE_API_URL}/admin/global-categories", {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/admin/global-categories`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             setCategories(res.data);
@@ -28,7 +28,7 @@ export default function AdminCategoriesView() {
             if (editingId) {
                 await axios.put(`${import.meta.env.VITE_API_URL}/admin/global-categories/${editingId}`, newEntry, config);
             } else {
-                await axios.post("${import.meta.env.VITE_API_URL}/admin/global-categories", newEntry, config);
+                await axios.post(`${import.meta.env.VITE_API_URL}/admin/global-categories`, newEntry, config);
             }
             handleCancel();
             fetchCategories();
