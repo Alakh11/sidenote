@@ -95,10 +95,10 @@ def format_transaction_list(transactions, title):
 
 async def handle_search_command(phone: str, text: str):
     """Parses the user's search query and routes to the correct database fetch."""
-    query = text.lower().replace("search", "").replace("find", "").strip()
+    query = re.sub(r'^\s*(?:search|find)\b', '', text, flags=re.IGNORECASE).strip().lower()
     
     if not query:
-        await send_whatsapp_text(phone, "Please tell me what to search for!\n\nExamples:\n- `search yesterday`\n- `search food`\n- `search monday`\n- `search between 15-20`")
+        await send_whatsapp_text(phone, "Please tell me what to search for!\n\nExamples:\n- `search yesterday`\n- `search food`\n- `search monday`\n- `search 15 aug`\n- `search between 15-20`")
         return
 
     conn = get_db()
@@ -109,7 +109,7 @@ async def handle_search_command(phone: str, text: str):
         if not user_id: return
 
         # 1. TODAY
-        if "today" in query:
+        if re.search(r'\btoday\b', query):
             cursor.execute("""
                 SELECT amount, note, type, date FROM transactions 
                 WHERE user_id = %s AND DATE(date) = CURDATE()
@@ -120,7 +120,7 @@ async def handle_search_command(phone: str, text: str):
             return
 
         # 2. YESTERDAY
-        if "yesterday" in query:
+        if re.search(r'\byesterday\b', query):
             cursor.execute("""
                 SELECT amount, note, type, date FROM transactions 
                 WHERE user_id = %s AND DATE(date) = CURDATE() - INTERVAL 1 DAY
@@ -131,8 +131,18 @@ async def handle_search_command(phone: str, text: str):
             return
 
         months = {
-            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
-            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+            'january': 1, 'jan': 1,
+            'february': 2, 'feb': 2,
+            'march': 3, 'mar': 3,
+            'april': 4, 'apr': 4,
+            'may': 5, 
+            'june': 6, 'jun': 6,
+            'july': 7, 'jul': 7,
+            'august': 8, 'aug': 8,
+            'september': 9, 'sep': 9, 'sept': 9,
+            'october': 10, 'oct': 10,
+            'november': 11, 'nov': 11,
+            'december': 12, 'dec': 12
         }
 
         # 3. SPECIFIC MONTH & DAY
@@ -158,6 +168,7 @@ async def handle_search_command(phone: str, text: str):
             await send_whatsapp_text(phone, format_transaction_list(transactions, f"Transactions on {m_name.capitalize()} {day_num}"))
             return
 
+        # DAY OF CURRENT MONTH
         if query.isdigit() and 1 <= int(query) <= 31:
             day_num = int(query)
             cursor.execute("""
@@ -170,6 +181,7 @@ async def handle_search_command(phone: str, text: str):
             await send_whatsapp_text(phone, format_transaction_list(transactions, f"Transactions on the {day_num}th"))
             return
             
+        # WEEKDAYS
         weekdays = {'monday':0, 'tuesday':1, 'wednesday':2, 'thursday':3, 'friday':4, 'saturday':5, 'sunday':6}
         if query in weekdays:
             cursor.execute("""
@@ -218,8 +230,8 @@ async def handle_search_command(phone: str, text: str):
                     chart_bytes = create_expense_pie_chart(cat_data, month_name)
                     media_id = await upload_whatsapp_media(chart_bytes, "image/png", f"{month_name}_analysis.png")
                     
-                    top_cat = cat_data[0] 
-                    top_cat_name = str(top_cat['category']).capitalize() if top_cat.get('category') else 'Other'
+                    top_cat = cat_data[0] if cat_data else None
+                    top_cat_name = str(top_cat['category']).capitalize() if top_cat and top_cat.get('category') else 'Other'
                     
                     caption = f"*Full Analysis for {month_name.capitalize()}*\n\n"
                     caption += f"Total Expense: ₹{exp:g}\n"
@@ -231,7 +243,8 @@ async def handle_search_command(phone: str, text: str):
                         c_total = float(cat['total'])
                         caption += f"• {c_name}: ₹{c_total:g}\n"
                         
-                    caption += f"\n*Highest Spend:* {top_cat_name} (₹{float(top_cat['total']):g})"
+                    if top_cat:
+                        caption += f"\n*Highest Spend:* {top_cat_name} (₹{float(top_cat['total']):g})"
                     
                     if media_id:
                         await send_whatsapp_media(phone, media_type="image", media_id=media_id, caption=caption)
@@ -268,10 +281,20 @@ async def handle_search_command(phone: str, text: str):
             return
 
         # 9. CATEGORY MATCH
+        normalized_query = query.lower()
         cursor.execute("""
             SELECT id, name FROM categories 
-            WHERE user_id = %s AND LOWER(name) LIKE %s LIMIT 1
-        """, (user_id, f"%{query}%"))
+            WHERE (user_id = %s OR user_id IS NULL) 
+            AND LOWER(name) LIKE %s 
+            ORDER BY
+                CASE
+                    WHEN LOWER(name) = %s THEN 0
+                    WHEN LOWER(name) LIKE %s THEN 1
+                    ELSE 2
+                END,
+                name
+            LIMIT 1
+        """, (user_id, f"%{normalized_query}%", normalized_query, f"{normalized_query}%"))
         cat_row = cursor.fetchone()
         
         if cat_row:
