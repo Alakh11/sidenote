@@ -21,6 +21,7 @@ CMD_MONTH = "month"
 CMD_TODAY = "today"
 CMD_HELP = "help"
 CMD_MORE = "more"
+CMD_STREAK = "streak"
 
 # ==========================================
 # BUDGET SETTINGS

@@ -221,3 +221,40 @@ async def handle_dashboard_request(phone: str):
         "For now, you can get all your insights and summaries right here in WhatsApp by typing *menu*!"
     )
     await send_whatsapp_text(phone, msg)
+    
+       
+async def handle_streak_request(phone: str):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM users WHERE mobile = %s", (phone,))
+        user = cursor.fetchone()
+        if not user: 
+            return
+            
+        cursor.execute("SELECT DISTINCT DATE(date) as tx_date FROM transactions WHERE user_id = %s ORDER BY tx_date DESC LIMIT 365", (user['id'],))
+        dates = [row['tx_date'] for row in cursor.fetchall()]
+        today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+        current_streak = 0
+        expected_date = today
+        
+        if dates and dates[0] < today:
+            expected_date = today - timedelta(days=1)
+            
+        for d in dates:
+            if d == expected_date:
+                current_streak += 1
+                expected_date -= timedelta(days=1)
+            else:
+                break
+                
+        if current_streak == 0:
+            msg = "You don't have an active streak right now. Log an expense today to start a new one! 🔥"
+        elif current_streak == 1:
+            msg = "🔥 You have a *1-day streak*! Log again tomorrow to keep it going!"
+        else:
+            msg = f"🔥🔥 Awesome! You are on a *{current_streak}-day streak*!\n\nKeep logging daily to maintain your momentum!"
+            
+        await send_whatsapp_text(phone, msg)
+    finally:
+        conn.close()

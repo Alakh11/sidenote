@@ -1,11 +1,11 @@
 from typing import Optional
 from whatsapp_service import send_whatsapp_text, get_whatsapp_media_url, download_whatsapp_media
 from ai_service import extract_receipt_data, extract_voice_data
-from constants import CMD_MENU, CMD_UNDO, CMD_SUMMARY, CMD_WEEK, CMD_MONTH, CMD_TODAY, CMD_MORE, CMD_HELP, CMD_SET_BUDGET, INCOME_KEYWORDS, CMD_SET_NAME, CMD_SET_NICKNAME
+from constants import CMD_MENU, CMD_UNDO, CMD_SUMMARY, CMD_WEEK, CMD_MONTH, CMD_TODAY, CMD_MORE, CMD_HELP, CMD_SET_BUDGET, INCOME_KEYWORDS, CMD_SET_NAME, CMD_SET_NICKNAME, CMD_STREAK
 from whatsapp_handlers.search_handlers import handle_search_command, handle_search_interactive
 
 from whatsapp_handlers.bot_utils import is_duplicate, extract_transaction_details, log_bot_command, ensure_user_exists
-from whatsapp_handlers.reports import handle_summary_request, handle_weekly_request, handle_monthly_request, handle_today_request, handle_menu_request, handle_more_request, handle_dashboard_request
+from whatsapp_handlers.reports import handle_summary_request, handle_weekly_request, handle_monthly_request, handle_today_request, handle_menu_request, handle_more_request, handle_dashboard_request, handle_streak_request
 from whatsapp_handlers.transactions import handle_transaction_entry, handle_undo_request, handle_undo_action, handle_budget_set, handle_dynamic_replies, handle_fallback, handle_set_profile
 from whatsapp_handlers.groups_bot import handle_group_commands
 
@@ -27,6 +27,7 @@ async def process_whatsapp_text(phone: str, text: str, message_id: Optional[str]
     elif text == CMD_MONTH: log_bot_command(phone, 'month'); await handle_monthly_request(phone)
     elif text == CMD_TODAY: log_bot_command(phone, 'today'); await handle_today_request(phone)
     elif text == CMD_MORE: log_bot_command(phone, 'more'); await handle_more_request(phone)
+    elif text == CMD_STREAK: log_bot_command(phone, 'streak');await handle_streak_request(phone)
     elif text == CMD_HELP: 
         log_bot_command(phone, 'help')
         await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!\n- Send a Voice Note!")
