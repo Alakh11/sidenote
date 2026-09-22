@@ -3,8 +3,7 @@ import {
   createRoute, 
   createRootRouteWithContext, 
   Outlet, 
-  redirect,
-  NotFoundRoute, 
+  redirect, 
 } from '@tanstack/react-router';
 import axios, { isAxiosError } from 'axios';
 import Layout from './components/Layout';
@@ -359,10 +358,7 @@ const privacyRoute = createRoute({
   component: PrivacyPolicy,
 });
 
-const notFoundRoute = new NotFoundRoute({
-  getParentRoute: () => rootRoute,
-  component: () => <ErrorPage code={404} />,
-});
+
 
 // --- Assemble Route Tree ---
 const routeTree = rootRoute.addChildren([
@@ -397,7 +393,7 @@ export const router = createRouter({
     user: null, 
     handleLogout: undefined!
   },
-  notFoundRoute,
+  defaultNotFoundComponent: () => <ErrorPage code={404} />,
   defaultPendingComponent: GlobalLoader,
   defaultPendingMs: 0,
   defaultPendingMinMs: 500
