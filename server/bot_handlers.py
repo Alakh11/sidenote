@@ -153,6 +153,7 @@ async def process_whatsapp_interactive(phone: str, button_id: str, message_id: O
     elif button_id == "cmd_dashboard": log_bot_command(phone, 'dashboard'); await handle_dashboard_request(phone)
     elif button_id == "cmd_month": log_bot_command(phone, 'month'); await handle_monthly_request(phone)
     elif button_id == "cmd_week": log_bot_command(phone, 'week'); await handle_weekly_request(phone)
+    elif button_id == "cmd_streak": log_bot_command(phone, 'streak'); await handle_streak_request(phone)
     elif button_id == "cmd_help": 
         log_bot_command(phone, 'help')
         await send_whatsapp_text(phone, "💡 *Tips:*\n- Type `100 food` to add an expense.\n- Type `undo` to delete a mistake.\n- Send a photo of a receipt!")
