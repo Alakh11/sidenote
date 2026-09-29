@@ -26,7 +26,7 @@ export default function ResetPassword() {
 
   const API_URL = import.meta.env.VITE_API_URL;
   const currentConfig = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
-  const targetMobile = `+${countryCode}${formData.mobile}`;
+  const targetMobile = `${countryCode}${formData.mobile}`;
 
   const validatePassword = () => {
       const pw = formData.newPassword;
