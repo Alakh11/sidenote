@@ -26,7 +26,7 @@ export default function ResetPassword() {
 
   const API_URL = import.meta.env.VITE_API_URL;
   const currentConfig = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
-  const targetMobile = `${countryCode}${formData.mobile}`;
+  const targetMobile = `+${countryCode}${formData.mobile}`;
 
   const validatePassword = () => {
       const pw = formData.newPassword;
@@ -53,7 +53,7 @@ export default function ResetPassword() {
           setLoading(true);
           try {
               await axios.post(`${API_URL}/auth/reset-password`, {
-                  name: formData.name,
+                  name: formData.name.trim(),
                   contact: targetMobile,
                   new_password: formData.newPassword
               });
