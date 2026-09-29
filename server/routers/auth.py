@@ -258,13 +258,13 @@ async def reset_password(data: ResetPassword):
         field = "email" if is_email else "mobile"
         
         cursor.execute(
-            f"SELECT id, name, mobile FROM users WHERE {field} = %s AND LOWER(name) = LOWER(%s)", 
-            (data.contact, data.name)
+            f"SELECT id, name, mobile FROM users WHERE {field} = %s", 
+            (data.contact,)
         )
         raw_user = cursor.fetchone()
         
         if not raw_user:
-            raise HTTPException(status_code=400, detail="Details do not match any account.")
+            raise HTTPException(status_code=400, detail="Mobile number do not match any account.")
             
         user: dict[str, Any] = raw_user # type: ignore
         target_mobile = user.get('mobile')
@@ -273,7 +273,7 @@ async def reset_password(data: ResetPassword):
              raise HTTPException(status_code=400, detail="No WhatsApp number linked to this account.")
             
         new_hash = pwd_context.hash(data.new_password)
-        cursor.execute(f"UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
+        cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
         
         await generate_and_send_otp(cursor, target_mobile, user['name'])
         
