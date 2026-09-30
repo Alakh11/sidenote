@@ -93,6 +93,86 @@ def format_transaction_list(transactions, title):
     return "\n".join(details)
 
 
+async def handle_paginated_search(phone: str, user_id: int, search_type: str, p1: str, p2: str, offset: int):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        query_sql = ""
+        params = []
+        title = ""
+
+        if search_type == "tod":
+            query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND DATE(date) = CURDATE() ORDER BY id DESC"
+            params = [user_id]
+            title = "Today's Activity"
+        elif search_type == "yday":
+            query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND DATE(date) = CURDATE() - INTERVAL 1 DAY ORDER BY id DESC"
+            params = [user_id]
+            title = "Yesterday's Activity"
+        elif search_type == "md":
+            month, day = map(int, p1.split('-'))
+            if p2: 
+                year = int(p2)
+                query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND MONTH(date) = %s AND DAY(date) = %s AND YEAR(date) = %s ORDER BY id DESC"
+                params = [user_id, month, day, year]
+            else:
+                query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND MONTH(date) = %s AND DAY(date) = %s AND YEAR(date) = YEAR(CURDATE()) ORDER BY id DESC"
+                params = [user_id, month, day]
+            months_inv = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+            title = f"Transactions on {months_inv.get(month, '')} {day}"
+            if p2: title += f", {p2}"
+        elif search_type == "day":
+            day = int(p1)
+            query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE()) AND DAY(date) = %s ORDER BY id DESC"
+            params = [user_id, day]
+            title = f"Transactions on the {day}th"
+        elif search_type == "wk":
+            weekday = int(p1)
+            query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND WEEKDAY(date) = %s AND date >= CURDATE() - INTERVAL 7 DAY ORDER BY date DESC"
+            params = [user_id, weekday]
+            days = {0:'Monday', 1:'Tuesday', 2:'Wednesday', 3:'Thursday', 4:'Friday', 5:'Saturday', 6:'Sunday'}
+            title = f"Recent Activity on {days.get(weekday, '')}"
+        elif search_type == "amt":
+            min_amt, max_amt = float(p1), float(p2)
+            query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND amount BETWEEN %s AND %s ORDER BY date DESC"
+            params = [user_id, min_amt, max_amt]
+            title = f"Transactions between ₹{min_amt:g} & ₹{max_amt:g}"
+        elif search_type == "txt":
+            short_p1 = p1[:50]
+            query_sql = "SELECT amount, note, type, date FROM transactions WHERE user_id = %s AND note LIKE %s ORDER BY date DESC"
+            params = [user_id, f"%{short_p1}%"]
+            title = f"Search results for '{short_p1.capitalize()}'"
+        else:
+            return
+
+        cursor.execute(query_sql + " LIMIT 6 OFFSET %s", params + [offset])
+        results = cursor.fetchall()
+        
+        has_next = len(results) > 5
+        transactions_to_show = results[:5]
+
+        if not transactions_to_show and offset == 0:
+            await send_whatsapp_text(phone, f"❌ I couldn't find anything matching your search.")
+            return
+
+        msg = format_transaction_list(transactions_to_show, title)
+
+        if has_next:
+            next_offset = offset + 5
+            safe_p1 = str(p1)[:50].replace('|', ' ')
+            safe_p2 = str(p2)[:50].replace('|', ' ')
+            button_id = f"srch_pg|{search_type}|{safe_p1}|{safe_p2}|{next_offset}"
+            buttons = [{"id": button_id, "title": "Next 5 Entries ➡️"}]
+            await send_whatsapp_interactive_buttons(phone, msg, buttons)
+        else:
+            await send_whatsapp_text(phone, msg + "\n\n_(End of results)_")
+    except Exception as e:
+        print(f"Pagination Error: {e}")
+        await send_whatsapp_text(phone, "⚠️ Sorry, something went wrong while loading more results.")
+    finally:
+        conn.close()
+
+
 async def handle_search_command(phone: str, text: str):
     """Parses the user's search query and routes to the correct database fetch."""
     query = re.sub(r'^\s*(?:search|find)\b', '', text, flags=re.IGNORECASE).strip().lower()
@@ -110,24 +190,12 @@ async def handle_search_command(phone: str, text: str):
 
         # 1. TODAY
         if re.search(r'\btoday\b', query):
-            cursor.execute("""
-                SELECT amount, note, type, date FROM transactions 
-                WHERE user_id = %s AND DATE(date) = CURDATE()
-                ORDER BY id DESC
-            """, (user_id,))
-            transactions = cursor.fetchall()
-            await send_whatsapp_text(phone, format_transaction_list(transactions, "Today's Activity"))
+            await handle_paginated_search(phone, user_id, "tod", "", "", 0)
             return
 
         # 2. YESTERDAY
         if re.search(r'\byesterday\b', query):
-            cursor.execute("""
-                SELECT amount, note, type, date FROM transactions 
-                WHERE user_id = %s AND DATE(date) = CURDATE() - INTERVAL 1 DAY
-                ORDER BY id DESC
-            """, (user_id,))
-            transactions = cursor.fetchall()
-            await send_whatsapp_text(phone, format_transaction_list(transactions, "Yesterday's Activity"))
+            await handle_paginated_search(phone, user_id, "yday", "", "", 0)
             return
 
         months = {
@@ -147,56 +215,43 @@ async def handle_search_command(phone: str, text: str):
 
         # 3. SPECIFIC MONTH & DAY
         month_names_pattern = "|".join(months.keys())
-        month_day_match = re.search(rf'\b({month_names_pattern})\s+(\d{{1,2}})\b|\b(\d{{1,2}})\s+({month_names_pattern})\b', query)
+        month_day_match = re.search(
+            rf'\b({month_names_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s*(\d{{2,4}}))?\b|\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({month_names_pattern})(?:,?\s*(\d{{2,4}}))?\b',
+            query
+        )
         
         if month_day_match:
             if month_day_match.group(1):
                 m_name = month_day_match.group(1)
                 day_num = int(month_day_match.group(2))
+                year_str = month_day_match.group(3)
             else:
-                day_num = int(month_day_match.group(3))
-                m_name = month_day_match.group(4)
+                day_num = int(month_day_match.group(4))
+                m_name = month_day_match.group(5)
+                year_str = month_day_match.group(6)
                 
             month_num = months[m_name]
-            
-            cursor.execute("""
-                SELECT amount, note, type, date FROM transactions 
-                WHERE user_id = %s AND MONTH(date) = %s AND YEAR(date) = YEAR(CURDATE()) AND DAY(date) = %s
-                ORDER BY id DESC
-            """, (user_id, month_num, day_num))
-            transactions = cursor.fetchall()
-            await send_whatsapp_text(phone, format_transaction_list(transactions, f"Transactions on {m_name.capitalize()} {day_num}"))
+            year_num = int(year_str) if year_str else None
+            if year_num and year_num < 100:
+                year_num += 2000
+                
+            await handle_paginated_search(phone, user_id, "md", f"{month_num}-{day_num}", str(year_num) if year_num else "", 0)
             return
 
         # DAY OF CURRENT MONTH
         if query.isdigit() and 1 <= int(query) <= 31:
-            day_num = int(query)
-            cursor.execute("""
-                SELECT amount, note, type, date FROM transactions 
-                WHERE user_id = %s AND MONTH(date) = MONTH(CURDATE()) 
-                AND YEAR(date) = YEAR(CURDATE()) AND DAY(date) = %s
-                ORDER BY id DESC
-            """, (user_id, day_num))
-            transactions = cursor.fetchall()
-            await send_whatsapp_text(phone, format_transaction_list(transactions, f"Transactions on the {day_num}th"))
+            await handle_paginated_search(phone, user_id, "day", query, "", 0)
             return
             
         # WEEKDAYS
         weekdays = {'monday':0, 'tuesday':1, 'wednesday':2, 'thursday':3, 'friday':4, 'saturday':5, 'sunday':6}
         if query in weekdays:
-            cursor.execute("""
-                SELECT amount, note, type, date FROM transactions 
-                WHERE user_id = %s AND WEEKDAY(date) = %s AND date >= CURDATE() - INTERVAL 7 DAY
-                ORDER BY date DESC
-            """, (user_id, weekdays[query]))
-            transactions = cursor.fetchall()
-            await send_whatsapp_text(phone, format_transaction_list(transactions, f"Recent Activity on {query.capitalize()}"))
+            await handle_paginated_search(phone, user_id, "wk", str(weekdays[query]), "", 0)
             return
 
         # 6. MONTH OVERVIEW (e.g., "may" or "may data")
         for month_name, month_num in months.items():
             if month_name in query.split():
-                # Check if user appended "data" or "chart"
                 wants_graph = "data" in query.split() or "chart" in query.split()
                 
                 cursor.execute("""
@@ -271,13 +326,7 @@ async def handle_search_command(phone: str, text: str):
         amount_match = re.search(r'(?:amount|range).*?(\d+).*?(?:and|-|to).*?(\d+)', query)
         if amount_match:
             min_amt, max_amt = float(amount_match.group(1)), float(amount_match.group(2))
-            cursor.execute("""
-                SELECT amount, note, type, date FROM transactions 
-                WHERE user_id = %s AND amount BETWEEN %s AND %s
-                ORDER BY date DESC LIMIT 15
-            """, (user_id, min_amt, max_amt))
-            transactions = cursor.fetchall()
-            await send_whatsapp_text(phone, format_transaction_list(transactions, f"Transactions between ₹{min_amt:g} & ₹{max_amt:g}"))
+            await handle_paginated_search(phone, user_id, "amt", str(min_amt), str(max_amt), 0)
             return
 
         # 9. CATEGORY MATCH
@@ -303,20 +352,8 @@ async def handle_search_command(phone: str, text: str):
             await handle_category_pagination(phone, user_id, cat_id, cat_name, offset=0)
             return
         
-        # 10. TEXT  SEARCH
-        cursor.execute("""
-            SELECT amount, note, type, date 
-            FROM transactions 
-            WHERE user_id = %s AND note LIKE %s
-            ORDER BY date DESC LIMIT 15
-        """, (user_id, f"%{query}%"))
-        
-        transactions = cursor.fetchall()
-        
-        if transactions:
-            await send_whatsapp_text(phone, format_transaction_list(transactions, f"Search results for '{query.capitalize()}'"))
-        else:
-            await send_whatsapp_text(phone, f"❌ I couldn't find anything matching '{query}'. Try searching for a specific date, amount, or item name.")
+        # 10. TEXT SEARCH
+        await handle_paginated_search(phone, user_id, "txt", query, "", 0)
 
     except Exception as e:
         print(f"Search Error: {e}")
@@ -325,7 +362,7 @@ async def handle_search_command(phone: str, text: str):
         conn.close()
 
 async def handle_range_pagination(phone: str, user_id: int, start_day: int, end_day: int, offset: int):
-    """Fetches 10 transactions for a date range, checks if there are more, and sends Next button."""
+    """Fetches records for a date range and displays exactly 5"""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -334,20 +371,20 @@ async def handle_range_pagination(phone: str, user_id: int, start_day: int, end_
             FROM transactions 
             WHERE user_id = %s AND MONTH(date) = MONTH(CURDATE()) AND YEAR(date) = YEAR(CURDATE())
             AND DAY(date) BETWEEN %s AND %s
-            ORDER BY date DESC LIMIT 11 OFFSET %s
+            ORDER BY date DESC LIMIT 6 OFFSET %s
         """, (user_id, start_day, end_day, offset))
         
         results = cursor.fetchall()
         
-        has_next = len(results) > 10
-        transactions_to_show = results[:10]
+        has_next = len(results) > 5
+        transactions_to_show = results[:5]
         
         msg = format_transaction_list(transactions_to_show, f"Transactions: {start_day} to {end_day} of this month")
         
         if has_next:
-            next_offset = offset + 10
+            next_offset = offset + 5
             buttons = [
-                {"id": f"srch_rng_{start_day}_{end_day}_{next_offset}", "title": "Next 10 Entries ➡️"}
+                {"id": f"srch_rng_{start_day}_{end_day}_{next_offset}", "title": "Next 5 Entries ➡️"}
             ]
             await send_whatsapp_interactive_buttons(phone, msg, buttons)
         else:
@@ -357,7 +394,7 @@ async def handle_range_pagination(phone: str, user_id: int, start_day: int, end_
         conn.close()
 
 async def handle_category_pagination(phone: str, user_id: int, cat_id: int, cat_name: str, offset: int):
-    """Legacy pagination handler (Kept in case users click old buttons in their chat history)."""
+    """Fetches records for a specific category and displays exactly 5"""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -370,11 +407,13 @@ async def handle_category_pagination(phone: str, user_id: int, cat_id: int, cat_
         
         results = cursor.fetchall()
         has_next = len(results) > 5
+        transactions_to_show = results[:5]
         
-        msg = format_transaction_list(results[:5], f"Category: {cat_name}")
+        msg = format_transaction_list(transactions_to_show, f"Category: {cat_name}")
         
         if has_next:
-            buttons = [{"id": f"srch_cat_{cat_id}_{offset + 5}", "title": "Next 5 Entries ➡️"}]
+            next_offset = offset + 5
+            buttons = [{"id": f"srch_cat_{cat_id}_{next_offset}", "title": "Next 5 Entries ➡️"}]
             await send_whatsapp_interactive_buttons(phone, msg, buttons)
         else:
             await send_whatsapp_text(phone, msg + "\n\n_(End of results)_")
@@ -384,29 +423,40 @@ async def handle_category_pagination(phone: str, user_id: int, cat_id: int, cat_
 
 async def handle_search_interactive(phone: str, button_id: str):
     """Catches the 'Next Entries' button clicks from WhatsApp."""
-    parts = button_id.split('_')
-    
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         user_id = get_user_id(cursor, phone)
         if not user_id: return
         
-        if len(parts) == 5 and parts[0] == "srch" and parts[1] == "rng":
-            start_day = int(parts[2])
-            end_day = int(parts[3])
-            offset = int(parts[4])
-            await handle_range_pagination(phone, user_id, start_day, end_day, offset)
-            
-        elif len(parts) == 4 and parts[0] == "srch" and parts[1] == "cat":
-            cat_id = int(parts[2])
-            offset = int(parts[3])
-            
-            cursor.execute("SELECT name FROM categories WHERE id = %s", (cat_id,))
-            cat_row = cursor.fetchone()
-            cat_name = cat_row['name'] if cat_row else "Category"
-            
-            await handle_category_pagination(phone, user_id, cat_id, cat_name, offset)
-            
+        if button_id.startswith("srch_pg|"):
+            parts = button_id.split('|')
+            if len(parts) == 5:
+                search_type = parts[1]
+                p1 = parts[2]
+                p2 = parts[3]
+                offset = int(parts[4])
+                await handle_paginated_search(phone, user_id, search_type, p1, p2, offset)
+
+        elif button_id.startswith("srch_rng_"):
+            parts = button_id.split('_')
+            if len(parts) == 5:
+                start_day = int(parts[2])
+                end_day = int(parts[3])
+                offset = int(parts[4])
+                await handle_range_pagination(phone, user_id, start_day, end_day, offset)
+                
+        elif button_id.startswith("srch_cat_"):
+            parts = button_id.split('_')
+            if len(parts) == 4:
+                cat_id = int(parts[2])
+                offset = int(parts[3])
+                
+                cursor.execute("SELECT name FROM categories WHERE id = %s", (cat_id,))
+                cat_row = cursor.fetchone()
+                cat_name = cat_row['name'] if cat_row else "Category"
+                
+                await handle_category_pagination(phone, user_id, cat_id, cat_name, offset)
+                
     finally:
         conn.close()
