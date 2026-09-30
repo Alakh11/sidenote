@@ -12,6 +12,8 @@ import CryptoJS from 'crypto-js';
 
 const queryClient = new QueryClient();
 const SECRET_KEY = CryptoJS.enc.Utf8.parse(import.meta.env.VITE_API_ENCRYPTION_KEY);
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+const CURRENT_FRONTEND_VERSION = "1.0.0";
 
 const encryptPayload = (data: any) => {
   const iv = CryptoJS.lib.WordArray.random(16);
@@ -43,9 +45,6 @@ function App() {
   const [serverError, setServerError] = useState<{code: number, message?: string} | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const CURRENT_FRONTEND_VERSION = "1.0.0";
-  
-  axios.defaults.headers.common['Content-Type'] = 'application/json';
 
   useEffect(() => {
     const reqInterceptor = axios.interceptors.request.use((config) => {
