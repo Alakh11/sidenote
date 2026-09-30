@@ -1,6 +1,6 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
 import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List, Bot, Terminal, MapPin, BookOpen, Send } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import UserFormModal from './components/UserFormModal';
 import AdminFeedbackView from './components/AdminFeedbackView';
@@ -21,10 +21,16 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help';
 type SystemView = 'metrics' | 'feedback' | 'logs' | 'geo';
+const SortIcon = ({ col, sortBy, sortOrder }: { col: string, sortBy: string, sortOrder: 'ASC' | 'DESC' }) => {
+    if (sortBy !== col) return null;
+    return sortOrder === 'ASC' 
+        ? <ArrowUp size={12} className="inline ml-1"/> 
+        : <ArrowDown size={12} className="inline ml-1"/>;
+};
 
 export default function AdminPanel() {
   const router = useRouter();
-  const { users: initialUsers, stats: initialStats } = useLoaderData({ from: '/_auth/admin' });
+  const { users: initialUsers, stats: initialStats } = useLoaderData({ from: '/_auth/admin' }) as any;
   const { user: currentUser } = router.options.context as any;
   const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
@@ -68,7 +74,7 @@ export default function AdminPanel() {
       return () => clearTimeout(timer);
   }, [search]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
       try {
           const res = await axios.get(`${API_URL}/admin/users`, {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -86,21 +92,20 @@ export default function AdminPanel() {
           setTotalPages(res.data.total_pages);
           setServerStats(res.data.stats);
           setSelectedUserIds([]);
-      } catch (error) { console.error("Failed to fetch users"); }
-  };
+      } catch (error) { 
+          console.error("Failed to fetch users", error); 
+      }
+  }, [page, limit, debouncedSearch, startDate, endDate, sortBy, sortOrder]);
 
   useEffect(() => {
-      if (primaryTab === 'users' && userView === 'list') fetchUsers();
-  }, [page, limit, debouncedSearch, startDate, endDate, sortBy, sortOrder, primaryTab, userView]);
+      if (primaryTab === 'users' && userView === 'list') {
+          void fetchUsers();
+      }
+  }, [primaryTab, userView, fetchUsers]);
 
   const handleSort = (column: string) => {
       if (sortBy === column) setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
       else { setSortBy(column); setSortOrder('ASC'); }
-  };
-
-  const SortIcon = ({ col }: { col: string }) => {
-      if (sortBy !== col) return null;
-      return sortOrder === 'ASC' ? <ArrowUp size={12} className="inline ml-1"/> : <ArrowDown size={12} className="inline ml-1"/>;
   };
 
   const handleDelete = async (id: number) => {
@@ -109,7 +114,7 @@ export default function AdminPanel() {
           await axios.delete(`${API_URL}/admin/users/${id}`, {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
-          fetchUsers();
+          void fetchUsers();
       } catch(e: any) { alert(e.response?.data?.detail || "Delete failed"); }
   };
 
@@ -142,7 +147,7 @@ export default function AdminPanel() {
           setIsCreating(false);
           setEditingUser(null);
           setFormData({ name: '', email: '', mobile: '', password: '', role: 'user' });
-          fetchUsers();
+          void fetchUsers();
           alert("Success!");
       } catch(e: any) { alert(e.response?.data?.detail || "Operation failed"); }
   };
@@ -276,10 +281,10 @@ export default function AdminPanel() {
                                                 checked={serverUsers.length > 0 && selectedUserIds.length === serverUsers.length}
                                             />
                                         </th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('name')}>User <SortIcon col="name"/></th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('email')}>Email <SortIcon col="email"/></th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('mobile')}>Mobile <SortIcon col="mobile"/></th>
-                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('created_at')}>Joined <SortIcon col="created_at"/></th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('name')}>User <SortIcon col="name" sortBy={sortBy} sortOrder={sortOrder}/></th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('email')}>Email <SortIcon col="email" sortBy={sortBy} sortOrder={sortOrder}/></th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('mobile')}>Mobile <SortIcon col="mobile" sortBy={sortBy} sortOrder={sortOrder}/></th>
+                                        <th className="p-5 cursor-pointer hover:text-indigo-500 whitespace-nowrap" onClick={() => handleSort('created_at')}>Joined <SortIcon col="created_at" sortBy={sortBy} sortOrder={sortOrder}/></th>
                                         <th className="p-5 whitespace-nowrap">Status</th>
                                         <th className="p-5 text-center whitespace-nowrap">Actions</th>
                                     </tr>
