@@ -43,8 +43,18 @@ const decryptPayload = (encryptedBase64: string) => {
 
 function App() {
   const [serverError, setServerError] = useState<{code: number, message?: string} | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
+  
+  const [user, setUser] = useState<User | null>(() => {
+    const savedUser = localStorage.getItem('user_data');
+    const token = localStorage.getItem('token');
+    if (savedUser && token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      return JSON.parse(savedUser);
+    }
+    return null;
+  });
+
+  const [isLoaded] = useState(true);
 
   useEffect(() => {
     const reqInterceptor = axios.interceptors.request.use((config) => {
@@ -95,6 +105,7 @@ function App() {
             if (error.response.data) {
                 const detail = error.response.data.detail;
                 if (Array.isArray(detail)) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     errorMessage = detail.map((err: any) => `${err.loc[err.loc.length - 1]}: ${err.msg}`).join(', ');
                 } else if (typeof detail === 'string') {
                     errorMessage = detail;
@@ -125,16 +136,6 @@ function App() {
         return Promise.reject(error);
       }
     );
-    
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user_data');
-    
-    if (token && savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    }
-    setIsLoaded(true);
 
     return () => {
       axios.interceptors.request.eject(reqInterceptor);
@@ -143,6 +144,7 @@ function App() {
   }, []);
 
   if (serverError) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return <ErrorPage code={serverError.code as any} customMessage={serverError.message} />;
   }
   
