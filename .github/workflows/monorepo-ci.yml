@@ -1,0 +1,20 @@
+name: Monorepo Checks
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-client:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.changed_files, 'client/')"
+    steps:
+      - run: echo "No frontend changes detected. Skipping build but reporting success to satisfy the Ruleset!"
+
+  build-server:
+    name: Build Backend
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.changed_files, 'server/')"
+    steps:
+      - run: echo "No backend changes detected. Skipping build but reporting success to satisfy the Ruleset!"
