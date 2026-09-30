@@ -47,7 +47,6 @@ export default function Home() {
       setMessages((prev) => [...prev, simulationScript[index]]);
       currentTimeout = setTimeout(() => showMessage(index + 1), simulationScript[index].delay);
     };
-    setMessages([]);
     showMessage(0);
     return () => clearTimeout(currentTimeout);
   }, []);
@@ -65,7 +64,6 @@ export default function Home() {
       setFeatureMessages((prev) => [...prev, featureScript[index]]);
       currentTimeout = setTimeout(() => showFeatureMessage(index + 1), featureScript[index].delay);
     };
-    setFeatureMessages([]);
     showFeatureMessage(0);
     return () => clearTimeout(currentTimeout);
   }, []);

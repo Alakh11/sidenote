@@ -33,7 +33,6 @@ export default function Home() {
     const showMessage = (index: number) => {
       if (index >= simulationScript.length) {
         currentTimeout = setTimeout(() => {
-          setMessages([]);
           showMessage(0);
         }, 2500);
         return;
@@ -41,7 +40,6 @@ export default function Home() {
       setMessages((prev) => [...prev, simulationScript[index]]);
       currentTimeout = setTimeout(() => showMessage(index + 1), simulationScript[index].delay);
     };
-    setMessages([]);
     showMessage(0);
     return () => clearTimeout(currentTimeout);
   }, []);
