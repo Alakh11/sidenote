@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Link, useRouter } from '@tanstack/react-router';
 import { Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Sun, Moon, Eye, EyeOff } from 'lucide-react';
@@ -24,9 +24,40 @@ export default function ResetPassword() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const [timer, setTimer] = useState(30);
+  const [canResend, setCanResend] = useState(false);
+  const intervalRef = useRef<number | null>(null);
+
   const API_URL = import.meta.env.VITE_API_URL;
   const currentConfig = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
   const targetMobile = `${countryCode}${formData.mobile}`;
+
+  useEffect(() => {
+    if (step === 'otp') {
+      setCanResend(false);
+      setTimer(30);
+      
+      intervalRef.current = window.setInterval(() => {
+        setTimer((prev) => {
+          if (prev <= 1) {
+            if (intervalRef.current !== null) {
+              clearInterval(intervalRef.current);
+            }
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [step]);
+
 
   const validatePassword = () => {
       const pw = formData.newPassword;
@@ -78,6 +109,46 @@ export default function ResetPassword() {
               setLoading(false);
           }
       }
+  };
+
+  const handleResendOTP = async () => {
+    if (!canResend) return;
+    
+    setError('');
+    setSuccessMsg('');
+    setLoading(true);
+
+    try {
+        await axios.post(`${API_URL}/auth/reset-password`, {
+            name: formData.name.trim(),
+            contact: targetMobile,
+            new_password: formData.newPassword
+        });
+        setSuccessMsg("A new verification code has been sent!");
+        
+        setCanResend(false);
+        setTimer(30);
+        if (intervalRef.current !== null) {
+          clearInterval(intervalRef.current);
+        }
+        intervalRef.current = window.setInterval(() => {
+            setTimer((prev) => {
+              if (prev <= 1) {
+                if (intervalRef.current !== null) {
+                    clearInterval(intervalRef.current);
+                }
+                setCanResend(true);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+          
+    } catch (err: any) {
+        setError(err.response?.data?.detail || "Failed to resend OTP. Please try again.");
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
@@ -158,6 +229,23 @@ export default function ResetPassword() {
                                 className="w-full text-center tracking-[1em] text-3xl font-bold py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-[#25D366]/30 dark:text-white"
                                 value={formData.otp} onChange={e => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})}
                             />
+                            
+                            <div className="mt-4 text-sm font-medium">
+                                {!canResend ? (
+                                    <p className="text-slate-500 dark:text-slate-400">
+                                        Resend code in <span className="font-bold text-[#111111] dark:text-white">00:{timer < 10 ? `0${timer}` : timer}</span>
+                                    </p>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleResendOTP}
+                                        disabled={loading}
+                                        className="text-[#25D366] hover:text-[#1EA952] font-bold transition-colors disabled:opacity-50"
+                                    >
+                                        Resend Verification Code
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
