@@ -5,6 +5,7 @@ import asyncio
 from typing import Any, Optional
 from dotenv import load_dotenv
 from database import get_db
+from constants import FREE_MODE_FALLBACKS
 
 load_dotenv()
 
@@ -45,6 +46,21 @@ def log_outbound_message(wamid: str, phone: str, msg_type: str, msg_body: str):
 
 
 async def send_whatsapp_template(to_number: str, template_name: str, variables: list[str]):
+    use_free_mode = os.getenv("USE_FREE_MODE", "false").lower() == "true"
+    
+    if use_free_mode:
+        fallback_text = FREE_MODE_FALLBACKS.get(template_name)
+        if fallback_text:
+            try:
+                formatted_message = fallback_text.format(*variables)
+                return await send_whatsapp_text(to_number, formatted_message)
+            except IndexError:
+                logger.warning(f"Free Mode: Variable mismatch for template '{template_name}'")
+                return await send_whatsapp_text(to_number, f"✅ Action completed for {template_name.replace('_', ' ')}.")
+        else:
+            logger.warning(f"Free Mode: No fallback found for template '{template_name}'")
+            return await send_whatsapp_text(to_number, f"✅ Action completed for {template_name.replace('_', ' ')}.")
+
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
     parameters = [{"type": "text", "text": str(var)} for var in variables]
     template_data: dict[str, Any] = {"name": template_name, "language": {"code": "en_US"}}
