@@ -49,6 +49,7 @@ async def send_whatsapp_template(to_number: str, template_name: str, variables: 
     use_free_mode = os.getenv("USE_FREE_MODE", "false").lower() == "true"
     
     if use_free_mode:
+        logger.info(f"Free Mode: Sending fallback text for template '{template_name}' to {to_number}")
         fallback_text = FREE_MODE_FALLBACKS.get(template_name)
         if fallback_text:
             try:
