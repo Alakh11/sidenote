@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from database import get_db
 from security import get_current_user
@@ -46,7 +46,7 @@ def list_notifications(
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT id, title, body, is_read, sent_at, read_at
+            SELECT id, title, body, type, image_url, icon_url, is_read, sent_at, read_at
             FROM notifications
             WHERE user_id = %s
             ORDER BY sent_at DESC, id DESC
@@ -61,6 +61,9 @@ def list_notifications(
             "id": r["id"],
             "title": r["title"],
             "body": r["body"],
+            "type": r["type"],
+            "image_url": r["image_url"],
+            "icon_url": r["icon_url"],
             "is_read": bool(r["is_read"]),
             "sent_at": r["sent_at"].isoformat() + IST_OFFSET if r["sent_at"] else None,
             "read_at": r["read_at"].isoformat() + IST_OFFSET if r["read_at"] else None,
@@ -109,3 +112,20 @@ def mark_notification_read(notification_id: int, user_id: int = Depends(get_curr
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@router.get("/notifications/media/{file_name}")
+def get_notification_media(file_name: str):
+    """Public: phones download push images here without a login, so ids are random 128-bit values"""
+    media_id = file_name.split(".", 1)[0]
+    if len(media_id) != 32 or not all(ch in "0123456789abcdef" for ch in media_id):
+        raise HTTPException(status_code=404, detail="Not found")
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT mime_type, data FROM notification_media WHERE id = %s", (media_id,))
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    return Response(content=bytes(row["data"]), media_type=row["mime_type"], headers={"Cache-Control": "public, max-age=31536000, immutable"})

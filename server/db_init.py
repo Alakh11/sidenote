@@ -429,18 +429,46 @@ def initialize_database():
                 user_id INT NOT NULL,
                 title VARCHAR(255) NOT NULL,
                 body TEXT NOT NULL,
+                type VARCHAR(30) NOT NULL DEFAULT 'general',
+                image_url VARCHAR(1024) NULL,
+                icon_url VARCHAR(1024) NULL,
+                sound VARCHAR(30) NOT NULL DEFAULT 'default',
                 is_read BOOLEAN DEFAULT FALSE,
                 read_at TIMESTAMP NULL,
                 sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS notification_media (
+                id CHAR(32) NOT NULL PRIMARY KEY,
+                mime_type VARCHAR(50) NOT NULL,
+                data MEDIUMBLOB NOT NULL,
+                uploaded_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB;
             """
         ]
 
         logger.info(f"Executing {len(queries)} table creation queries...")
         for query in queries:
             cursor.execute(query)
-            
+
+        added_columns = [
+            ("notifications", "type", "VARCHAR(30) NOT NULL DEFAULT 'general' AFTER body"),
+            ("notifications", "image_url", "VARCHAR(1024) NULL AFTER type"),
+            ("notifications", "icon_url", "VARCHAR(1024) NULL AFTER image_url"),
+            ("notifications", "sound", "VARCHAR(30) NOT NULL DEFAULT 'default' AFTER icon_url"),
+        ]
+        for table, column, definition in added_columns:
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+            """, (table, column))
+            if cursor.fetchone()[0] == 0:
+                logger.info(f"Adding column {table}.{column}")
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
         conn.commit()
         logger.info("Database schema successfully validated and initialized.")
 
