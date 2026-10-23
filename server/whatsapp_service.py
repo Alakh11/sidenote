@@ -2,7 +2,8 @@ import httpx
 import os
 import logging
 import asyncio
-from typing import Any, Optional
+from contextvars import ContextVar
+from typing import Any, Awaitable, Callable, Optional
 from dotenv import load_dotenv
 from database import get_db
 from constants import FREE_MODE_FALLBACKS
@@ -25,6 +26,29 @@ http_client = httpx.AsyncClient(
 )
 outbound_semaphore = asyncio.Semaphore(10)
 
+AppChatSink = Callable[[str, str, Optional[dict]], Awaitable[None]]
+_app_chat: ContextVar[Optional[tuple[str, AppChatSink]]] = ContextVar("app_chat", default=None)
+
+def begin_app_chat(phone: str, sink: AppChatSink):
+    return _app_chat.set((phone, sink))
+
+def end_app_chat(token) -> None:
+    _app_chat.reset(token)
+
+def _app_chat_sink(to_number: str) -> Optional[AppChatSink]:
+    current = _app_chat.get()
+    return current[1] if current and current[0] == to_number else None
+
+def render_template_text(template_name: str, variables: list[str]) -> str:
+    """Plain-text version of a Meta template, from the same fallbacks free mode uses"""
+    fallback_text = FREE_MODE_FALLBACKS.get(template_name)
+    if fallback_text:
+        try:
+            return fallback_text.format(*variables)
+        except IndexError:
+            logger.warning(f"Template fallback variable mismatch for '{template_name}'")
+    return f"✅ Action completed for {template_name.replace('_', ' ')}."
+
 def log_outbound_message(wamid: str, phone: str, msg_type: str, msg_body: str):
     if not wamid: return
     conn = get_db()
@@ -46,6 +70,11 @@ def log_outbound_message(wamid: str, phone: str, msg_type: str, msg_body: str):
 
 
 async def send_whatsapp_template(to_number: str, template_name: str, variables: list[str]):
+    sink = _app_chat_sink(to_number)
+    if sink:
+        await sink("template", render_template_text(template_name, variables), {"template": template_name})
+        return {"status": "success"}
+
     use_free_mode = os.getenv("USE_FREE_MODE", "false").lower() == "true"
     
     if use_free_mode:
@@ -96,6 +125,11 @@ async def send_whatsapp_template(to_number: str, template_name: str, variables: 
 
 
 async def send_whatsapp_text(to_number: str, text_message: str):
+    sink = _app_chat_sink(to_number)
+    if sink:
+        await sink("text", text_message, None)
+        return {"status": "success"}
+
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
     payload = {
         "messaging_product": "whatsapp",
@@ -124,6 +158,11 @@ async def send_whatsapp_text(to_number: str, text_message: str):
 
 
 async def send_whatsapp_interactive_buttons(to_number: str, body_text: str, buttons: list[dict[str, str]]):
+    sink = _app_chat_sink(to_number)
+    if sink:
+        await sink("buttons", body_text, {"buttons": [{"id": b["id"], "title": b["title"]} for b in buttons]})
+        return {"status": "success"}
+
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
     
     action_buttons = [
@@ -175,6 +214,11 @@ async def send_whatsapp_media(
     if not media_link and not media_id:
         logger.error("Failed to send media: Must provide either media_link or media_id")
         return {"status": "error", "detail": "Missing media source"}
+
+    sink = _app_chat_sink(to_number)
+    if sink:
+        await sink("media", caption or "", {"media_type": media_type, "media_link": media_link, "media_id": media_id, "filename": filename})
+        return {"status": "success"}
 
     valid_types = ["image", "audio", "video", "document", "sticker"]
     if media_type not in valid_types:

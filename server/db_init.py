@@ -440,6 +440,29 @@ def initialize_database():
             );
             """,
             """
+            CREATE TABLE IF NOT EXISTS app_chat_messages (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                sender VARCHAR(10) NOT NULL,
+                kind VARCHAR(20) NOT NULL DEFAULT 'text',
+                body TEXT NULL,
+                payload JSON NULL,
+                created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
+                INDEX idx_app_chat_user (user_id, id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS app_chat_media (
+                id CHAR(32) NOT NULL PRIMARY KEY,
+                user_id INT NOT NULL,
+                mime_type VARCHAR(50) NOT NULL,
+                data MEDIUMBLOB NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+            """,
+            """
             CREATE TABLE IF NOT EXISTS notification_media (
                 id CHAR(32) NOT NULL PRIMARY KEY,
                 mime_type VARCHAR(50) NOT NULL,

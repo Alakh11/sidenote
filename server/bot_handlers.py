@@ -101,6 +101,10 @@ async def process_whatsapp_image(phone: str, media_id: str, mime_type: str, mess
     image_bytes = await download_whatsapp_media(media_url)
     if not image_bytes: return
     
+    await process_receipt_bytes(phone, image_bytes, mime_type, sender_name, caption)
+
+async def process_receipt_bytes(phone: str, image_bytes: bytes, mime_type: str, sender_name: str = "WhatsApp User", caption: Optional[str] = None):
+    """Reads a receipt image and logs it; shared by WhatsApp and the in-app chat"""
     receipt_data = extract_receipt_data(image_bytes, mime_type)
     
     if receipt_data and 'amount' in receipt_data and 'item' in receipt_data:
