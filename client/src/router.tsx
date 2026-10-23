@@ -30,6 +30,7 @@ import ResetPassword from './components/Auth/ResetPassword';
 import GlobalLoader from './components/GlobalLoader';
 import GroupDashboard from './components/Groups/GroupDashboard';
 import HelpCenter from './components/Help/HelpCenter';
+import SharedSpacesCampaign from './components/Campaign/SharedSpacesCampaign';
 
 interface UserWithRole extends User {
   id: number;
@@ -274,6 +275,12 @@ const helpRoute = createRoute({
   component: HelpCenter,
 });
 
+const groupsCampaignRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/campaign-pages/groups',
+  component: SharedSpacesCampaign,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -369,6 +376,7 @@ const routeTree = rootRoute.addChildren([
   termsRoute,
   privacyRoute,
   helpRoute,
+  groupsCampaignRoute,
   authRoute.addChildren([
     dashboardRoute,
     transactionsRoute,
