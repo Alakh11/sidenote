@@ -20,19 +20,16 @@ fastapi==0.127.0
 firebase_admin==7.7.0
 fonttools==4.62.1
 google-ai-generativelanguage==0.6.15
-# google-api-core==2.33.0
 google-api-python-client==2.193.0
 google-auth==2.49.1
 google-auth-httplib2==0.3.1
+google-genai
 google-cloud-core==2.8.0
 google-cloud-firestore==2.27.0
 google-cloud-storage==3.17.1
 google-crc32c==1.9.0
-# google-genai==2.12.1
 google-resumable-media==2.11.0
 googleapis-common-protos==1.74.0
-# grpcio==1.84.1
-# grpcio-status==1.71.2
 h11==0.16.0
 h2==4.4.1
 hpack==4.2.0
@@ -78,3 +75,4 @@ uritemplate==4.2.0
 urllib3==2.6.3
 uvicorn==0.40.0
 websockets==16.0
+cryptography
