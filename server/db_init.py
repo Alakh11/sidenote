@@ -443,12 +443,14 @@ def initialize_database():
             CREATE TABLE IF NOT EXISTS app_chat_messages (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NOT NULL,
+                group_id INT NULL,
                 sender VARCHAR(10) NOT NULL,
                 kind VARCHAR(20) NOT NULL DEFAULT 'text',
                 body TEXT NULL,
                 payload JSON NULL,
                 created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
                 INDEX idx_app_chat_user (user_id, id),
+                INDEX idx_app_chat_thread (user_id, group_id, id),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
@@ -482,6 +484,7 @@ def initialize_database():
             ("notifications", "image_url", "VARCHAR(1024) NULL AFTER type"),
             ("notifications", "icon_url", "VARCHAR(1024) NULL AFTER image_url"),
             ("notifications", "sound", "VARCHAR(30) NOT NULL DEFAULT 'default' AFTER icon_url"),
+            ("app_chat_messages", "group_id", "INT NULL AFTER user_id"),
         ]
         for table, column, definition in added_columns:
             cursor.execute("""
@@ -491,6 +494,18 @@ def initialize_database():
             if cursor.fetchone()[0] == 0:
                 logger.info(f"Adding column {table}.{column}")
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+        added_indexes = [
+            ("app_chat_messages", "idx_app_chat_thread", "(user_id, group_id, id)"),
+        ]
+        for table, index, columns in added_indexes:
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = %s
+            """, (table, index))
+            if cursor.fetchone()[0] == 0:
+                logger.info(f"Adding index {table}.{index}")
+                cursor.execute(f"ALTER TABLE {table} ADD INDEX {index} {columns}")
 
         conn.commit()
         logger.info("Database schema successfully validated and initialized.")

@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from typing import Optional, Any
 from database import get_db
 from security import get_current_user
 from whatsapp_service import (
-    begin_app_chat, end_app_chat, send_whatsapp_text, send_policy_consent_prompt,
+    begin_app_chat, end_app_chat, send_whatsapp_text, send_whatsapp_text_direct, send_policy_consent_prompt,
     get_whatsapp_media_url, download_whatsapp_media,
 )
-from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_receipt_bytes
+from bot_handlers import process_whatsapp_text, process_whatsapp_interactive
+from push_service import device_tokens, send_push
+import asyncio
 import json
 import logging
+import re
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -17,15 +20,34 @@ router = APIRouter(tags=["App Chat"])
 
 # get_db() sets the session to IST, so TIMESTAMP columns come back as naive IST datetimes
 IST_OFFSET = "+05:30"
-RECEIPT_TYPES = {"image/png", "image/jpeg", "image/webp", "image/heic"}
-MAX_RECEIPT_BYTES = 5 * 1024 * 1024
-NOT_LINKED = "Link your mobile number in Profile to chat with SideNote."
+NOT_LINKED = "Link your mobile number in Profile to use the SideNote assistant."
+
+# Group threads: plain commands typed in a group's chat are rewritten into the bot's group syntax
+GROUP_QUERY_COMMANDS = {"total", "search", "find", "history", "undo", "today", "yesterday", "week", "month", "chart", "data", "analytics"}
+GROUP_HELP = (
+    "👥 *Group chat commands*\n"
+    "Everything here is for *{name}* only.\n\n"
+    "• `500 dinner` — split ₹500 equally\n"
+    "• `500 dinner @ravi @neha` — split with only them\n"
+    "• `900 cab 60% @ravi` — custom share\n"
+    "• `600 movie exclude:me` — you paid, others share\n"
+    "• `settle @ravi` — mark what you owe as paid\n"
+    "• `total` — total group spend\n"
+    "• `today` · `yesterday` · `week` · `month`\n"
+    "• `history` — recent entries (`history 2` for more)\n"
+    "• `search taxi` — find entries\n"
+    "• `chart` — spending chart\n"
+    "• `undo` — remove your last group entry today\n"
+    "• `rm 12` — delete entry #12\n"
+    "• `new code` — a fresh invite code"
+)
 
 
 class ChatMessageRequest(BaseModel):
     text: Optional[str] = Field(default=None, max_length=1000)
     button_id: Optional[str] = Field(default=None, max_length=200)
     button_title: Optional[str] = Field(default=None, max_length=100)
+    group_id: Optional[int] = None
 
 
 def _serialize(row: dict) -> dict:
@@ -39,6 +61,7 @@ def _serialize(row: dict) -> dict:
             payload = None
     return {
         "id": row["id"],
+        "group_id": row.get("group_id"),
         "sender": row["sender"],
         "kind": row["kind"],
         "body": row["body"] or "",
@@ -47,13 +70,13 @@ def _serialize(row: dict) -> dict:
     }
 
 
-def _insert_message(user_id: int, sender: str, kind: str, body: str, payload: Optional[dict]) -> int:
+def _insert_message(user_id: int, group_id: Optional[int], sender: str, kind: str, body: str, payload: Optional[dict]) -> int:
     conn = get_db()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO app_chat_messages (user_id, sender, kind, body, payload) VALUES (%s, %s, %s, %s, %s)",
-            (user_id, sender, kind, body, json.dumps(payload) if payload else None),
+            "INSERT INTO app_chat_messages (user_id, group_id, sender, kind, body, payload) VALUES (%s, %s, %s, %s, %s, %s)",
+            (user_id, group_id, sender, kind, body, json.dumps(payload) if payload else None),
         )
         conn.commit()
         return cursor.lastrowid
@@ -89,22 +112,80 @@ def _load_user(user_id: int) -> dict:
     return user
 
 
-def _messages_since(user_id: int, first_id: int) -> list[dict]:
+def _user_groups(user_id: int) -> list[dict]:
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT g.id, g.name, g.type, g.status FROM expense_groups g
+            JOIN group_members gm ON g.id = gm.group_id
+            WHERE gm.user_id = %s ORDER BY g.name
+        """, (user_id,))
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+
+def _group_for(user_id: int, group_id: Optional[int]) -> Optional[dict]:
+    if group_id is None:
+        return None
+    group = next((g for g in _user_groups(user_id) if g["id"] == group_id), None)
+    if not group:
+        raise HTTPException(status_code=403, detail="You are not a member of this group.")
+    return group
+
+
+def _group_alias(user_id: int, group: dict) -> Optional[str]:
+    """The bot finds groups with LIKE '%alias%' over the user's groups, so pick a word of this
+    group's name that matches no other group of theirs"""
+    names = [g["name"].lower() for g in _user_groups(user_id) if g["id"] != group["id"]]
+    words = sorted(set(re.findall(r"\w+", group["name"].lower())), key=len, reverse=True)
+    return next((w for w in words if not any(w in other for other in names)), None)
+
+
+def _to_group_command(text: str, alias: str) -> Optional[str]:
+    lower = text.lower().strip()
+    if re.match(r"^\d+(?:\.\d+)?\s+\S", lower):
+        return f"@{alias} {text.strip()}"
+    if re.match(r"^settle\s+@\w+$", lower):
+        return f"@{alias} {lower}"
+    rm = re.match(r"^(?:rm|delete|remove)\s+#?(\d+)$", lower)
+    if rm:
+        return f"group rm {rm.group(1)}"
+    if lower in ("new code", "invite", "code", "invite code"):
+        return f"new code {alias}"
+    if lower.split()[0] in GROUP_QUERY_COMMANDS:
+        return f"group @{alias} {lower}"
+    return None
+
+
+def _messages_since(user_id: int, group_id: Optional[int], first_id: int) -> list[dict]:
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            "SELECT * FROM app_chat_messages WHERE user_id = %s AND id >= %s ORDER BY id ASC",
-            (user_id, first_id),
+            "SELECT * FROM app_chat_messages WHERE user_id = %s AND group_id <=> %s AND id >= %s ORDER BY id ASC",
+            (user_id, group_id, first_id),
         )
         return [_serialize(r) for r in cursor.fetchall()]
     finally:
         conn.close()
 
 
-async def _run_bot(user: dict, run) -> None:
+def _user_by_mobile(mobile: str) -> Optional[dict]:
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, name FROM users WHERE mobile = %s", (mobile,))
+        return cursor.fetchone()
+    finally:
+        conn.close()
+
+
+async def _run_bot(user: dict, group: Optional[dict], run) -> None:
     """Runs a WhatsApp bot handler with its replies to this user saved as chat messages"""
     user_id = user["id"]
+    group_id = group["id"] if group else None
 
     async def sink(kind: str, body: str, payload: Optional[dict]) -> None:
         if kind == "media":
@@ -116,13 +197,24 @@ async def _run_bot(user: dict, run) -> None:
                 data = await download_whatsapp_media(media_url) if media_url else None
                 url = _store_media(user_id, data, "image/jpeg") if data else None
             if url and payload.get("media_type") == "image":
-                _insert_message(user_id, "bot", "image", body, {"url": url})
+                _insert_message(user_id, group_id, "bot", "image", body, {"url": url})
             else:
-                _insert_message(user_id, "bot", "text", body or "📎 Attachment", None)
+                _insert_message(user_id, group_id, "bot", "text", body or "📎 Attachment", None)
             return
-        _insert_message(user_id, "bot", kind, body, payload)
+        _insert_message(user_id, group_id, "bot", kind, body, payload)
 
-    token = begin_app_chat(user["mobile"], sink)
+    async def other_sink(to_number: str, kind: str, body: str, payload: Optional[dict]) -> None:
+        # Something done in the app reaches other members in the app (chat + push) when they have
+        # it installed; members who only use WhatsApp still get it there
+        target = _user_by_mobile(to_number)
+        if not target or not device_tokens(target["id"]):
+            await send_whatsapp_text_direct(to_number, body)
+            return
+        _insert_message(target["id"], group_id, "bot", "buttons" if kind == "buttons" else "text", body, payload if kind == "buttons" else None)
+        title = group["name"] if group else "SideNote"
+        await asyncio.to_thread(send_push, target["id"], title, body, {"kind": "chat", "group_id": group_id or ""})
+
+    token = begin_app_chat(user["mobile"], sink, other_sink)
     try:
         await run()
     except Exception as e:
@@ -154,24 +246,51 @@ async def _consent_gate(user: dict, button_id: Optional[str]) -> bool:
     return True
 
 
+@router.get("/chat/threads")
+def list_chat_threads(user_id: int = Depends(get_current_user)):
+    """The personal thread plus one per group, each with its latest message id for unread dots"""
+    user = _load_user(user_id)
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT group_id, MAX(id) AS last_id FROM app_chat_messages
+            WHERE user_id = %s GROUP BY group_id
+        """, (user_id,))
+        last_ids = {r["group_id"]: r["last_id"] for r in cursor.fetchall()}
+    finally:
+        conn.close()
+    threads = [{"group_id": None, "name": "Personal", "type": "personal", "status": "active", "last_id": last_ids.get(None)}]
+    threads += [
+        {"group_id": g["id"], "name": g["name"], "type": g["type"], "status": g["status"], "last_id": last_ids.get(g["id"])}
+        for g in _user_groups(user_id)
+    ]
+    return {"linked": bool(user.get("mobile")), "threads": threads}
+
+
 @router.get("/chat/messages")
 def list_chat_messages(
+    group_id: Optional[int] = Query(None, ge=1),
     before_id: Optional[int] = Query(None, ge=1),
     limit: int = Query(40, ge=1, le=100),
     user_id: int = Depends(get_current_user),
 ):
-    """Newest page of the conversation (oldest first within the page); pass before_id for older"""
+    """Newest page of one thread (oldest first within the page); pass before_id for older"""
     user = _load_user(user_id)
+    _group_for(user_id, group_id)
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         if before_id:
             cursor.execute(
-                "SELECT * FROM app_chat_messages WHERE user_id = %s AND id < %s ORDER BY id DESC LIMIT %s",
-                (user_id, before_id, limit),
+                "SELECT * FROM app_chat_messages WHERE user_id = %s AND group_id <=> %s AND id < %s ORDER BY id DESC LIMIT %s",
+                (user_id, group_id, before_id, limit),
             )
         else:
-            cursor.execute("SELECT * FROM app_chat_messages WHERE user_id = %s ORDER BY id DESC LIMIT %s", (user_id, limit))
+            cursor.execute(
+                "SELECT * FROM app_chat_messages WHERE user_id = %s AND group_id <=> %s ORDER BY id DESC LIMIT %s",
+                (user_id, group_id, limit),
+            )
         rows = cursor.fetchall()
     finally:
         conn.close()
@@ -188,60 +307,43 @@ async def send_chat_message(req: ChatMessageRequest, user_id: int = Depends(get_
     user = _load_user(user_id)
     if not user.get("mobile"):
         raise HTTPException(status_code=409, detail=NOT_LINKED)
+    group = _group_for(user_id, req.group_id)
+    group_id = group["id"] if group else None
 
     text = (req.text or "").strip()
     if not text and not req.button_id:
         raise HTTPException(status_code=400, detail="Message is empty.")
 
     if req.button_id:
-        first_id = _insert_message(user_id, "user", "text", (req.button_title or req.button_id).strip(), {"button_id": req.button_id})
+        first_id = _insert_message(user_id, group_id, "user", "text", (req.button_title or req.button_id).strip(), {"button_id": req.button_id})
     else:
-        first_id = _insert_message(user_id, "user", "text", text, None)
+        first_id = _insert_message(user_id, group_id, "user", "text", text, None)
 
     async def run():
         if await _consent_gate(user, req.button_id):
             return
         if req.button_id:
             await process_whatsapp_interactive(user["mobile"], req.button_id, None, user["name"])
-        else:
-            await process_whatsapp_text(user["mobile"], text, None, user["name"])
-
-    await _run_bot(user, run)
-    return {"items": _messages_since(user_id, first_id)}
-
-
-@router.post("/chat/receipt")
-async def send_chat_receipt(
-    file: UploadFile = File(...),
-    caption: Optional[str] = Form(None),
-    user_id: int = Depends(get_current_user),
-):
-    """A receipt photo, read by the same AI receipt parser as WhatsApp images"""
-    user = _load_user(user_id)
-    if not user.get("mobile"):
-        raise HTTPException(status_code=409, detail=NOT_LINKED)
-
-    mime = (file.content_type or "").lower()
-    if mime not in RECEIPT_TYPES:
-        raise HTTPException(status_code=400, detail="Send a JPG, PNG, WEBP or HEIC photo.")
-    data = await file.read(MAX_RECEIPT_BYTES + 1)
-    if not data:
-        raise HTTPException(status_code=400, detail="The photo is empty.")
-    if len(data) > MAX_RECEIPT_BYTES:
-        raise HTTPException(status_code=400, detail="Photo must be 5 MB or smaller.")
-
-    clean_caption = (caption or "").strip()[:200] or None
-    url = _store_media(user_id, data, mime)
-    first_id = _insert_message(user_id, "user", "image", clean_caption or "", {"url": url})
-
-    async def run():
-        if await _consent_gate(user, None):
             return
-        await send_whatsapp_text(user["mobile"], "⏳ Reading your receipt ...")
-        await process_receipt_bytes(user["mobile"], data, mime, user["name"], clean_caption)
+        if not group:
+            await process_whatsapp_text(user["mobile"], text, None, user["name"])
+            return
 
-    await _run_bot(user, run)
-    return {"items": _messages_since(user_id, first_id)}
+        if text.lower() in ("help", "commands", "menu", "?"):
+            await send_whatsapp_text(user["mobile"], GROUP_HELP.format(name=group["name"]))
+            return
+        alias = _group_alias(user_id, group)
+        if not alias:
+            await send_whatsapp_text(user["mobile"], f"⚠️ *{group['name']}* shares its name with another of your groups. Rename one of them to chat here.")
+            return
+        command = _to_group_command(text, alias)
+        if not command:
+            await send_whatsapp_text(user["mobile"], f"🤔 I didn't get that. In *{group['name']}* start with an amount, e.g. `500 dinner`, or type `help` for all commands.")
+            return
+        await process_whatsapp_text(user["mobile"], command, None, user["name"])
+
+    await _run_bot(user, group, run)
+    return {"items": _messages_since(user_id, group_id, first_id)}
 
 
 @router.get("/chat/media/{media_id}")
@@ -262,13 +364,13 @@ def get_chat_media(media_id: str, user_id: int = Depends(get_current_user)):
 
 
 @router.delete("/chat/messages")
-def clear_chat(user_id: int = Depends(get_current_user)):
-    """Clears the in-app conversation (transactions it created are kept)"""
+def clear_chat(group_id: Optional[int] = Query(None, ge=1), user_id: int = Depends(get_current_user)):
+    """Clears one thread of the in-app conversation (transactions it created are kept)"""
+    _group_for(user_id, group_id)
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM app_chat_messages WHERE user_id = %s", (user_id,))
-        cursor.execute("DELETE FROM app_chat_media WHERE user_id = %s", (user_id,))
+        cursor.execute("DELETE FROM app_chat_messages WHERE user_id = %s AND group_id <=> %s", (user_id, group_id))
         conn.commit()
         return {"status": "success"}
     finally:

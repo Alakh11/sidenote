@@ -27,17 +27,34 @@ http_client = httpx.AsyncClient(
 outbound_semaphore = asyncio.Semaphore(10)
 
 AppChatSink = Callable[[str, str, Optional[dict]], Awaitable[None]]
-_app_chat: ContextVar[Optional[tuple[str, AppChatSink]]] = ContextVar("app_chat", default=None)
+OtherSink = Callable[[str, str, str, Optional[dict]], Awaitable[None]]
+_app_chat: ContextVar[Optional[tuple[str, AppChatSink, Optional[OtherSink]]]] = ContextVar("app_chat", default=None)
 
-def begin_app_chat(phone: str, sink: AppChatSink):
-    return _app_chat.set((phone, sink))
+def begin_app_chat(phone: str, sink: AppChatSink, other_sink: Optional[OtherSink] = None):
+    return _app_chat.set((phone, sink, other_sink))
 
 def end_app_chat(token) -> None:
     _app_chat.reset(token)
 
 def _app_chat_sink(to_number: str) -> Optional[AppChatSink]:
     current = _app_chat.get()
-    return current[1] if current and current[0] == to_number else None
+    if not current:
+        return None
+    phone, sink, other_sink = current
+    if to_number == phone:
+        return sink
+    if other_sink:
+        async def to_other(kind: str, body: str, payload: Optional[dict]) -> None:
+            await other_sink(to_number, kind, body, payload)
+        return to_other
+    return None
+
+async def send_whatsapp_text_direct(to_number: str, text_message: str):
+    token = _app_chat.set(None)
+    try:
+        return await send_whatsapp_text(to_number, text_message)
+    finally:
+        _app_chat.reset(token)
 
 def render_template_text(template_name: str, variables: list[str]) -> str:
     """Plain-text version of a Meta template, from the same fallbacks free mode uses"""
