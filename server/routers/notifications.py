@@ -29,6 +29,10 @@ class SendNotificationRequest(BaseModel):
     user_ids: list[int] = []
     title: str
     body: str
+    screen: Optional[str] = None
+
+FCM_BATCH_SIZE = 500
+DEAD_TOKEN_ERRORS = (messaging.UnregisteredError, messaging.SenderIdMismatchError)
 
 @router.post("/notifications/send")
 def admin_send_notification(req: SendNotificationRequest, admin_id: int = Depends(require_admin)):
@@ -46,28 +50,50 @@ def admin_send_notification(req: SendNotificationRequest, admin_id: int = Depend
         if not devices:
             raise HTTPException(status_code=400, detail="No registered devices found for target users.")
 
-        tokens = [d['fcm_token'] for d in devices]
-        
-        # Dispatch via Firebase Admin SDK
-        message = messaging.MulticastMessage(
-            notification=messaging.Notification(title=req.title, body=req.body),
-            tokens=tokens,
-        )
-        response = messaging.send_multicast(message)
+        notification_ids = {}
+        for uid in {d['user_id'] for d in devices}:
+            cursor.execute("INSERT INTO notifications (user_id, title, body) VALUES (%s, %s, %s)", (uid, req.title, req.body))
+            notification_ids[uid] = cursor.lastrowid
 
-        sent_records = []
-        for i, device in enumerate(devices):
-            if response.responses[i].success:
-                sent_records.append((device['user_id'], req.title, req.body))
-        
-        if sent_records:
-            cursor.executemany("""
-                INSERT INTO notifications (user_id, title, body) VALUES (%s, %s, %s)
-            """, sent_records)
-            conn.commit()
+        messages = []
+        for d in devices:
+            data = {"notification_id": str(notification_ids[d['user_id']])}
+            if req.screen:
+                data["screen"] = req.screen
+            messages.append(messaging.Message(
+                token=d['fcm_token'],
+                notification=messaging.Notification(title=req.title, body=req.body),
+                data=data,
+                android=messaging.AndroidConfig(priority="high", notification=messaging.AndroidNotification(channel_id="sidenote_general")),
+            ))
 
-        return {"success_count": response.success_count, "failure_count": response.failure_count}
+        responses = []
+        for i in range(0, len(messages), FCM_BATCH_SIZE):
+            responses.extend(messaging.send_each(messages[i:i + FCM_BATCH_SIZE]).responses)
+
+        delivered_users = set()
+        dead_tokens = []
+        for device, res in zip(devices, responses):
+            if res.success:
+                delivered_users.add(device['user_id'])
+            elif isinstance(res.exception, DEAD_TOKEN_ERRORS):
+                dead_tokens.append(device['fcm_token'])
+
+        undelivered = [nid for uid, nid in notification_ids.items() if uid not in delivered_users]
+        if undelivered:
+            cursor.execute(f"DELETE FROM notifications WHERE id IN ({','.join(['%s'] * len(undelivered))})", tuple(undelivered))
+        if dead_tokens:
+            cursor.execute(f"DELETE FROM user_devices WHERE fcm_token IN ({','.join(['%s'] * len(dead_tokens))})", tuple(dead_tokens))
+        conn.commit()
+
+        success_count = sum(1 for r in responses if r.success)
+        return {
+            "success_count": success_count,
+            "failure_count": len(responses) - success_count,
+            "removed_tokens": len(dead_tokens),
+        }
     except Exception as e:
+        conn.rollback()
         logger.error(f"Send Push Error: {e}")
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
