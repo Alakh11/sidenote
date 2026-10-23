@@ -1,5 +1,10 @@
 import { useLoaderData, useRouter } from '@tanstack/react-router';
-import { Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, Activity, HelpCircle, List, Bot, Terminal, MapPin, BookOpen, Send } from 'lucide-react';
+import { 
+  Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
+  Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, 
+  Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, 
+  Activity, HelpCircle, List, Bot, Terminal, MapPin, BookOpen, Send, Bell 
+} from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import UserFormModal from './components/UserFormModal';
@@ -16,10 +21,11 @@ import SystemLogViewer from './components/SystemLogViewer';
 import AdminGeoBlockerView from './components/AdminGeoBlockerView';
 import HelpManager from './components/HelpManager';
 import AdminDeliveryReports from './components/AdminDeliveryReports';
+import AdminPushNotifications from './components/AdminPushNotifications';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help';
+type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help' | 'push';
 type SystemView = 'metrics' | 'feedback' | 'logs' | 'geo';
 const SortIcon = ({ col, sortBy, sortOrder }: { col: string, sortBy: string, sortOrder: 'ASC' | 'DESC' }) => {
     if (sortBy !== col) return null;
@@ -30,7 +36,9 @@ const SortIcon = ({ col, sortBy, sortOrder }: { col: string, sortBy: string, sor
 
 export default function AdminPanel() {
   const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { users: initialUsers, stats: initialStats } = useLoaderData({ from: '/_auth/admin' }) as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { user: currentUser } = router.options.context as any;
   const SUPERADMIN_EMAIL = "alakhchaturvedi2002@gmail.com";
   const isSuperAdmin = currentUser?.email === SUPERADMIN_EMAIL || currentUser?.role === 'superadmin';
@@ -39,7 +47,9 @@ export default function AdminPanel() {
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [serverUsers, setServerUsers] = useState<any[]>(initialUsers || []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [serverStats, setServerStats] = useState<any>(initialStats || { total_users: 0, total_transactions: 0 });
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -57,7 +67,9 @@ export default function AdminPanel() {
   const [botView, setBotView] = useState<'replies' | 'categories'>('replies');
   const [systemView, setSystemView] = useState<SystemView>('metrics');
   
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [viewUser, setViewUser] = useState<any | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -115,6 +127,7 @@ export default function AdminPanel() {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
           void fetchUsers();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch(e: any) { alert(e.response?.data?.detail || "Delete failed"); }
   };
 
@@ -149,6 +162,7 @@ export default function AdminPanel() {
           setFormData({ name: '', email: '', mobile: '', password: '', role: 'user' });
           void fetchUsers();
           alert("Success!");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch(e: any) { alert(e.response?.data?.detail || "Operation failed"); }
   };
 
@@ -226,6 +240,12 @@ export default function AdminPanel() {
             >
                 <BookOpen size={16} className="shrink-0"/> <span className="hidden sm:inline">Help Center</span><span className="sm:hidden">Help</span>
             </button>
+            <button 
+                onClick={() => setPrimaryTab('push')} 
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'push' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+            >
+                <Bell size={16} className="shrink-0"/> <span className="hidden sm:inline">Push Notifications</span><span className="sm:hidden">Push</span>
+            </button>
         </div>
       </div>
 
@@ -290,6 +310,7 @@ export default function AdminPanel() {
                                     </tr>
                               </thead>
                               <tbody className="divide-y divide-stone-100 dark:divide-slate-800">
+                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                   {serverUsers.map((user: any) => {
                                       const isUrl = user.profile_pic && user.profile_pic.startsWith('http');
                                       const isEmoji = user.profile_pic && !isUrl;
@@ -474,6 +495,12 @@ export default function AdminPanel() {
       {primaryTab === 'help' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
               <HelpManager />
+          </div>
+      )}
+
+      {primaryTab === 'push' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
+              <AdminPushNotifications />
           </div>
       )}
 
