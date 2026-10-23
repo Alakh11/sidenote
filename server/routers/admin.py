@@ -7,6 +7,7 @@ from routers.admin_feedback import router as feedback_router
 from routers.admin_broadcast import router as broadcast_router
 from routers.admin_engagement import router as engagement_router
 from routers.admin_bot import router as bot_router
+from routers.notifications import router as notifications_router
 
 # Create the Master Router with the /admin prefix
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
@@ -18,3 +19,4 @@ router.include_router(feedback_router)
 router.include_router(broadcast_router)
 router.include_router(engagement_router)
 router.include_router(bot_router)
+router.include_router(notifications_router)
