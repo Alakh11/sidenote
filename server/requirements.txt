@@ -19,7 +19,7 @@ ecdsa==0.19.1
 fastapi==0.127.0
 firebase_admin==7.7.0
 fonttools==4.62.1
-google-ai-generativelanguage==0.6.15
+# google-ai-generativelanguage==0.6.15
 google-api-python-client==2.193.0
 google-auth==2.49.1
 google-auth-httplib2==0.3.1
