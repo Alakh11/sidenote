@@ -3,7 +3,7 @@ import {
   Users, Shield, CheckCircle2, XCircle, Search, Trash2, Edit, Eye, 
   Plus, Wallet, Crown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, 
   Megaphone, Zap, Globe, Server, Folder, BarChart2, MessageSquare, 
-  Activity, HelpCircle, List, Bot, Terminal, MapPin, BookOpen, Send, Bell 
+  Activity, HelpCircle, List, Bot, Terminal, MapPin, BookOpen, Send, Bell, Sparkles 
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
@@ -22,10 +22,11 @@ import AdminGeoBlockerView from './components/AdminGeoBlockerView';
 import HelpManager from './components/HelpManager';
 import AdminDeliveryReports from './components/AdminDeliveryReports';
 import AdminPushNotifications from './components/AdminPushNotifications';
+import AdminPopups from './components/AdminPopups';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help' | 'push';
+type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help' | 'push' | 'popups';
 type SystemView = 'metrics' | 'feedback' | 'logs' | 'geo';
 const SortIcon = ({ col, sortBy, sortOrder }: { col: string, sortBy: string, sortOrder: 'ASC' | 'DESC' }) => {
     if (sortBy !== col) return null;
@@ -245,6 +246,12 @@ export default function AdminPanel() {
                 className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'push' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
             >
                 <Bell size={16} className="shrink-0"/> <span className="hidden sm:inline">Push Notifications</span><span className="sm:hidden">Push</span>
+            </button>
+            <button 
+                onClick={() => setPrimaryTab('popups')} 
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'popups' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+            >
+                <Sparkles size={16} className="shrink-0"/> <span className="hidden sm:inline">In-App Popups</span><span className="sm:hidden">Popups</span>
             </button>
         </div>
       </div>
@@ -501,6 +508,12 @@ export default function AdminPanel() {
       {primaryTab === 'push' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
               <AdminPushNotifications />
+          </div>
+      )}
+
+      {primaryTab === 'popups' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
+              <AdminPopups />
           </div>
       )}
 

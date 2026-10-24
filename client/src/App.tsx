@@ -14,6 +14,25 @@ const queryClient = new QueryClient();
 const SECRET_KEY = CryptoJS.enc.Utf8.parse(import.meta.env.VITE_API_ENCRYPTION_KEY);
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 const CURRENT_FRONTEND_VERSION = "1.0.0";
+const API_URL = import.meta.env.VITE_API_URL;
+const TX_WRITE = /\/transactions(\/\d+)?(\?.*)?$/;
+
+let refreshPromise: Promise<string> | null = null;
+const refreshAccessToken = (): Promise<string> => {
+  if (!refreshPromise) {
+    const refreshToken = localStorage.getItem('refresh_token');
+    refreshPromise = (refreshToken
+      ? axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken }).then((res) => {
+          localStorage.setItem('token', res.data.token);
+          if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+          return res.data.token as string;
+        })
+      : Promise.reject(new Error('No refresh token'))
+    ).finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+};
 
 const encryptPayload = (data: any) => {
   const iv = CryptoJS.lib.WordArray.random(16);
@@ -59,9 +78,16 @@ function App() {
   useEffect(() => {
     const reqInterceptor = axios.interceptors.request.use((config) => {
       config.headers['X-Encrypted'] = 'true';
+
+      const method = (config.method || 'get').toLowerCase();
+      if (['post', 'put', 'delete'].includes(method) && TX_WRITE.test(config.url || '') && !(config.url || '').includes('/groups/') && !config.headers['Idempotency-Key']) {
+        config.headers['Idempotency-Key'] = crypto.randomUUID();
+      }
       
       if (config.data && !(config.data instanceof FormData)) {
-        config.data = encryptPayload(config.data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (config as any)._plainData = (config as any)._plainData ?? config.data;
+        config.data = encryptPayload((config as any)._plainData);
         config.headers['Content-Type'] = 'text/plain'; 
       }
       return config;
@@ -121,8 +147,28 @@ function App() {
             } else if (status === 410) {
                 setServerError({ code: 410 });
             } else if (status === 401) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const original = error.config as any;
+                const canRefresh = original && !original._retried && localStorage.getItem('refresh_token') && !(original.url || '').includes('/auth/');
+                if (canRefresh) {
+                    original._retried = true;
+                    return refreshAccessToken()
+                        .then((token) => {
+                            original.headers['Authorization'] = `Bearer ${token}`;
+                            return axios(original);
+                        })
+                        .catch(() => {
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('refresh_token');
+                            localStorage.removeItem('user_data');
+                            delete axios.defaults.headers.common['Authorization'];
+                            window.location.href = '/login';
+                            return Promise.reject(error);
+                        });
+                }
                 console.warn("Session expired. Logging out.");
                 localStorage.removeItem('token');
+                localStorage.removeItem('refresh_token');
                 localStorage.removeItem('user_data');
                 delete axios.defaults.headers.common['Authorization'];
                 window.location.href = '/login'; 
@@ -151,6 +197,9 @@ function App() {
   if (!isLoaded) return null;
 
   const handleLogout = () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) axios.post(`${API_URL}/auth/logout`, { refresh_token: refreshToken }).catch(() => undefined);
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('token');
     localStorage.removeItem('user_data');
     delete axios.defaults.headers.common['Authorization'];

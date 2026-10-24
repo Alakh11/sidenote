@@ -46,8 +46,9 @@ FCM_BATCH_SIZE = 500
 DEAD_TOKEN_ERRORS = (messaging.UnregisteredError, messaging.SenderIdMismatchError)
 
 # Uploaded images: FCM downloads them on the phone, so keep them small and in formats Android renders
-MEDIA_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+MEDIA_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf"}
 MAX_MEDIA_BYTES = 1024 * 1024
+MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 
 
 def _https_url(value: Optional[str], field: str) -> Optional[str]:
@@ -131,13 +132,15 @@ def _build_message(token: str, req: SendNotificationRequest, notification_id: in
 
 @router.post("/notifications/media")
 async def upload_notification_media(request: Request, file: UploadFile = File(...), admin_id: int = Depends(require_admin)):
-    """Stores an image for a push (picture or logo) and returns a public https URL for it"""
+    """Stores an image (push picture/logo, popup image) or a PDF (popup document) and returns a
+    public https URL for it"""
     mime = (file.content_type or "").lower()
     if mime not in MEDIA_TYPES:
-        raise HTTPException(status_code=400, detail="Upload a PNG, JPG or WEBP image.")
-    data = await file.read(MAX_MEDIA_BYTES + 1)
-    if len(data) > MAX_MEDIA_BYTES:
-        raise HTTPException(status_code=400, detail="Image must be 1 MB or smaller.")
+        raise HTTPException(status_code=400, detail="Upload a PNG, JPG or WEBP image, or a PDF document.")
+    limit = MAX_DOCUMENT_BYTES if mime == "application/pdf" else MAX_MEDIA_BYTES
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise HTTPException(status_code=400, detail="PDFs must be 5 MB or smaller." if mime == "application/pdf" else "Image must be 1 MB or smaller.")
     if not data:
         raise HTTPException(status_code=400, detail="The file is empty.")
 

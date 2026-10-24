@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Link } from '@tanstack/react-router';
 
 interface AuthProps {
-  onLoginSuccess: (user: any, token: string) => void;
+  onLoginSuccess: (user: any, token: string, refreshToken?: string) => void;
 }
 
 const COUNTRY_CODES = [
@@ -122,7 +122,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             setAuthStep('otp');
         } else {
             const res = await axios.post(`${API_URL}/auth/login`, { contact: targetMobile, password: formData.password });
-            onLoginSuccess(res.data.user, res.data.token);
+            onLoginSuccess(res.data.user, res.data.token, res.data.refresh_token);
         }
     } catch (err: any) {
         setError(err.response?.data?.detail || err.message || "Request failed");
@@ -135,7 +135,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
       setLoading(true);
       try {
           const res = await axios.post(`${API_URL}/auth/verify`, { contact: targetMobile, otp: formData.otp });
-          onLoginSuccess(res.data.user, res.data.token);
+          onLoginSuccess(res.data.user, res.data.token, res.data.refresh_token);
       } catch (err: any) {
           setError(err.response?.data?.detail || "Invalid OTP / Case ID");
       } finally {
@@ -149,6 +149,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             setLoading(true);
             const decoded: any = jwtDecode(credentialResponse.credential);
             const res = await axios.post(`${API_URL}/auth/google`, {
+                credential: credentialResponse.credential,
                 email: decoded.email, name: decoded.name, picture: decoded.picture
             });
             
@@ -157,7 +158,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 setTempUser(res.data.user);
                 setAuthStep('link_mobile_form');
             } else {
-                onLoginSuccess(res.data.user, res.data.token);
+                onLoginSuccess(res.data.user, res.data.token, res.data.refresh_token);
             }
         } catch (err) { 
             setError("Google Login Failed"); 
@@ -189,7 +190,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
               headers: { Authorization: `Bearer ${tempToken}` }
           });
           
-          onLoginSuccess(res.data.user, res.data.token || tempToken);
+          onLoginSuccess(res.data.user, res.data.token || tempToken, res.data.refresh_token);
       } catch (err: any) {
           setError(err.response?.data?.detail || "Invalid code / Case ID");
       } finally {

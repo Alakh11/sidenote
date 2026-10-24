@@ -4,7 +4,7 @@ from typing import Any, Optional
 from pydantic import BaseModel
 from database import get_db
 from schemas import *
-from security import pwd_context, create_access_token, get_current_user, issue_refresh_token, rotate_refresh_token, revoke_refresh_token
+from security import pwd_context, create_access_token, get_current_user, issue_refresh_token, rotate_refresh_token, revoke_refresh_token, verify_google_credential
 from utils import create_default_categories, is_country_allowed
 import logging
 import random
@@ -211,16 +211,23 @@ def login(data: UserLogin):
 
 @router.post("/google")
 def google_login(data: GoogleAuth):
+    if not data.credential:
+        raise HTTPException(status_code=400, detail="Please update the app or refresh the page to sign in with Google.")
+    google_user = verify_google_credential(data.credential)
+    email = google_user["email"]
+    name = google_user.get("name") or data.name or "Google User"
+    picture = google_user.get("picture") or data.picture
+
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
         user: Any = cursor.fetchone()
         
         if not user:
             cursor.execute(
                 "INSERT INTO users (name, email, profile_pic, is_verified) VALUES (%s, %s, %s, TRUE)", 
-                (data.name, data.email, data.picture)
+                (name, email, picture)
             )
             
             user_id = cursor.lastrowid

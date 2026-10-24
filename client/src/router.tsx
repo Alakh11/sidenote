@@ -297,8 +297,9 @@ const loginRoute = createRoute({
       >
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
         <div className="relative z-10 w-full max-w-md p-4 flex justify-center">
-            <Auth onLoginSuccess={(user, token) => {
+            <Auth onLoginSuccess={(user, token, refreshToken) => {
               localStorage.setItem('token', token);
+              if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
               localStorage.setItem('user_data', JSON.stringify(user)); 
               window.location.href = '/dashboard';
             }} />

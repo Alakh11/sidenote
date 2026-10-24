@@ -152,3 +152,24 @@ def revoke_refresh_token(raw: str) -> None:
     finally:
         conn.close()
 
+GOOGLE_CLIENT_IDS = {c.strip() for c in (os.getenv("GOOGLE_CLIENT_IDS") or os.getenv("GOOGLE_CLIENT_ID") or "").split(",") if c.strip()}
+if not GOOGLE_CLIENT_IDS:
+    logger.warning("GOOGLE_CLIENT_IDS is not set: Google tokens are verified but not checked against our client id")
+
+
+def verify_google_credential(credential: str) -> dict:
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+
+    try:
+        info = google_id_token.verify_oauth2_token(credential, google_requests.Request(), clock_skew_in_seconds=10)
+    except Exception as e:
+        logger.warning(f"Google token rejected: {e}")
+        raise HTTPException(status_code=401, detail="Google sign-in could not be verified. Please try again.")
+    if GOOGLE_CLIENT_IDS and info.get("aud") not in GOOGLE_CLIENT_IDS:
+        logger.warning("Google token issued for an unknown client id")
+        raise HTTPException(status_code=401, detail="Google sign-in could not be verified. Please try again.")
+    if not info.get("email") or not info.get("email_verified", False):
+        raise HTTPException(status_code=401, detail="Your Google account email is not verified.")
+    return info
+

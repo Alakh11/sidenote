@@ -61,3 +61,23 @@ def test_amounts_round_half_up_to_paise(given, stored):
 def test_zero_or_negative_amounts_are_rejected():
     with pytest.raises(Exception):
         TransactionCreate(user_id=1, amount=0, type="expense", category="Food", date="2026-10-24", payment_mode="UPI")
+
+
+def test_google_sign_in_requires_a_genuine_token_for_our_client(monkeypatch):
+    import google.oauth2.id_token as gid
+    import security
+
+    monkeypatch.setattr(security, "GOOGLE_CLIENT_IDS", {"our-client"})
+
+    def fake_verify(token, request, clock_skew_in_seconds=0):
+        if token == "forged":
+            raise ValueError("bad signature")
+        aud = "other-site" if token == "foreign" else "our-client"
+        return {"aud": aud, "email": "a@b.com", "email_verified": True}
+
+    monkeypatch.setattr(gid, "verify_oauth2_token", fake_verify)
+    assert security.verify_google_credential("good")["email"] == "a@b.com"
+    for bad in ("forged", "foreign"):
+        with pytest.raises(HTTPException) as exc:
+            security.verify_google_credential(bad)
+        assert exc.value.status_code == 401

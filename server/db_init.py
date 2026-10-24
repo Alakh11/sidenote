@@ -465,6 +465,38 @@ def initialize_database():
             ) ENGINE=InnoDB;
             """,
             """
+            CREATE TABLE IF NOT EXISTS app_popups (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(160) NOT NULL,
+                body TEXT NULL,
+                style JSON NULL,
+                media_type VARCHAR(20) NOT NULL DEFAULT 'none',
+                media_url VARCHAR(1024) NULL,
+                media_name VARCHAR(200) NULL,
+                cta_label VARCHAR(60) NULL,
+                cta_url VARCHAR(1024) NULL,
+                audience JSON NULL,
+                starts_at DATETIME NULL,
+                ends_at DATETIME NULL,
+                show_once TINYINT(1) NOT NULL DEFAULT 1,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS popup_views (
+                popup_id INT NOT NULL,
+                user_id INT NOT NULL,
+                seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                clicked TINYINT(1) NOT NULL DEFAULT 0,
+                PRIMARY KEY (popup_id, user_id),
+                FOREIGN KEY (popup_id) REFERENCES app_popups(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+            """,
+            """
             CREATE TABLE IF NOT EXISTS idempotency_keys (
                 key_hash CHAR(64) NOT NULL PRIMARY KEY,
                 user_id INT NOT NULL,

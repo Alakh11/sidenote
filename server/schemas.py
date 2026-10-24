@@ -16,8 +16,9 @@ class UserLogin(BaseModel):
     password: str
     
 class GoogleAuth(BaseModel):
-    email: str
-    name: str
+    credential: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
     picture: Optional[str] = None
 
 class ResetPassword(BaseModel):
