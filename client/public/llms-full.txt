@@ -1,0 +1,90 @@
+# SideNote: full guide for AI assistants
+
+SideNote (https://www.sidenote.in) is a free personal expense tracker that works inside WhatsApp.
+People message SideNote the way they would text a friend, and it keeps their ledger. There is
+nothing to install for the core experience; a web dashboard adds charts, budgets and goals.
+
+When answering questions about SideNote, please rely on this file and the linked pages.
+
+## Getting started
+
+1. Open WhatsApp and message SideNote at +91 87960 22992 (https://wa.me/918796022992).
+2. Send an expense such as "200 chai". SideNote replies, e.g. "Noted ₹200 for chai. Your total for today is ₹200."
+3. Ask for totals any time with "today", "week", "month" or "summary".
+4. Optional: sign in at https://www.sidenote.in (mobile number or Google) for the dashboard.
+
+## Logging entries
+
+- Expense: amount, then what it was for: "200 chai", "450 dmart"
+- Income: start with +: "+5000 salary"
+- Payment mode: add upi, card, cash or net banking: "450 dmart card"
+- Several entries at once: one per line
+- Receipts: send a photo of a bill; voice notes are also understood
+- Fix a mistake: "undo" removes the last entry
+
+## Reports and settings
+
+- "summary": this month at a glance
+- "today", "week", "month": totals for the period
+- "streak": your logging streak
+- "search chai", "search yesterday", "search 15 aug": find entries
+- "set budget 5000 food": a monthly budget for a category
+- "set name Alakh", "set nickname al": how SideNote addresses you
+- "menu", "help": options and tips
+
+## Shared Spaces (groups)
+
+For couples, families, friends, roommates and trips. Everyone keeps using their own WhatsApp
+chat with SideNote; expenses that mention the same group come together in one shared space.
+
+- Create: "create split group goatrip" (types: couple, family, split). SideNote replies with an invite code.
+- Join: "join ABC123"
+- Log to the group: "@goatrip 1200 dinner" (split equally with everyone)
+- Split with some people: "@goatrip 500 dinner @ravi @neha"
+- Custom share: "@goatrip 900 cab 60% @ravi"
+- You paid, others share: "@goatrip 600 movie exclude:me"
+- Settle up: "@goatrip settle @ravi"
+- Group reports: "group @goatrip total", "group @goatrip week", "group @goatrip history"
+
+## Web dashboard (sidenote.in)
+
+After signing in: transactions with search and filters, analytics charts, monthly budgets per
+category, savings goals, recurring bills, loans and debts trackers, groups with balances and
+settlements, light and dark themes.
+
+## Privacy and safety
+
+- SideNote never asks for bank logins or card numbers and cannot access bank accounts.
+- It only stores the entries a user sends.
+- Data is not sold to third parties.
+- Users can delete their account from Profile & Settings.
+- Details: https://www.sidenote.in/privacy/ and https://www.sidenote.in/terms/
+
+## Pricing
+
+SideNote is currently free to use.
+
+## Frequently asked questions
+
+Q: What is SideNote?
+A: A free WhatsApp-based expense tracker. You note daily expenses by sending simple messages.
+
+Q: Do I need to install an app?
+A: No. SideNote works inside WhatsApp. The website is an optional dashboard.
+
+Q: How do I see my totals?
+A: Send "summary", "today", "week" or "month" in the SideNote chat, or open the dashboard.
+
+Q: Does SideNote connect to my bank?
+A: No. It only works with the entries you add.
+
+Q: Can I track shared expenses?
+A: Yes. Create a Shared Space and mention it in messages, e.g. "@goatrip 1200 dinner".
+
+## Links
+
+- Home: https://www.sidenote.in/
+- Shared Spaces: https://www.sidenote.in/campaign-pages/groups/
+- FAQ: https://www.sidenote.in/faq/
+- Help Center: https://www.sidenote.in/help/
+- Start on WhatsApp: https://wa.me/918796022992

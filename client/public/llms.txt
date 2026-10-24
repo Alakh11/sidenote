@@ -1,0 +1,27 @@
+# SideNote
+
+> SideNote is a free expense tracker that works inside WhatsApp. You message SideNote an amount and what it was for (for example "200 chai") and it records the expense and replies with your running total. There is nothing to install and no forms to fill. A web dashboard at sidenote.in shows charts, budgets, savings goals and shared group expenses.
+
+Key facts:
+
+- Price: free.
+- Works in WhatsApp: message +91 87960 22992 (https://wa.me/918796022992).
+- No bank account access: SideNote only knows the entries you send it.
+- Built for India first (rupees, UPI), and works in other supported countries.
+- Shared Spaces: couples, friends, roommates and trip groups log expenses to one shared group by mentioning it, e.g. "@goatrip 1200 dinner".
+
+## Pages
+
+- [Home](https://www.sidenote.in/): what SideNote is and how logging on WhatsApp works
+- [Shared Spaces (groups)](https://www.sidenote.in/campaign-pages/groups/): splitting and sharing expenses with a group
+- [FAQ](https://www.sidenote.in/faq/): common questions
+- [Help Center](https://www.sidenote.in/help/): guides and support
+
+## Details
+
+- [Full guide for AI assistants](https://www.sidenote.in/llms-full.txt): commands, features, groups, privacy and limits in plain text
+
+## Optional
+
+- [Privacy Policy](https://www.sidenote.in/privacy/)
+- [Terms and Conditions](https://www.sidenote.in/terms/)
