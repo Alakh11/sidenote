@@ -309,6 +309,7 @@ def get_group_transactions(
                 t.id, t.amount, t.description, t.logged_at as date, 
                 u.name as paid_by, t.logged_by as paid_by_user_id, 
                 t.split_type, t.split_details, t.settled_shares, t.payment_mode,
+                JSON_UNQUOTE(JSON_EXTRACT(t.split_data, '$.recorded_by')) as recorded_by,
                 t.category_id, c.name as category, c.icon as category_icon
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
