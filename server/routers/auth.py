@@ -7,6 +7,7 @@ from schemas import *
 from security import pwd_context, create_access_token, get_current_user, issue_refresh_token, rotate_refresh_token, revoke_refresh_token, verify_google_credential
 from utils import create_default_categories, is_country_allowed
 import logging
+import asyncio
 import random
 import re
 import os
@@ -17,6 +18,21 @@ from utils import get_client_ip, fetch_geoip_data, get_allowed_countries_from_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 EMAIL_PATTERN = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[A-Za-z]{2,}$")
+
+
+def password_problem(password: str) -> Optional[str]:
+    """New passwords (sign-up, reset): 8+ characters with a capital, a small letter, a number and a symbol"""
+    if len(password) < 8:
+        return "Password must be at least 8 characters."
+    if not re.search(r"[A-Z]", password):
+        return "Password needs a capital letter (A-Z)."
+    if not re.search(r"[a-z]", password):
+        return "Password needs a small letter (a-z)."
+    if not re.search(r"[0-9]", password):
+        return "Password needs a number (0-9)."
+    if not re.search(r"[^A-Za-z0-9]", password):
+        return "Password needs a special character (e.g. ! @ # $)."
+    return None
 logger = logging.getLogger(__name__)
 
 class RegisterPayload(BaseModel):
@@ -82,15 +98,21 @@ async def generate_and_send_otp(cursor, phone: str, name: str, email: Optional[s
     
     recent_activity = cursor.fetchone()
     
+    async def via_whatsapp():
+        if recent_activity:
+            msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
+            return await send_whatsapp_text(phone, msg)
+        return await send_whatsapp_template(phone, "sidenote_account_ticket_v1", [name, otp_code])
+
+    async def via_email():
+        return bool(email and "@" in email and await send_otp_email(email, name, otp_code))
+
+    # Both at once, so a slow mail server never holds up the WhatsApp code
+    result, emailed = await asyncio.gather(via_whatsapp(), via_email())
     channels = []
-    if recent_activity:
-        msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
-        result = await send_whatsapp_text(phone, msg)
-    else:
-        result = await send_whatsapp_template(phone, "sidenote_account_ticket_v1", [name, otp_code])
     if not (isinstance(result, dict) and result.get("status") == "error"):
         channels.append("whatsapp")
-    if email and "@" in email and await send_otp_email(email, name, otp_code):
+    if emailed:
         channels.append("email")
     if not channels:
         raise HTTPException(status_code=502, detail="We couldn't send your code right now. Please try again in a minute.")
@@ -111,6 +133,9 @@ async def register(payload: RegisterPayload):
         
         existing_user: dict[str, Any] = raw_user or {} # type: ignore
 
+        problem = password_problem(payload.password)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
         hashed_pw = pwd_context.hash(payload.password)
 
         signup_email = (payload.email or "").strip().lower() or None
@@ -336,6 +361,9 @@ async def reset_password(data: ResetPassword):
         if not target_mobile:
              raise HTTPException(status_code=400, detail="No WhatsApp number linked to this account.")
             
+        problem = password_problem(data.new_password)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
         new_hash = pwd_context.hash(data.new_password)
         cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
         

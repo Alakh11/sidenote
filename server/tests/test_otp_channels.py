@@ -35,3 +35,15 @@ def test_no_email_on_file_means_whatsapp_only():
 def test_nothing_delivered_is_an_error():
     with pytest.raises(HTTPException):
         run({"status": "error"}, False)
+
+
+@pytest.mark.parametrize("password,ok", [
+    ("Secret#123", True),
+    ("secret#123", False),
+    ("SECRET#123", False),
+    ("Secret#abc", False),
+    ("Secret1234", False),
+    ("Se#1", False),
+])
+def test_new_password_rules(password, ok):
+    assert (auth.password_problem(password) is None) == ok

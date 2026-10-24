@@ -152,9 +152,11 @@ def revoke_refresh_token(raw: str) -> None:
     finally:
         conn.close()
 
-GOOGLE_CLIENT_IDS = {c.strip() for c in (os.getenv("GOOGLE_CLIENT_IDS") or os.getenv("GOOGLE_CLIENT_ID") or "").split(",") if c.strip()}
-if not GOOGLE_CLIENT_IDS:
-    logger.warning("GOOGLE_CLIENT_IDS is not set: Google tokens are verified but not checked against our client id")
+# Google sign-in tokens must be issued for SideNote's own OAuth client. The web client id is public
+# (it ships in the web page and the app), so it's the default; GOOGLE_CLIENT_IDS (comma-separated)
+# overrides it, e.g. to add another client.
+DEFAULT_GOOGLE_CLIENT_IDS = "577129960094-8u7ef3ijs82pkmdou8goofcqatku3c70.apps.googleusercontent.com"
+GOOGLE_CLIENT_IDS = {c.strip() for c in (os.getenv("GOOGLE_CLIENT_IDS") or os.getenv("GOOGLE_CLIENT_ID") or DEFAULT_GOOGLE_CLIENT_IDS).split(",") if c.strip()}
 
 
 def verify_google_credential(credential: str) -> dict:
