@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Any
 from database import get_db
 from security import require_admin
+from push_service import mask_amounts
 import firebase_admin
 from firebase_admin import credentials, messaging
 import logging
@@ -33,6 +34,8 @@ SOUNDS = {
     "chime": {"channel": "sidenote_chime", "file": "sidenote_chime"},
     "coin": {"channel": "sidenote_coin", "file": "sidenote_coin"},
     "pop": {"channel": "sidenote_pop", "file": "sidenote_pop"},
+    "dust": {"channel": "sidenote_dust", "file": "sidenote_dust"},
+    "tritone": {"channel": "sidenote_tritone", "file": "sidenote_tritone"},
     "silent": {"channel": "sidenote_silent", "file": None},
 }
 NOTIFICATION_TYPES = {"general", "alert", "reminder", "offer", "update"}
@@ -90,7 +93,7 @@ class SendNotificationRequest(BaseModel):
         return _https_url(v, "icon_url")
 
 
-def _build_message(token: str, req: SendNotificationRequest, notification_id: int) -> messaging.Message:
+def _build_message(token: str, req: SendNotificationRequest, notification_id: int, hide_amounts: bool = False) -> messaging.Message:
     sound = SOUNDS[req.sound]
     # Data values must be strings; the app reads these to open and render the inbox entry
     data = {"notification_id": str(notification_id), "type": req.type, "screen": "Notifications"}
@@ -101,7 +104,12 @@ def _build_message(token: str, req: SendNotificationRequest, notification_id: in
 
     return messaging.Message(
         token=token,
-        notification=messaging.Notification(title=req.title, body=req.body, image=req.image_url),
+        # Users who hide amounts see ₹••• in the preview; the inbox keeps the full text
+        notification=messaging.Notification(
+            title=mask_amounts(req.title) if hide_amounts else req.title,
+            body=mask_amounts(req.body) if hide_amounts else req.body,
+            image=req.image_url,
+        ),
         data=data,
         android=messaging.AndroidConfig(
             priority="high",
@@ -165,10 +173,17 @@ def admin_send_notification(req: SendNotificationRequest, admin_id: int = Depend
     
     try:
         if not req.user_ids:
-            cursor.execute("SELECT user_id, fcm_token FROM user_devices")
+            cursor.execute("""
+                SELECT d.user_id, d.fcm_token, u.notif_hide_amounts AS hide_amounts
+                FROM user_devices d JOIN users u ON u.id = d.user_id
+            """)
         else:
             format_strings = ','.join(['%s'] * len(req.user_ids))
-            cursor.execute(f"SELECT user_id, fcm_token FROM user_devices WHERE user_id IN ({format_strings})", tuple(req.user_ids))
+            cursor.execute(f"""
+                SELECT d.user_id, d.fcm_token, u.notif_hide_amounts AS hide_amounts
+                FROM user_devices d JOIN users u ON u.id = d.user_id
+                WHERE d.user_id IN ({format_strings})
+            """, tuple(req.user_ids))
             
         devices = cursor.fetchall()
         if not devices:
@@ -184,7 +199,7 @@ def admin_send_notification(req: SendNotificationRequest, admin_id: int = Depend
             """, (uid, req.title, req.body, req.type, req.image_url, req.icon_url, req.sound))
             notification_ids[uid] = cursor.lastrowid
 
-        messages = [_build_message(d['fcm_token'], req, notification_ids[d['user_id']]) for d in devices]
+        messages = [_build_message(d['fcm_token'], req, notification_ids[d['user_id']], bool(d['hide_amounts'])) for d in devices]
 
         # send_multicast was removed in firebase-admin 7; send_each takes individual messages
         responses = []

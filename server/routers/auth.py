@@ -4,7 +4,7 @@ from typing import Any, Optional
 from pydantic import BaseModel
 from database import get_db
 from schemas import *
-from security import pwd_context, create_access_token, get_current_user
+from security import pwd_context, create_access_token, get_current_user, issue_refresh_token, rotate_refresh_token, revoke_refresh_token
 from utils import create_default_categories, is_country_allowed
 import logging
 import random
@@ -158,6 +158,7 @@ def verify_otp(data: VerifyOTP):
         
         return {
             "token": token, 
+            "refresh_token": issue_refresh_token(int(user_db['id'])),
             "user": {
                 "id": user_db['id'],
                 "name": user_db.get('name'), 
@@ -195,6 +196,7 @@ def login(data: UserLogin):
         
         return {
             "token": token, 
+            "refresh_token": issue_refresh_token(int(user['id'])),
             "user": {
                 "id": user['id'],
                 "name": user['name'], 
@@ -234,6 +236,7 @@ def google_login(data: GoogleAuth):
         
         return {
             "token": token, 
+            "refresh_token": issue_refresh_token(int(user['id'])),
             "user": {
                 "id": user['id'],
                 "name": user['name'], 
@@ -248,6 +251,26 @@ def google_login(data: GoogleAuth):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh")
+def refresh_session(data: RefreshRequest):
+    """Swaps a refresh token for a new access token (and a rotated refresh token)"""
+    user, new_refresh = rotate_refresh_token(data.refresh_token)
+    return {
+        "token": create_access_token({"sub": str(user['id']), "name": user['name']}),
+        "refresh_token": new_refresh,
+    }
+
+
+@router.post("/logout")
+def logout(data: RefreshRequest):
+    revoke_refresh_token(data.refresh_token)
+    return {"status": "success"}
+
 
 @router.post("/reset-password")
 async def reset_password(data: ResetPassword):
@@ -491,6 +514,7 @@ def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_curren
         return {
             "message": "Mobile linked successfully!",
             "token": new_token,
+            "refresh_token": issue_refresh_token(int(user_db['id'])),
             "user": {
                 "id": user_db['id'],
                 "name": user_db.get('name'), 

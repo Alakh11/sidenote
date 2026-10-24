@@ -143,6 +143,26 @@ def _group_alias(user_id: int, group: dict) -> Optional[str]:
     return next((w for w in words if not any(w in other for other in names)), None)
 
 
+def _strip_group_prefix(text: str, group: dict) -> str:
+    """WhatsApp syntax names the group ("@goa settle @ravi", "group @goa week"); in a group thread the
+    group is implied, so drop a leading mention of it. Person mentions such as "@ravi 500" are kept."""
+    words = re.findall(r"\w+", group["name"].lower())
+    names = set(words) | {"".join(words), "group", "group_name", "groupname"}
+    match = re.match(r"^\s*(?:group\s+)?@(\w+)\s+(?=\S)", text, re.IGNORECASE)
+    if match and match.group(1).lower() in names:
+        return text[match.end():]
+    return text
+
+
+def _clean_group_reply(body: str) -> str:
+    """Bot replies suggest WhatsApp's "@group ..." commands; in a group thread they're typed without it"""
+    body = re.sub(r"@group_name\s+", "", body)
+    body = re.sub(r"`@\w+\s+(settle\s+@\w+)`", r"`\1`", body)
+    body = re.sub(r"\bgroup\s+@\w+\s+", "", body)
+    body = re.sub(r"Unknown command for @\w+\.", "Unknown command.", body)
+    return body
+
+
 def _to_group_command(text: str, alias: str) -> Optional[str]:
     lower = text.lower().strip()
     if re.match(r"^\d+(?:\.\d+)?\s+\S", lower):
@@ -188,6 +208,8 @@ async def _run_bot(user: dict, group: Optional[dict], run) -> None:
     group_id = group["id"] if group else None
 
     async def sink(kind: str, body: str, payload: Optional[dict]) -> None:
+        if group:
+            body = _clean_group_reply(body)
         if kind == "media":
             payload = payload or {}
             url = payload.get("media_link")
@@ -210,6 +232,8 @@ async def _run_bot(user: dict, group: Optional[dict], run) -> None:
         if not target or not device_tokens(target["id"]):
             await send_whatsapp_text_direct(to_number, body)
             return
+        if group:
+            body = _clean_group_reply(body)
         _insert_message(target["id"], group_id, "bot", "buttons" if kind == "buttons" else "text", body, payload if kind == "buttons" else None)
         title = group["name"] if group else "SideNote"
         await asyncio.to_thread(send_push, target["id"], title, body, {"kind": "chat", "group_id": group_id or ""})
@@ -336,7 +360,7 @@ async def send_chat_message(req: ChatMessageRequest, user_id: int = Depends(get_
         if not alias:
             await send_whatsapp_text(user["mobile"], f"⚠️ *{group['name']}* shares its name with another of your groups. Rename one of them to chat here.")
             return
-        command = _to_group_command(text, alias)
+        command = _to_group_command(_strip_group_prefix(text, group), alias)
         if not command:
             await send_whatsapp_text(user["mobile"], f"🤔 I didn't get that. In *{group['name']}* start with an amount, e.g. `500 dinner`, or type `help` for all commands.")
             return

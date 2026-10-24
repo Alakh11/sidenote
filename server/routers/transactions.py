@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Header
+from fastapi.encoders import jsonable_encoder
 from typing import Optional, Any
 from database import get_db
+from security import get_current_user
+from idempotency import claim_idempotency_key, save_idempotent_response
 from schemas import TransactionCreate, CategoryCreate, CategoryUpdate, BudgetSchema
 import logging, math
 from datetime import datetime, timedelta
@@ -12,32 +15,70 @@ logger = logging.getLogger(__name__)
 
 # ================= TRANSACTION ENDPOINTS =================
 
+def _resolve_category_id(cursor, tx: TransactionCreate):
+    cursor.execute(
+        "SELECT id FROM categories WHERE name = %s AND (user_id = %s OR user_id IS NULL) AND type = %s ORDER BY user_id DESC LIMIT 1", 
+        (tx.category, tx.user_id, tx.type)
+    )
+    result: Any = cursor.fetchone()
+    if not result:
+        cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (tx.user_id, tx.type))
+        result = cursor.fetchone()
+    return result['id'] if result else None
+
+
+def _transaction_row(cursor, tx_id: int):
+    """The saved row as the list endpoints return it, so the app can update its caches from it"""
+    cursor.execute("""
+        SELECT t.*, c.name as category_name, c.icon as category_icon
+        FROM transactions t LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.id = %s
+    """, (tx_id,))
+    return jsonable_encoder(cursor.fetchone())
+
+
+def _conflict(cursor, tx_id: int):
+    return HTTPException(status_code=409, detail={
+        "code": "version_conflict",
+        "message": "This entry was changed on another device.",
+        "current": _transaction_row(cursor, tx_id),
+    })
+
+
 @router.post("/transactions")
-def add_transaction(tx: TransactionCreate):
+def add_transaction(
+    tx: TransactionCreate,
+    current_user: int = Depends(get_current_user),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+):
+    if tx.user_id != current_user:
+        raise HTTPException(status_code=403, detail="You can only add your own transactions.")
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute(
-            "SELECT id FROM categories WHERE name = %s AND (user_id = %s OR user_id IS NULL) AND type = %s ORDER BY user_id DESC LIMIT 1", 
-            (tx.category, tx.user_id, tx.type)
-        )
-        result: Any = cursor.fetchone()
-        
-        if not result:
-             cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (tx.user_id, tx.type))
-             result = cursor.fetchone()
-        
-        cat_id = result['id'] if result else None
+        replay = claim_idempotency_key(cursor, current_user, "POST /transactions", idempotency_key)
+        if replay is not None:
+            conn.rollback()
+            return replay
 
+        cat_id = _resolve_category_id(cursor, tx)
         query = "INSERT INTO transactions (user_id, amount, type, category_id, payment_mode, date, note, is_recurring) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute(query, (tx.user_id, tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring))
+        new_id = cursor.lastrowid
+
+        response = {"message": "Transaction Saved", "id": new_id, "transaction": _transaction_row(cursor, new_id)}
+        save_idempotent_response(cursor, current_user, "POST /transactions", idempotency_key, response)
         conn.commit()
-    
-        return {"message": "Transaction Saved"}
+        return response
+    except HTTPException:
+        conn.rollback()
+        raise
     except mysql.connector.IntegrityError as e:
+        conn.rollback()
         logger.error(f"Add Tx Integrity Error: {e}")
         raise HTTPException(status_code=400, detail="Invalid category or database constraint failed.")
     except Exception as e:
+        conn.rollback()
         logger.error(f"Error adding transaction: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -154,17 +195,35 @@ def get_all_transactions(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/transactions/{id}")
-def delete_transaction(id: int):
+def delete_transaction(
+    id: int,
+    expected_version: Optional[int] = Query(None),
+    current_user: int = Depends(get_current_user),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+):
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute("SELECT user_id, amount, type FROM transactions WHERE id = %s", (id,))
+        replay = claim_idempotency_key(cursor, current_user, f"DELETE /transactions/{id}", idempotency_key)
+        if replay is not None:
+            conn.rollback()
+            return replay
+
+        cursor.execute("SELECT user_id, version FROM transactions WHERE id = %s FOR UPDATE", (id,))
         tx_data: Any = cursor.fetchone()
+        if not tx_data or tx_data['user_id'] != current_user:
+            raise HTTPException(status_code=404, detail="Transaction not found.")
+        if expected_version is not None and tx_data['version'] != expected_version:
+            raise _conflict(cursor, id)
 
         cursor.execute("DELETE FROM transactions WHERE id = %s", (id,))
+        response = {"message": "Deleted", "id": id}
+        save_idempotent_response(cursor, current_user, f"DELETE /transactions/{id}", idempotency_key, response)
         conn.commit()
-
-        return {"message": "Deleted"}
+        return response
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         logger.error(f"Delete Tx Error: {e}")
@@ -375,31 +434,46 @@ def remove_budget(category_id: int, user_id: int = Query(...)):
         conn.close()
     
 @router.put("/transactions/{id}")
-def update_transaction(id: int, tx: TransactionCreate):
+def update_transaction(
+    id: int,
+    tx: TransactionCreate,
+    current_user: int = Depends(get_current_user),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+):
+    if tx.user_id != current_user:
+        raise HTTPException(status_code=403, detail="You can only edit your own transactions.")
     conn = get_db()
     cursor = conn.cursor(dictionary=True, buffered=True)
     try:
-        cursor.execute(
-            "SELECT id FROM categories WHERE name = %s AND (user_id = %s OR user_id IS NULL) AND type = %s ORDER BY user_id DESC LIMIT 1", 
-            (tx.category, tx.user_id, tx.type)
-        )
-        result: Any = cursor.fetchone()
-        if not result:
-             cursor.execute("SELECT id FROM categories WHERE (user_id = %s OR user_id IS NULL) AND type = %s LIMIT 1", (tx.user_id, tx.type))
-             result = cursor.fetchone()
-             
-        cat_id = result['id'] if result else None
+        replay = claim_idempotency_key(cursor, current_user, f"PUT /transactions/{id}", idempotency_key)
+        if replay is not None:
+            conn.rollback()
+            return replay
 
+        cursor.execute("SELECT user_id, version FROM transactions WHERE id = %s FOR UPDATE", (id,))
+        existing: Any = cursor.fetchone()
+        if not existing or existing['user_id'] != current_user:
+            raise HTTPException(status_code=404, detail="Transaction not found.")
+        # Clients that don't send a version (older apps, the web) keep last-write-wins
+        if tx.expected_version is not None and existing['version'] != tx.expected_version:
+            raise _conflict(cursor, id)
+
+        cat_id = _resolve_category_id(cursor, tx)
         query = """
             UPDATE transactions 
             SET amount = %s, type = %s, category_id = %s, 
-                payment_mode = %s, date = %s, note = %s, is_recurring = %s 
+                payment_mode = %s, date = %s, note = %s, is_recurring = %s, version = version + 1
             WHERE id = %s
         """
         cursor.execute(query, (tx.amount, tx.type, cat_id, tx.payment_mode, tx.date, tx.note, tx.is_recurring, id))
-        conn.commit()
 
-        return {"message": "Transaction updated"}
+        response = {"message": "Transaction updated", "transaction": _transaction_row(cursor, id)}
+        save_idempotent_response(cursor, current_user, f"PUT /transactions/{id}", idempotency_key, response)
+        conn.commit()
+        return response
+    except HTTPException:
+        conn.rollback()
+        raise
     except mysql.connector.IntegrityError as e:
         conn.rollback()
         logger.error(f"Update Tx Integrity Error: {e}")

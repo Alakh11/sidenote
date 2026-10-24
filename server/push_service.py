@@ -20,6 +20,25 @@ def device_tokens(user_id: int) -> list[str]:
         conn.close()
 
 
+AMOUNT_PATTERN = re.compile(r"(₹|rs\.?\s?|inr\s?)\s?\d[\d,]*(?:\.\d+)?", re.IGNORECASE)
+
+
+def hides_amounts(user_id: int) -> bool:
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT notif_hide_amounts FROM users WHERE id = %s", (user_id,))
+        row = cursor.fetchone()
+        return bool(row and row[0])
+    finally:
+        conn.close()
+
+
+def mask_amounts(text: str) -> str:
+    # For users who chose to hide amounts in notification previews
+    return AMOUNT_PATTERN.sub("₹•••", text) if text else text
+
+
 def plain_text(text: str) -> str:
     # WhatsApp markup (*bold*, _italic_, ~strike~, `code`) reads badly in a system notification
     return re.sub(r"[*_~`]", "", text).strip()
@@ -33,6 +52,8 @@ def send_push(user_id: int, title: str, body: str, data: Optional[dict] = None) 
     tokens = device_tokens(user_id)
     if not tokens:
         return 0
+    if hides_amounts(user_id):
+        title, body = mask_amounts(title), mask_amounts(body)
     payload = {k: str(v) for k, v in (data or {}).items() if v is not None}
     messages = [
         messaging.Message(

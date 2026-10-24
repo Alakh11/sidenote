@@ -6,7 +6,7 @@ from starlette.datastructures import Headers
 import uvicorn
 import logging, json, os, hmac, hashlib, threading, time
 from database import get_db
-from routers import auth, transactions, features, analytics, admin, groups, help, user_notifications, app_chat
+from routers import auth, transactions, features, analytics, admin, groups, help, user_notifications, app_chat, app_config
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive, process_whatsapp_image, process_whatsapp_audio
 from security import get_current_user, verify_meta_signature
 from whatsapp_service import send_whatsapp_template, send_policy_consent_prompt, send_whatsapp_text
@@ -65,6 +65,7 @@ app.include_router(groups.router)
 app.include_router(help.router)
 app.include_router(user_notifications.router)
 app.include_router(app_chat.router)
+app.include_router(app_config.router)
 
 @app.api_route("/", tags=["Health"], methods=["GET", "HEAD"])
 def health_check():

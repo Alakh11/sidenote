@@ -8,7 +8,7 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL;
 
 type NotificationType = 'general' | 'alert' | 'reminder' | 'offer' | 'update';
-type SoundKey = 'default' | 'chime' | 'coin' | 'pop' | 'silent';
+type SoundKey = 'default' | 'chime' | 'coin' | 'pop' | 'dust' | 'tritone' | 'silent';
 
 // Keep in sync with NOTIFICATION_TYPES / SOUNDS in server/routers/notifications.py and the app's channels
 const TYPES: { value: NotificationType; label: string; icon: typeof Bell; color: string }[] = [
@@ -24,6 +24,8 @@ const SOUNDS: { value: SoundKey; label: string; file?: string }[] = [
   { value: 'chime', label: 'Chime', file: '/notification-sounds/sidenote_chime.wav' },
   { value: 'coin', label: 'Coin', file: '/notification-sounds/sidenote_coin.wav' },
   { value: 'pop', label: 'Pop', file: '/notification-sounds/sidenote_pop.wav' },
+  { value: 'dust', label: 'Dust (Pixel style)', file: '/notification-sounds/sidenote_dust.wav' },
+  { value: 'tritone', label: 'Tri-tone (iPhone style)', file: '/notification-sounds/sidenote_tritone.wav' },
   { value: 'silent', label: 'Silent' },
 ];
 

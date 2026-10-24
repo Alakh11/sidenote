@@ -465,6 +465,28 @@ def initialize_database():
             ) ENGINE=InnoDB;
             """,
             """
+            CREATE TABLE IF NOT EXISTS idempotency_keys (
+                key_hash CHAR(64) NOT NULL PRIMARY KEY,
+                user_id INT NOT NULL,
+                endpoint VARCHAR(64) NOT NULL,
+                response JSON NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_idempotency_created (created_at)
+            ) ENGINE=InnoDB;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS refresh_tokens (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                expires_at DATETIME NOT NULL,
+                revoked_at DATETIME NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_refresh_user (user_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+            """,
+            """
             CREATE TABLE IF NOT EXISTS notification_media (
                 id CHAR(32) NOT NULL PRIMARY KEY,
                 mime_type VARCHAR(50) NOT NULL,
@@ -485,6 +507,9 @@ def initialize_database():
             ("notifications", "icon_url", "VARCHAR(1024) NULL AFTER image_url"),
             ("notifications", "sound", "VARCHAR(30) NOT NULL DEFAULT 'default' AFTER icon_url"),
             ("app_chat_messages", "group_id", "INT NULL AFTER user_id"),
+            ("users", "notif_hide_amounts", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("transactions", "version", "INT NOT NULL DEFAULT 1"),
+            ("transactions", "updated_at", "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
         ]
         for table, column, definition in added_columns:
             cursor.execute("""

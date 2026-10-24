@@ -35,6 +35,51 @@ def register_device_token(req: TokenRequest, user_id: int = Depends(get_current_
     finally:
         conn.close()
 
+class TokenDeleteRequest(BaseModel):
+    fcm_token: str
+
+
+@router.delete("/notifications/token")
+def unregister_device_token(req: TokenDeleteRequest, user_id: int = Depends(get_current_user)):
+    """The app calls this when notifications are switched off or on sign-out"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM user_devices WHERE fcm_token = %s AND user_id = %s", (req.fcm_token, user_id))
+        conn.commit()
+        return {"status": "success", "removed": cursor.rowcount}
+    finally:
+        conn.close()
+
+
+class NotificationPreferences(BaseModel):
+    hide_amounts: bool = False
+
+
+@router.get("/notifications/preferences")
+def get_notification_preferences(user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT notif_hide_amounts FROM users WHERE id = %s", (user_id,))
+        row = cursor.fetchone()
+        return {"hide_amounts": bool(row and row[0])}
+    finally:
+        conn.close()
+
+
+@router.put("/notifications/preferences")
+def update_notification_preferences(prefs: NotificationPreferences, user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE users SET notif_hide_amounts = %s WHERE id = %s", (prefs.hide_amounts, user_id))
+        conn.commit()
+        return {"hide_amounts": prefs.hide_amounts}
+    finally:
+        conn.close()
+
+
 @router.get("/notifications")
 def list_notifications(
     limit: int = Query(30, ge=1, le=100),

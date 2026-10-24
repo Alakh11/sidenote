@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from decimal import Decimal, ROUND_HALF_UP
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
 # Auth Models
@@ -62,13 +63,19 @@ class UserPreferencesUpdate(BaseModel):
 # Transaction Models
 class TransactionCreate(BaseModel):
     user_id: int
-    amount: float
+    amount: Decimal = Field(gt=0)
     type: str
     category: str
     date: str
     payment_mode: str
     note: Optional[str] = None
     is_recurring: bool = False
+    expected_version: Optional[int] = None
+
+    @field_validator("amount")
+    @classmethod
+    def to_paise(cls, v: Decimal) -> Decimal:
+        return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 class CategoryCreate(BaseModel):
     user_id: int
