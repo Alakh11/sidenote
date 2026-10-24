@@ -52,7 +52,7 @@ export default function GroupDashboard() {
 
   // Custom Action Modals
   const [editingTx, setEditingTx] = useState<any>(null);
-  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, actionText: string, isDanger: boolean, onConfirm: () => void } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, actionText: string, isDanger: boolean, onConfirm: () => void, secondary?: { label: string, onClick: () => void } } | null>(null);
   const [promptModal, setPromptModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: (val: string) => void } | null>(null);
   const [promptInputValue, setPromptInputValue] = useState(""); 
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean, message: string } | null>(null);
@@ -188,17 +188,59 @@ export default function GroupDashboard() {
     setSettleModal({ isOpen: true, targetName, targetId, amount: settleAmount });
   };
 
-  const handleRemindClick = async (targetId: number, targetName: string, amount: number) => {
+  const inviteToApp = async (targetName: string) => {
+    const text = `Hey ${targetName}! I've added our ${selectedGroup?.name ?? ''} expenses on SideNote. Get the app to see what's owed and settle up: https://www.sidenote.in`;
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else { await navigator.clipboard.writeText(text); setAlertModal({ isOpen: true, message: "Invite message copied. Paste it to them anywhere." }); }
+    } catch { /* share sheet closed */ }
+  };
+
+  const handleRemindClick = async (targetId: number, targetName: string, amount: number, channel: 'app' | 'whatsapp' = 'app') => {
     try {
       await axios.post(`${API_URL}/groups/${selectedGroupId}/remind`, {
         target_user_id: targetId,
         amount: amount,
-        from_user_id: user.id
+        from_user_id: user.id,
+        channel
       });
-      setAlertModal({ isOpen: true, message: `A reminder notification has been sent to ${targetName} on the SideNote app!` });
+      setAlertModal({ isOpen: true, message: channel === 'whatsapp' ? `Reminder sent to ${targetName} on WhatsApp.` : `A reminder notification has been sent to ${targetName} on the SideNote app!` });
     } catch (err: any) {
-      setAlertModal({ isOpen: true, message: err.response?.data?.detail || "Failed to send reminder." });
+      const detail = err.response?.data?.detail;
+      // Not on the app (or notifications off): offer a WhatsApp reminder or an invite instead
+      if (detail && typeof detail === 'object' && detail.code === 'not_on_app') {
+        setConfirmModal({
+          isOpen: true,
+          title: `${targetName} isn't on the app yet`,
+          message: `They don't get SideNote notifications, so the reminder didn't reach them.${detail.can_whatsapp ? '' : ' They have no WhatsApp number on SideNote either.'}`,
+          actionText: detail.can_whatsapp ? 'Remind on WhatsApp' : 'Invite to SideNote',
+          isDanger: false,
+          onConfirm: () => { if (detail.can_whatsapp) handleRemindClick(targetId, targetName, amount, 'whatsapp'); else inviteToApp(targetName); },
+          secondary: detail.can_whatsapp ? { label: 'Invite to SideNote', onClick: () => inviteToApp(targetName) } : undefined,
+        });
+        return;
+      }
+      setAlertModal({ isOpen: true, message: (typeof detail === 'string' && detail) || "Failed to send reminder." });
     }
+  };
+
+  const handleMakeAdmin = (targetId: number, targetName: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Make Admin",
+      message: `${targetName} will become the group's admin and you'll be a regular member. A group has one admin.`,
+      actionText: "Make admin",
+      isDanger: false,
+      onConfirm: async () => {
+        try {
+          await axios.post(`${API_URL}/groups/${selectedGroupId}/transfer-admin`, { new_admin_id: targetId });
+          queryClient.invalidateQueries({ queryKey: ['group-members', selectedGroupId] });
+          setAlertModal({ isOpen: true, message: `${targetName} is now the group admin.` });
+        } catch (err: any) {
+          setAlertModal({ isOpen: true, message: err.response?.data?.detail || "Failed to change the admin." });
+        }
+      }
+    });
   };
 
   const confirmSettleUp = async () => {
@@ -477,6 +519,9 @@ export default function GroupDashboard() {
           <div className="bg-white dark:bg-[#1a1a1a] rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{confirmModal.title}</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">{confirmModal.message}</p>
+            {confirmModal.secondary && (
+              <button onClick={() => { confirmModal.secondary?.onClick(); setConfirmModal(null); }} className="w-full mb-3 py-3 font-bold rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 transition-colors">{confirmModal.secondary.label}</button>
+            )}
             <div className="flex gap-3">
               <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 font-bold rounded-xl bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancel</button>
               <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }} className={`flex-1 py-3 font-bold rounded-xl text-white transition-colors shadow-sm ${confirmModal.isDanger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{confirmModal.actionText}</button>
@@ -658,7 +703,7 @@ export default function GroupDashboard() {
 
                 {activeTab === 'members' && (
                   membersLoading ? <MembersSkeleton /> : 
-                  <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} onRemoveMember={handleRemoveMember} />
+                  <GroupMembers members={members} currentUserId={user.id} group={selectedGroup} onRefreshCode={handleRefreshCode} onRemoveMember={handleRemoveMember} onMakeAdmin={handleMakeAdmin} />
                 )}
 
                 {activeTab === 'summary' && (

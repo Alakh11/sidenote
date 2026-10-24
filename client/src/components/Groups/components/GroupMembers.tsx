@@ -1,4 +1,4 @@
-import { Shield, User, RefreshCw, Share2, QrCode, Copy, Check, UserMinus } from 'lucide-react';
+import { Shield, User, RefreshCw, Share2, QrCode, Copy, Check, UserMinus, Crown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 
@@ -15,9 +15,10 @@ interface GroupMembersProps {
   group: { name: string; invite_code: string; invite_expires_at: string } | null;
   onRefreshCode: () => void;
   onRemoveMember?: (targetId: number, targetName: string) => void;
+  onMakeAdmin?: (targetId: number, targetName: string) => void;
 }
 
-export default function GroupMembers({ members, currentUserId, group, onRefreshCode, onRemoveMember }: GroupMembersProps) {
+export default function GroupMembers({ members, currentUserId, group, onRefreshCode, onRemoveMember, onMakeAdmin }: GroupMembersProps) {
   const [showQR, setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -189,6 +190,16 @@ export default function GroupMembers({ members, currentUserId, group, onRefreshC
                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 dark:bg-white/5 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-100 dark:border-white/5">
                       <User size={12} /> Member
                    </div>
+                )}
+
+                {currentUserRole === 'admin' && m.id !== currentUserId && onMakeAdmin && (
+                  <button 
+                    onClick={() => onMakeAdmin(m.id, m.name)}
+                    className="p-2 ml-1 text-slate-400 hover:text-amber-600 bg-slate-50 hover:bg-amber-50 dark:bg-white/5 dark:hover:bg-amber-900/20 rounded-xl transition-colors active:scale-95"
+                    title="Make Admin"
+                  >
+                    <Crown size={16} />
+                  </button>
                 )}
 
                 {currentUserRole === 'admin' && m.id !== currentUserId && onRemoveMember && (

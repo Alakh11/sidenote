@@ -8,6 +8,7 @@ from security import pwd_context, create_access_token, get_current_user, issue_r
 from utils import create_default_categories, is_country_allowed
 import logging
 import random
+import re
 import os
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_text, send_whatsapp_template
@@ -15,6 +16,7 @@ from email_service import send_otp_email
 from utils import get_client_ip, fetch_geoip_data, get_allowed_countries_from_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+EMAIL_PATTERN = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[A-Za-z]{2,}$")
 logger = logging.getLogger(__name__)
 
 class RegisterPayload(BaseModel):
@@ -23,6 +25,8 @@ class RegisterPayload(BaseModel):
     password: str
     contact_type: str
     extra_mobile: Optional[str] = None
+    # Mobile signups also give an email, so the code can go there if WhatsApp delivery fails
+    email: Optional[str] = None
 
 class VerifyOTP(BaseModel):
     contact: str
@@ -109,6 +113,15 @@ async def register(payload: RegisterPayload):
 
         hashed_pw = pwd_context.hash(payload.password)
 
+        signup_email = (payload.email or "").strip().lower() or None
+        if signup_email:
+            if not EMAIL_PATTERN.match(signup_email):
+                raise HTTPException(status_code=400, detail="Please enter a valid email address.")
+            cursor.execute("SELECT id, mobile FROM users WHERE LOWER(email) = %s", (signup_email,))
+            email_owner: Any = cursor.fetchone()
+            if email_owner and email_owner.get('mobile') != payload.contact:
+                raise HTTPException(status_code=400, detail="This email is already used by another account. Log in instead, or use a different email.")
+
         if existing_user:
             if existing_user.get('email') and existing_user.get('is_verified'):
                 raise HTTPException(status_code=400, detail="User already exists. Please log in.")
@@ -118,11 +131,11 @@ async def register(payload: RegisterPayload):
                     UPDATE users 
                     SET name = %s, email = %s, password_hash = %s, is_verified = FALSE 
                     WHERE mobile = %s
-                """, (payload.name, None, hashed_pw, payload.contact))
+                """, (payload.name, signup_email, hashed_pw, payload.contact))
             else:
                  raise HTTPException(status_code=400, detail="User already exists.")
         else:
-            email_val = payload.contact if payload.contact_type == 'email' else None
+            email_val = payload.contact if payload.contact_type == 'email' else signup_email
             mobile_val = payload.contact if payload.contact_type == 'mobile' else payload.extra_mobile
             
             query = """
@@ -137,7 +150,7 @@ async def register(payload: RegisterPayload):
 
         channels: list[str] = []
         if target_mobile:
-            email_for_otp = payload.contact if payload.contact_type == 'email' else None
+            email_for_otp = payload.contact if payload.contact_type == 'email' else signup_email
             channels = await generate_and_send_otp(cursor, target_mobile, payload.name, email_for_otp)
         
         conn.commit()

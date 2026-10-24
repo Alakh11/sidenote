@@ -1,10 +1,11 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from typing import Dict, List, Optional, Any
 from database import get_db
-import random, re, string, json
+import asyncio, random, re, string, json
 from pydantic import BaseModel, Field
 from security import get_current_user
 from push_service import device_tokens, send_push
+from whatsapp_service import send_whatsapp_text
 import group_ledger
 from whatsapp_handlers.bot_utils import extract_transaction_details, match_category_from_text
 from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError
@@ -35,6 +36,8 @@ class RemindPayload(BaseModel):
     target_user_id: int
     amount: float
     from_user_id: int
+    # "app" (push) by default; "whatsapp" only when the sender chooses it after the app couldn't reach them
+    channel: str = "app"
 
 class GroupQuickAddPayload(BaseModel):
     text: str
@@ -52,6 +55,9 @@ class ShareSettlePayload(BaseModel):
 
 class AddMembersPayload(BaseModel):
     user_ids: List[int] = Field(min_length=1, max_length=50)
+
+class TransferAdminPayload(BaseModel):
+    new_admin_id: int
 
 class GroupIconPayload(BaseModel):
     icon: Optional[str] = Field(default=None, max_length=32)
@@ -528,6 +534,14 @@ def leave_or_delete_group(group_id: int, user_id: int):
         remaining = cursor.fetchone()['count']
         if remaining == 0:
             cursor.execute("DELETE FROM expense_groups WHERE id = %s", (group_id,))
+        else:
+            # A group always keeps one admin: if the admin left, the longest-standing member takes over
+            cursor.execute("SELECT 1 FROM group_members WHERE group_id = %s AND role = 'admin'", (group_id,))
+            if not cursor.fetchone():
+                cursor.execute("""
+                    UPDATE group_members SET role = 'admin' WHERE group_id = %s
+                    ORDER BY joined_at ASC, user_id ASC LIMIT 1
+                """, (group_id,))
             
         conn.commit()
         return {"message": "Successfully left the group"}
@@ -591,12 +605,13 @@ def get_group_members(group_id: int):
         conn.close()
 
 @router.post("/groups/{group_id}/remind")
-def send_settlement_reminder(group_id: int, payload: RemindPayload):
-    """A payment reminder as an app notification that opens the group (never WhatsApp)"""
+async def send_settlement_reminder(group_id: int, payload: RemindPayload):
+    """A payment reminder. Normally an app notification that opens the group; if the person can't get
+    one, the reply says so (code not_on_app) and the sender can choose WhatsApp or an invite instead."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT name FROM users WHERE id = %s", (payload.target_user_id,))
+        cursor.execute("SELECT name, mobile FROM users WHERE id = %s", (payload.target_user_id,))
         target_user = cursor.fetchone()
         cursor.execute("SELECT name FROM users WHERE id = %s", (payload.from_user_id,))
         from_user = cursor.fetchone()
@@ -609,16 +624,34 @@ def send_settlement_reminder(group_id: int, payload: RemindPayload):
         conn.close()
 
     first_name = _first(target_user['name'])
-    if not device_tokens(payload.target_user_id):
-        raise HTTPException(status_code=400, detail=f"{first_name} hasn't got the SideNote app with notifications on yet, so we can't remind them.")
-    sent = send_push(
-        payload.target_user_id, f"Payment reminder · {group['name']}",
-        f"{_first(from_user['name'])} is waiting for ₹{payload.amount:g}. Tap to settle up.",
-        {"kind": "group_expense", "group_id": group_id},
-    )
+    from_first = _first(from_user['name'])
+
+    if payload.channel == "whatsapp":
+        if not target_user['mobile']:
+            raise HTTPException(status_code=400, detail=f"{first_name} has no WhatsApp number on SideNote. Invite them instead.")
+        msg = (f"🔔 *Payment Reminder*\n\nHey {first_name}! {from_first} is waiting for ₹{payload.amount:g} "
+               f"in *{group['name']}*.\n\nGet the SideNote app to see the details and settle up.")
+        result = await send_whatsapp_text(target_user['mobile'], msg)
+        if isinstance(result, dict) and result.get("status") == "error":
+            raise HTTPException(status_code=502, detail="WhatsApp couldn't deliver the reminder right now. Please try again later.")
+        return {"message": "Reminder sent on WhatsApp", "channel": "whatsapp"}
+
+    sent = 0
+    if device_tokens(payload.target_user_id):
+        sent = await asyncio.to_thread(
+            send_push, payload.target_user_id, f"Payment reminder · {group['name']}",
+            f"{from_first} is waiting for ₹{payload.amount:g}. Tap to settle up.",
+            {"kind": "group_expense", "group_id": group_id},
+        )
     if not sent:
-        raise HTTPException(status_code=502, detail="Couldn't deliver the reminder right now. Please try again.")
-    return {"message": "Reminder sent"}
+        # No phone signed in with notifications on (or its token went stale): let the sender pick another way
+        raise HTTPException(status_code=409, detail={
+            "code": "not_on_app",
+            "message": f"{first_name} isn't getting SideNote app notifications yet.",
+            "name": first_name,
+            "can_whatsapp": bool(target_user['mobile']),
+        })
+    return {"message": "Reminder sent", "channel": "app"}
 
 @router.delete("/groups/{group_id}/members/{target_user_id}")
 def remove_group_member(group_id: int, target_user_id: int, user_id: int = Query(...)):
@@ -812,6 +845,39 @@ def add_group_members(group_id: int, payload: AddMembersPayload, background: Bac
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.post("/groups/{group_id}/transfer-admin")
+def transfer_group_admin(group_id: int, payload: TransferAdminPayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    """Hands the group's single admin role to another member; the current admin becomes a member"""
+    if payload.new_admin_id == user_id:
+        raise HTTPException(status_code=400, detail="You're already the admin.")
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT role FROM group_members WHERE group_id = %s AND user_id = %s FOR UPDATE", (group_id, user_id))
+        me = cursor.fetchone()
+        if not me or me["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Only the group admin can hand over the admin role.")
+        cursor.execute("SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, payload.new_admin_id))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="That person isn't in this group.")
+        # One admin per group: everyone else (including any leftover admins) becomes a member
+        cursor.execute("UPDATE group_members SET role = 'member' WHERE group_id = %s AND user_id != %s", (group_id, payload.new_admin_id))
+        cursor.execute("UPDATE group_members SET role = 'admin' WHERE group_id = %s AND user_id = %s", (group_id, payload.new_admin_id))
+        conn.commit()
+
+        cursor.execute("SELECT g.name AS group_name, u.name AS my_name FROM expense_groups g, users u WHERE g.id = %s AND u.id = %s", (group_id, user_id))
+        row = cursor.fetchone()
+        if row:
+            background.add_task(_push_many, [(payload.new_admin_id, row["group_name"],
+                f"{_first(row['my_name'])} made you the admin of {row['group_name']}", {"kind": "group_expense", "group_id": group_id})])
+        return {"message": "Admin role transferred"}
+    except HTTPException:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

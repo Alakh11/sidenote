@@ -3,7 +3,9 @@ import axios from 'axios';
 import Logo from '../Logo';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
-import { Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { Phone, Lock, User as UserIcon, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Sun, Moon, Eye, EyeOff, Mail } from 'lucide-react';
+
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/;
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from '@tanstack/react-router';
 
@@ -28,7 +30,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   
   const [countryCode, setCountryCode] = useState('91');
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({ name: '', contact: '', password: '', otp: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', contact: '', password: '', otp: '' });
   const [tempToken, setTempToken] = useState('');
   const [tempUser, setTempUser] = useState<any>(null);
 
@@ -72,8 +74,9 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         : (formData.password.length >= 8 && /[A-Z]/.test(formData.password) && /[a-z]/.test(formData.password) && /[0-9]/.test(formData.password) && /[!@#$%^&*(),.?":{}|<>\-_]/.test(formData.password));
 
     const isNameValid = mode === 'signup' ? formData.name.trim().length > 0 : true;
+    const isEmailValid = mode === 'signup' ? EMAIL_PATTERN.test(formData.email.trim()) : true;
 
-    return isContactValid && isPasswordValid && isNameValid;
+    return isContactValid && isPasswordValid && isNameValid && isEmailValid;
   };
 
   const validateForm = () => {
@@ -90,6 +93,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         if (!/[0-9]/.test(pw)) return "Password must have at least 1 number.";
         if (!/[!@#$%^&*(),.?":{}|<>\-_]/.test(pw)) return "Password must contain at least 1 special character.";
         if (!formData.name.trim()) return "Full Name is required for verification.";
+        if (!EMAIL_PATTERN.test(formData.email.trim())) return "Please enter a valid email address.";
     }
     return null; 
   };
@@ -116,7 +120,9 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 name: formData.name, 
                 contact: targetMobile, 
                 password: formData.password,
-                contact_type: 'mobile'
+                contact_type: 'mobile',
+                // The code also goes to this email, in case WhatsApp can't deliver it
+                email: formData.email.trim()
             });
             setSuccessMsg(res.data?.message || "OTP / Case ID sent to your WhatsApp!");
             setAuthStep('otp');
@@ -256,6 +262,18 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                             </div>
                         )}
 
+                        {mode === 'signup' && (
+                            <div className="relative group animate-in slide-in-from-top-2 fade-in">
+                                <Mail className="absolute left-3 md:left-4 top-3 md:top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-[#25D366] transition-colors" />
+                                <input 
+                                    disabled={isGeoBlocked}
+                                    type="email" autoComplete="email" maxLength={120}
+                                    className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-[#111111] dark:text-white focus:ring-2 focus:ring-[#25D366]/30 transition-all text-sm md:text-base placeholder:text-slate-400"
+                                    placeholder="Email (for your verification code)" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value.trim()})}
+                                />
+                            </div>
+                        )}
+
                         <div className="relative group flex">
                             <div className="flex w-full">
                                 <div className="relative flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-r-0 rounded-l-xl focus-within:ring-2 focus-within:ring-[#25D366]/30 z-10 transition-all">
@@ -353,7 +371,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 ) : (
                     <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">
                         {mode === 'login' ? "Don't have an account?" : "Already have an account?"} 
-                        <button disabled={isGeoBlocked} onClick={() => {setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setFormData({name: '', contact: '', password: '', otp: ''})}} className="ml-1.5 md:ml-2 font-bold text-[#25D366] hover:underline disabled:opacity-50">
+                        <button disabled={isGeoBlocked} onClick={() => {setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setFormData({name: '', email: '', contact: '', password: '', otp: ''})}} className="ml-1.5 md:ml-2 font-bold text-[#25D366] hover:underline disabled:opacity-50">
                             {mode === 'login' ? 'Sign Up' : 'Login'}
                         </button>
                     </p>
