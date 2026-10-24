@@ -84,7 +84,10 @@ function App() {
         config.headers['Idempotency-Key'] = crypto.randomUUID();
       }
       
-      if (config.data && !(config.data instanceof FormData)) {
+      if (config.data instanceof FormData) {
+        // The global JSON default would make axios turn the file into JSON; let the browser send multipart
+        config.headers['Content-Type'] = 'multipart/form-data';
+      } else if (config.data) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (config as any)._plainData = (config as any)._plainData ?? config.data;
         config.data = encryptPayload((config as any)._plainData);

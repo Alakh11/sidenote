@@ -11,6 +11,7 @@ import random
 import os
 from datetime import datetime, timedelta
 from whatsapp_service import send_whatsapp_text, send_whatsapp_template
+from email_service import send_otp_email
 from utils import get_client_ip, fetch_geoip_data, get_allowed_countries_from_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -49,10 +50,20 @@ async def check_geo_status(request: Request):
         
     return {"allowed": True, "country": "Unknown", "ip": client_ip}
 
-async def generate_and_send_otp(cursor, phone: str, name: str):
-    """Generates a 4-digit OTP, saves it, and routes via Free Text or Meta Template."""
+def otp_sent_message(channels: list[str]) -> str:
+    if channels == ["whatsapp", "email"]:
+        return "OTP sent to your WhatsApp and email!"
+    if channels == ["email"]:
+        return "OTP sent to your email!"
+    return "OTP sent to your WhatsApp!"
+
+
+async def generate_and_send_otp(cursor, phone: str, name: str, email: Optional[str] = None) -> list[str]:
+    """Generates a 4-digit OTP, saves it, and sends it on WhatsApp (free text or Meta template) and,
+    when the account has an email, by email too: Meta sometimes blocks the WhatsApp message, and the
+    same code works from either. Returns the channels it went to."""
     if not phone:
-        return 
+        return []
         
     otp_code = str(random.randint(1000, 9999))
     cursor.execute("INSERT INTO otps (identifier, otp_code, expires_at) VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL 10 MINUTE))", (phone, otp_code))
@@ -67,11 +78,19 @@ async def generate_and_send_otp(cursor, phone: str, name: str):
     
     recent_activity = cursor.fetchone()
     
+    channels = []
     if recent_activity:
         msg = f"🔐 *SideNote Verification*\n\nHi {name}, your OTP is: *{otp_code}*\n\nValid for 10 minutes."
-        await send_whatsapp_text(phone, msg)
+        result = await send_whatsapp_text(phone, msg)
     else:
-        await send_whatsapp_template(phone, "sidenote_account_ticket_v1", [name, otp_code])
+        result = await send_whatsapp_template(phone, "sidenote_account_ticket_v1", [name, otp_code])
+    if not (isinstance(result, dict) and result.get("status") == "error"):
+        channels.append("whatsapp")
+    if email and "@" in email and await send_otp_email(email, name, otp_code):
+        channels.append("email")
+    if not channels:
+        raise HTTPException(status_code=502, detail="We couldn't send your code right now. Please try again in a minute.")
+    return channels
 
 @router.post("/register")
 async def register(payload: RegisterPayload):
@@ -116,12 +135,14 @@ async def register(payload: RegisterPayload):
             if user_id:
                 create_default_categories(int(user_id), cursor)
 
+        channels: list[str] = []
         if target_mobile:
-            await generate_and_send_otp(cursor, target_mobile, payload.name)
+            email_for_otp = payload.contact if payload.contact_type == 'email' else None
+            channels = await generate_and_send_otp(cursor, target_mobile, payload.name, email_for_otp)
         
         conn.commit()
             
-        return {"message": "OTP sent to your WhatsApp!"}
+        return {"message": otp_sent_message(channels), "channels": channels}
         
     except Exception as e:
         conn.rollback()
@@ -288,7 +309,7 @@ async def reset_password(data: ResetPassword):
         field = "email" if is_email else "mobile"
         
         cursor.execute(
-            f"SELECT id, name, mobile FROM users WHERE {field} = %s", 
+            f"SELECT id, name, mobile, email FROM users WHERE {field} = %s", 
             (data.contact,)
         )
         raw_user = cursor.fetchone()
@@ -305,10 +326,10 @@ async def reset_password(data: ResetPassword):
         new_hash = pwd_context.hash(data.new_password)
         cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, user['id']))
         
-        await generate_and_send_otp(cursor, target_mobile, user['name'])
+        channels = await generate_and_send_otp(cursor, target_mobile, user['name'], user.get('email'))
         
         conn.commit()
-        return {"message": "Verification code sent to WhatsApp."}
+        return {"message": otp_sent_message(channels), "channels": channels}
 
     except Exception as e:
         conn.rollback()
@@ -457,7 +478,7 @@ async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(ge
     cursor = conn.cursor(dictionary=True)
     try:
         
-        cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+        cursor.execute("SELECT name, email FROM users WHERE id = %s", (user_id,))
         user_row: Any = cursor.fetchone()
         
         if not isinstance(user_row, dict):
@@ -465,10 +486,10 @@ async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(ge
             
         user_name = str(user_row.get('name', 'WhatsApp User'))
         
-        await generate_and_send_otp(cursor, data.mobile, user_name)
+        channels = await generate_and_send_otp(cursor, data.mobile, user_name, user_row.get('email'))
         conn.commit()
         
-        return {"message": "OTP sent to WhatsApp!"}
+        return {"message": otp_sent_message(channels), "channels": channels}
     except Exception as e:
         conn.rollback()
         if isinstance(e, HTTPException): raise e

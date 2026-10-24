@@ -112,13 +112,13 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
     setLoading(true);
     try {
         if (mode === 'signup') {
-            await axios.post(`${API_URL}/auth/register`, {
+            const res = await axios.post(`${API_URL}/auth/register`, {
                 name: formData.name, 
                 contact: targetMobile, 
                 password: formData.password,
                 contact_type: 'mobile'
             });
-            setSuccessMsg("OTP / Case ID sent to your WhatsApp!");
+            setSuccessMsg(res.data?.message || "OTP / Case ID sent to your WhatsApp!");
             setAuthStep('otp');
         } else {
             const res = await axios.post(`${API_URL}/auth/login`, { contact: targetMobile, password: formData.password });
@@ -171,10 +171,10 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   const requestMobileLink = async () => {
       setLoading(true);
       try {
-          await axios.post(`${API_URL}/auth/link-mobile/request`, { mobile: targetMobile }, {
+          const res = await axios.post(`${API_URL}/auth/link-mobile/request`, { mobile: targetMobile }, {
               headers: { Authorization: `Bearer ${tempToken}` }
           });
-          setSuccessMsg("Verification code / Case ID sent to WhatsApp!");
+          setSuccessMsg(res.data?.message || "Verification code / Case ID sent to WhatsApp!");
           setAuthStep('link_mobile_otp');
       } catch (err: any) {
           setError(err.response?.data?.detail || "Failed to send code.");
@@ -320,7 +320,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
 
             {(authStep === 'otp' || authStep === 'link_mobile_otp') && (
                 <div className="text-center space-y-4 animate-in slide-in-from-right-4">
-                    <p className="text-sm text-slate-500 mb-6">Enter the 4-digit OTP / Case ID sent to your WhatsApp.</p>
+                    <p className="text-sm text-slate-500 mb-6">Enter the 4-digit OTP / Case ID sent to your WhatsApp or email.</p>
                     <input 
                         disabled={isGeoBlocked}
                         type="text" maxLength={4} placeholder="••••"

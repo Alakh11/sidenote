@@ -195,7 +195,7 @@ export default function GroupDashboard() {
         amount: amount,
         from_user_id: user.id
       });
-      setAlertModal({ isOpen: true, message: `A WhatsApp reminder has been sent to ${targetName}!` });
+      setAlertModal({ isOpen: true, message: `A reminder notification has been sent to ${targetName} on the SideNote app!` });
     } catch (err: any) {
       setAlertModal({ isOpen: true, message: err.response?.data?.detail || "Failed to send reminder." });
     }

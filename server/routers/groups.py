@@ -8,7 +8,6 @@ from push_service import device_tokens, send_push
 import group_ledger
 from whatsapp_handlers.bot_utils import extract_transaction_details, match_category_from_text
 from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError
-from whatsapp_service import send_whatsapp_text
 
 router = APIRouter(tags=["Groups & Splitting"])
 
@@ -53,6 +52,9 @@ class ShareSettlePayload(BaseModel):
 
 class AddMembersPayload(BaseModel):
     user_ids: List[int] = Field(min_length=1, max_length=50)
+
+class GroupIconPayload(BaseModel):
+    icon: Optional[str] = Field(default=None, max_length=32)
 
 class UpiPayload(BaseModel):
     upi_id: Optional[str] = Field(default=None, max_length=100)
@@ -260,6 +262,7 @@ def get_user_groups(user_id: int):
                 g.created_at, 
                 g.type, 
                 g.max_members,
+                g.icon,
                 COALESCE(
                     (SELECT code FROM invite_codes ic 
                      WHERE ic.group_id = g.id AND ic.expires_at > NOW() 
@@ -588,48 +591,35 @@ def get_group_members(group_id: int):
         conn.close()
 
 @router.post("/groups/{group_id}/remind")
-async def send_settlement_reminder(group_id: int, payload: RemindPayload):
+def send_settlement_reminder(group_id: int, payload: RemindPayload):
+    """A payment reminder as an app notification that opens the group (never WhatsApp)"""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT name, mobile FROM users WHERE id = %s", (payload.target_user_id,))
+        cursor.execute("SELECT name FROM users WHERE id = %s", (payload.target_user_id,))
         target_user = cursor.fetchone()
         cursor.execute("SELECT name FROM users WHERE id = %s", (payload.from_user_id,))
         from_user = cursor.fetchone()
         cursor.execute("SELECT name FROM expense_groups WHERE id = %s", (group_id,))
         group = cursor.fetchone()
-
-        if not target_user:
+        if not target_user or not from_user or not group:
             raise HTTPException(status_code=404, detail="Member not found.")
-
-        # App users get a push that opens the group; WhatsApp is the fallback
-        if device_tokens(payload.target_user_id):
-            sent = send_push(
-                payload.target_user_id, f"Payment reminder · {group['name']}",
-                f"{_first(from_user['name'])} is waiting for ₹{payload.amount:g}. Tap to settle up.",
-                {"kind": "group_expense", "group_id": group_id},
-            )
-            if sent:
-                return {"message": "Reminder sent"}
-        if not target_user['mobile']:
-            raise HTTPException(status_code=400, detail="This member can't be reached yet: they have no app or WhatsApp number linked.")
-
-        group_alias = group['name'].split()[0].lower()
-        my_alias = from_user['name'].split()[0].lower()
-        first_name = target_user['name'].split()[0]
-
-        msg = f"🔔 *Payment Reminder*\n\nHey {first_name}! Just a quick reminder to settle up ₹{payload.amount:g} with {from_user['name']} in *{group['name']}*.\n\nYou can reply here with:\n*@{group_alias} settle @{my_alias}*"
-
-        await send_whatsapp_text(target_user['mobile'], msg)
-        return {"message": "Reminder sent via WhatsApp"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _require_member(cursor, group_id, payload.target_user_id)
     finally:
         conn.close()
-        
+
+    first_name = _first(target_user['name'])
+    if not device_tokens(payload.target_user_id):
+        raise HTTPException(status_code=400, detail=f"{first_name} hasn't got the SideNote app with notifications on yet, so we can't remind them.")
+    sent = send_push(
+        payload.target_user_id, f"Payment reminder · {group['name']}",
+        f"{_first(from_user['name'])} is waiting for ₹{payload.amount:g}. Tap to settle up.",
+        {"kind": "group_expense", "group_id": group_id},
+    )
+    if not sent:
+        raise HTTPException(status_code=502, detail="Couldn't deliver the reminder right now. Please try again.")
+    return {"message": "Reminder sent"}
+
 @router.delete("/groups/{group_id}/members/{target_user_id}")
 def remove_group_member(group_id: int, target_user_id: int, user_id: int = Query(...)):
     conn = get_db()
@@ -822,6 +812,28 @@ def add_group_members(group_id: int, payload: AddMembersPayload, background: Bac
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.put("/groups/{group_id}/icon")
+def set_group_icon(group_id: int, payload: GroupIconPayload, user_id: int = Depends(get_current_user)):
+    """The group's emoji, chosen by a group admin (null resets to the group type's icon)"""
+    icon = (payload.icon or "").strip() or None
+    if icon and (any(ch.isalnum() and ch.isascii() for ch in icon) or len(icon) > 16):
+        raise HTTPException(status_code=400, detail="Pick a single emoji for the group icon.")
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT role FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
+        member = cursor.fetchone()
+        if not member:
+            raise HTTPException(status_code=403, detail="You are not a member of this group.")
+        if member["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Only group admins can change the group icon.")
+        cursor.execute("UPDATE expense_groups SET icon = %s WHERE id = %s", (icon, group_id))
+        conn.commit()
+        return {"icon": icon}
     finally:
         conn.close()
 

@@ -83,12 +83,12 @@ export default function ResetPassword() {
 
           setLoading(true);
           try {
-              await axios.post(`${API_URL}/auth/reset-password`, {
+              const res = await axios.post(`${API_URL}/auth/reset-password`, {
                   name: formData.name.trim(),
                   contact: targetMobile,
                   new_password: formData.newPassword
               });
-              setSuccessMsg("Verification code sent to your WhatsApp!");
+              setSuccessMsg(res.data?.message || "Verification code sent to your WhatsApp!");
               setStep('otp');
           } catch (err: any) {
               setError(err.response?.data?.detail || "Details do not match any account.");
@@ -223,7 +223,7 @@ export default function ResetPassword() {
 
                     {step === 'otp' && (
                         <div className="text-center space-y-4 animate-in slide-in-from-right-4">
-                            <p className="text-sm text-slate-500 mb-6">Enter the 4-digit code sent to your WhatsApp.</p>
+                            <p className="text-sm text-slate-500 mb-6">Enter the 4-digit code sent to your WhatsApp or email.</p>
                             <input 
                                 type="text" maxLength={4} placeholder="••••"
                                 className="w-full text-center tracking-[1em] text-3xl font-bold py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-[#25D366]/30 dark:text-white"

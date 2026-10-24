@@ -544,6 +544,7 @@ def initialize_database():
             ("transactions", "updated_at", "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
             ("group_transactions", "settled_shares", "JSON NULL"),
             ("users", "upi_id", "VARCHAR(100) NULL"),
+            ("expense_groups", "icon", "VARCHAR(32) CHARACTER SET utf8mb4 NULL"),
         ]
         for table, column, definition in added_columns:
             cursor.execute("""
