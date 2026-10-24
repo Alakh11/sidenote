@@ -4,6 +4,34 @@ from typing import Dict, List, Tuple
 class SplitError(Exception):
     pass
 
+
+AMOUNT_TOKEN = re.compile(r'^(?:₹|rs\.?|inr)?(\d[\d,]*(?:\.\d+)?)(?:/-|rs|₹)?$', re.IGNORECASE)
+CURRENCY_WORDS = {'₹', 'rs', 'rs.', 'inr', 'rupees', 'rupee'}
+
+
+def _is_split_token(token: str) -> bool:
+    return token.startswith('@') or '%' in token or bool(re.match(r'^\d+(?:\:\d+)+$', token)) or token.lower() == 'exclude:me'
+
+
+def amount_first(text: str):
+    """People type "chai 500" or "dinner ₹1200 @ravi" as often as "500 chai"; the group syntax
+    wants the amount first. Returns the reordered text, or None when there's no usable amount."""
+    tokens = text.split()
+    if not tokens:
+        return None
+    for i, token in enumerate(tokens):
+        if _is_split_token(token):
+            return None  # the amount has to come before any split options
+        match = AMOUNT_TOKEN.match(token)
+        if not match:
+            continue
+        amount = match.group(1).replace(',', '')
+        desc = [t for t in tokens[:i] + tokens[i + 1:] if t.lower() not in CURRENCY_WORDS]
+        if not desc or _is_split_token(desc[0]):
+            return None
+        return f"{amount} {' '.join(desc)}"
+    return None
+
 def parse_and_compute_split(amount: float, remaining_text: str, group_members: List[Dict], payer_id: int) -> Tuple[str, str, Dict[str, float]]:
     tokens = remaining_text.lower().split()
     

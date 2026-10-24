@@ -1,4 +1,5 @@
 import re
+import group_ledger
 import string
 import random
 import traceback
@@ -8,7 +9,7 @@ from whatsapp_service import send_whatsapp_text, send_whatsapp_interactive_butto
 from whatsapp_handlers.bot_utils import get_user_id, db_semaphore, match_category_from_text
 import json
 from whatsapp_handlers.groups_search import handle_group_search_command
-from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError          
+from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError, amount_first          
 from whatsapp_handlers.search_handlers import create_expense_pie_chart
 from whatsapp_service import upload_whatsapp_media, send_whatsapp_media
 import asyncio
@@ -213,40 +214,16 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                     await send_whatsapp_text(phone, f"❌ @{target_name} is not in this group.")
                     return True
 
-                cursor.execute("SELECT amount, logged_by, split_details FROM group_transactions WHERE group_id = %s", (group['id'],))
-                txns = cursor.fetchall()
-                
-                my_balance = 0.0
-                target_balance = 0.0
-                
-                for tx in txns:
-                    amount = float(tx['amount'])
-                    payer = tx['logged_by']
-                    details = json.loads(tx['split_details']) if tx['split_details'] else {}
-                    
-                    if not details: # Fallback for old equal splits
-                        share = amount / len(members)
-                        details = {str(m['id']): share for m in members}
-                        
-                    if payer == target_user['id']:
-                        my_debt = float(details.get(str(user_id), 0))
-                        my_balance -= my_debt
-                        
-                    elif payer == user_id:
-                        target_debt = float(details.get(str(target_user['id']), 0))
-                        target_balance -= target_debt
+                ledger_members, ledger_txs = group_ledger.load_group(cursor, group['id'])
+                owed_paise = group_ledger.owed_between(user_id, target_user['id'], ledger_members, ledger_txs)
+                amount_i_owe = group_ledger.from_paise(owed_paise)
 
-                amount_i_owe = abs(my_balance) if my_balance < 0 else 0
-                
-                if amount_i_owe < 0.01:
+                if owed_paise <= 0:
                     await send_whatsapp_text(phone, f"✅ You are already settled up with {target_user['name'].split()[0]}.")
                     return True
 
-                settle_details = {str(target_user['id']): amount_i_owe}
-                cursor.execute("""
-                    INSERT INTO group_transactions (group_id, amount, description, logged_by, split_type, split_details)
-                    VALUES (%s, %s, 'Settlement', %s, 'settlement', %s)
-                """, (group['id'], amount_i_owe, user_id, json.dumps(settle_details)))
+                group_ledger.record_settlement(cursor, group['id'], user_id, target_user['id'], owed_paise, ledger_txs,
+                                               [m['id'] for m in ledger_members])
                 conn.commit()
                 
                 await send_whatsapp_text(phone, f"✅ Marked as settled with @{target_name}. Total cleared: ₹{amount_i_owe:g}")
@@ -264,7 +241,12 @@ async def handle_group_commands(phone: str, text: str) -> bool:
                 conn.close()
         return True
 
-    # 5. LOG TRANSACTION (@alias 500 coffee 60% @alakh)
+    # 5. LOG TRANSACTION (@alias 500 coffee 60% @alakh, also "@alias coffee 500 ...")
+    match_desc_first = re.match(r'^@(\w+)\s+(\D.*)$', text)
+    if match_desc_first and not match_settle:
+        reordered = amount_first(match_desc_first.group(2))
+        if reordered:
+            text = f"@{match_desc_first.group(1)} {reordered}"
     match_log = re.match(r'^@(\w+)\s+(\d+(?:\.\d+)?)\s+(.+)$', text, re.IGNORECASE)
     if match_log and not match_settle:
         group_alias = match_log.group(1).lower()

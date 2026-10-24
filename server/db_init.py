@@ -542,6 +542,8 @@ def initialize_database():
             ("users", "notif_hide_amounts", "TINYINT(1) NOT NULL DEFAULT 0"),
             ("transactions", "version", "INT NOT NULL DEFAULT 1"),
             ("transactions", "updated_at", "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+            ("group_transactions", "settled_shares", "JSON NULL"),
+            ("users", "upi_id", "VARCHAR(100) NULL"),
         ]
         for table, column, definition in added_columns:
             cursor.execute("""

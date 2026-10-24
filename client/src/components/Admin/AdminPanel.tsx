@@ -26,7 +26,7 @@ import AdminPopups from './components/AdminPopups';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help' | 'push' | 'popups';
+type PrimaryTab = 'users' | 'bot' | 'nudges' | 'system'| 'help' | 'messaging';
 type SystemView = 'metrics' | 'feedback' | 'logs' | 'geo';
 const SortIcon = ({ col, sortBy, sortOrder }: { col: string, sortBy: string, sortOrder: 'ASC' | 'DESC' }) => {
     if (sortBy !== col) return null;
@@ -66,6 +66,7 @@ export default function AdminPanel() {
   
   const [userView, setUserView] = useState<'list' | 'activity' | 'delivery-reports' | 'bot-commands'>('list');
   const [botView, setBotView] = useState<'replies' | 'categories'>('replies');
+  const [messagingView, setMessagingView] = useState<'push' | 'popups'>('push');
   const [systemView, setSystemView] = useState<SystemView>('metrics');
   
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -242,16 +243,10 @@ export default function AdminPanel() {
                 <BookOpen size={16} className="shrink-0"/> <span className="hidden sm:inline">Help Center</span><span className="sm:hidden">Help</span>
             </button>
             <button 
-                onClick={() => setPrimaryTab('push')} 
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'push' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
+                onClick={() => setPrimaryTab('messaging')} 
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'messaging' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
             >
-                <Bell size={16} className="shrink-0"/> <span className="hidden sm:inline">Push Notifications</span><span className="sm:hidden">Push</span>
-            </button>
-            <button 
-                onClick={() => setPrimaryTab('popups')} 
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${primaryTab === 'popups' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200'}`}
-            >
-                <Sparkles size={16} className="shrink-0"/> <span className="hidden sm:inline">In-App Popups</span><span className="sm:hidden">Popups</span>
+                <Bell size={16} className="shrink-0"/> <span className="hidden sm:inline">App Messaging</span><span className="sm:hidden">Messaging</span>
             </button>
         </div>
       </div>
@@ -505,15 +500,20 @@ export default function AdminPanel() {
           </div>
       )}
 
-      {primaryTab === 'push' && (
+      {primaryTab === 'messaging' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
-              <AdminPushNotifications />
-          </div>
-      )}
+              <div className="flex w-full mb-6">
+                  <div className="bg-stone-100 dark:bg-slate-800/80 p-1 rounded-xl flex w-full sm:w-auto shadow-inner overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                      <button onClick={() => setMessagingView('push')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${messagingView === 'push' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <Bell size={14} className="shrink-0"/> Push Notifications
+                      </button>
+                      <button onClick={() => setMessagingView('popups')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${messagingView === 'popups' ? 'bg-white dark:bg-slate-900 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
+                          <Sparkles size={14} className="shrink-0"/> In-App Popups
+                      </button>
+                  </div>
+              </div>
 
-      {primaryTab === 'popups' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 w-full">
-              <AdminPopups />
+              {messagingView === 'push' ? <AdminPushNotifications /> : <AdminPopups />}
           </div>
       )}
 

@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException, Query
-from typing import Dict, Optional, Any
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from typing import Dict, List, Optional, Any
 from database import get_db
-import random, string, json
-from pydantic import BaseModel
+import random, re, string, json
+from pydantic import BaseModel, Field
+from security import get_current_user
+from push_service import device_tokens, send_push
+import group_ledger
 from whatsapp_handlers.bot_utils import extract_transaction_details, match_category_from_text
 from whatsapp_handlers.split_parser import parse_and_compute_split, SplitError
 from whatsapp_service import send_whatsapp_text
@@ -37,6 +40,69 @@ class RemindPayload(BaseModel):
 class GroupQuickAddPayload(BaseModel):
     text: str
     user_id: int
+
+class SettlePayload(BaseModel):
+    # Exactly one of these: the caller paid to_user_id, or the caller received from from_user_id
+    to_user_id: Optional[int] = None
+    from_user_id: Optional[int] = None
+    amount: Optional[float] = Field(default=None, gt=0)
+    payment_mode: str = "UPI"
+
+class ShareSettlePayload(BaseModel):
+    payment_mode: str = "UPI"
+
+class AddMembersPayload(BaseModel):
+    user_ids: List[int] = Field(min_length=1, max_length=50)
+
+class UpiPayload(BaseModel):
+    upi_id: Optional[str] = Field(default=None, max_length=100)
+
+class ContactMatchPayload(BaseModel):
+    # SHA-256 of each contact's last 10 digits, so raw phone numbers never leave the phone
+    hashes: List[str] = Field(max_length=3000)
+
+UPI_PATTERN = re.compile(r"^[\w.\-]{2,256}@[a-zA-Z][a-zA-Z0-9.\-]{1,63}$")
+
+
+def _first(name: Optional[str]) -> str:
+    return (name or "Someone").split()[0]
+
+
+def _require_member(cursor, group_id: int, user_id: int) -> None:
+    cursor.execute("SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
+    if not cursor.fetchone():
+        raise HTTPException(status_code=403, detail="You are not a member of this group.")
+
+
+def _push_many(pushes: list[tuple[int, str, str, dict]]) -> None:
+    for uid, title, body, data in pushes:
+        try:
+            send_push(uid, title, body, data)
+        except Exception as e:
+            print(f"Group push failed for {uid}: {e}")
+
+
+def _expense_pushes(cursor, group_id: int, actor_id: int, amount: float, description: str, shares: Optional[dict]) -> list:
+    """Tells everyone in the expense (or the whole group for unsplit groups) what they owe"""
+    cursor.execute("SELECT name, type FROM expense_groups WHERE id = %s", (group_id,))
+    group = cursor.fetchone()
+    cursor.execute("SELECT id, name FROM users WHERE id = %s", (actor_id,))
+    actor = cursor.fetchone()
+    cursor.execute("SELECT user_id FROM group_members WHERE group_id = %s AND user_id != %s", (group_id, actor_id))
+    others = [r["user_id"] for r in cursor.fetchall()]
+    if not group or not actor:
+        return []
+    data = {"kind": "group_expense", "group_id": group_id}
+    pushes = []
+    for uid in others:
+        share = (shares or {}).get(str(uid))
+        if group["type"] == "split" and shares and share is None:
+            continue  # not part of this split
+        body = f"{_first(actor['name'])} added ₹{amount:g} for {description}"
+        if share:
+            body += f" · your share ₹{float(share):g}"
+        pushes.append((uid, group["name"], body, data))
+    return pushes
 
 def generate_invite_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -242,7 +308,7 @@ def get_group_transactions(
             SELECT 
                 t.id, t.amount, t.description, t.logged_at as date, 
                 u.name as paid_by, t.logged_by as paid_by_user_id, 
-                t.split_type, t.split_details, t.payment_mode,
+                t.split_type, t.split_details, t.settled_shares, t.payment_mode,
                 t.category_id, c.name as category, c.icon as category_icon
             FROM group_transactions t
             JOIN users u ON t.logged_by = u.id
@@ -258,9 +324,9 @@ def get_group_transactions(
         conn.close()
 
 @router.post("/groups/{group_id}/transactions")
-def create_group_transaction(group_id: int, payload: GroupTransactionCreate):
+def create_group_transaction(group_id: int, payload: GroupTransactionCreate, background: BackgroundTasks):
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     try:
         details_json = json.dumps(payload.split_details) if payload.split_details else None
         cursor.execute("""
@@ -268,6 +334,8 @@ def create_group_transaction(group_id: int, payload: GroupTransactionCreate):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (group_id, payload.amount, payload.description, payload.user_id, payload.split_type, payload.category_id, payload.payment_mode, details_json))
         conn.commit()
+        if payload.split_type != 'settlement':
+            background.add_task(_push_many, _expense_pushes(cursor, group_id, payload.user_id, payload.amount, payload.description, payload.split_details))
         return {"message": "Transaction logged successfully"}
     except Exception as e:
         conn.rollback()
@@ -276,7 +344,7 @@ def create_group_transaction(group_id: int, payload: GroupTransactionCreate):
         conn.close()
 
 @router.post("/groups/{group_id}/transactions/quick-add")
-def quick_add_group_transaction(group_id: int, payload: GroupQuickAddPayload):
+def quick_add_group_transaction(group_id: int, payload: GroupQuickAddPayload, background: BackgroundTasks):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -308,6 +376,7 @@ def quick_add_group_transaction(group_id: int, payload: GroupQuickAddPayload):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (group_id, amount, desc, payload.user_id, split_type, category_id, payment_mode, details_json))
         conn.commit()
+        background.add_task(_push_many, _expense_pushes(cursor, group_id, payload.user_id, amount, desc, shares))
         
         return {
             "message": "Transaction logged via AI text parsing!", 
@@ -376,12 +445,19 @@ def update_group_transaction(tx_id: int, payload: GroupTransactionUpdate, user_i
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT logged_by FROM group_transactions WHERE id = %s", (tx_id,))
+        cursor.execute("SELECT logged_by, amount, split_details, settled_shares FROM group_transactions WHERE id = %s", (tx_id,))
         txn = cursor.fetchone()
         if not txn: 
             raise HTTPException(status_code=404, detail="Transaction not found")
         if txn['logged_by'] != user_id: 
             raise HTTPException(status_code=403, detail="You can only edit your own transactions.")
+        if txn['settled_shares'] and json.loads(txn['settled_shares']):
+            old_details = json.loads(txn['split_details']) if txn['split_details'] else None
+            same_split = group_ledger.to_paise(txn['amount']) == group_ledger.to_paise(payload.amount) and (
+                {k: group_ledger.to_paise(v) for k, v in (old_details or {}).items()}
+                == {k: group_ledger.to_paise(v) for k, v in (payload.split_details or {}).items()})
+            if not same_split:
+                raise HTTPException(status_code=409, detail="Someone has already paid their share, so the amount and split can't change. You can still edit the description and category.")
 
         details_json = json.dumps(payload.split_details) if payload.split_details else None
         
@@ -480,10 +556,16 @@ def delete_group_transaction(tx_id: int, user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT logged_by FROM group_transactions WHERE id = %s", (tx_id,))
+        cursor.execute("SELECT logged_by, split_type, split_details, settled_shares, split_data FROM group_transactions WHERE id = %s", (tx_id,))
         txn = cursor.fetchone()
         if not txn: raise HTTPException(status_code=404, detail="Transaction not found")
-        if txn['logged_by'] != user_id: raise HTTPException(status_code=403, detail="You can only delete transactions you logged.")
+        recorded_by = (json.loads(txn['split_data']) if txn['split_data'] else {}).get('recorded_by')
+        if txn['logged_by'] != user_id and recorded_by != user_id:
+            raise HTTPException(status_code=403, detail="You can only delete transactions you logged.")
+        if txn['split_type'] == 'settlement':
+            group_ledger.unmark_settlement(cursor, txn)
+        elif txn['settled_shares'] and json.loads(txn['settled_shares']):
+            raise HTTPException(status_code=409, detail="Someone has already paid their share of this expense. Delete their payment first.")
         cursor.execute("DELETE FROM group_transactions WHERE id = %s", (tx_id,))
         conn.commit()
         return {"message": "Transaction deleted"}
@@ -496,7 +578,7 @@ def get_group_members(group_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT u.id, u.name, u.email, gm.role, gm.joined_at 
+            SELECT u.id, u.name, u.email, u.upi_id, gm.role, gm.joined_at 
             FROM group_members gm JOIN users u ON gm.user_id = u.id 
             WHERE gm.group_id = %s ORDER BY gm.role ASC, u.name ASC
         """, (group_id,))
@@ -516,8 +598,20 @@ async def send_settlement_reminder(group_id: int, payload: RemindPayload):
         cursor.execute("SELECT name FROM expense_groups WHERE id = %s", (group_id,))
         group = cursor.fetchone()
 
-        if not target_user or not target_user['mobile']:
-            raise HTTPException(status_code=400, detail="This user does not have a registered WhatsApp number.")
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Member not found.")
+
+        # App users get a push that opens the group; WhatsApp is the fallback
+        if device_tokens(payload.target_user_id):
+            sent = send_push(
+                payload.target_user_id, f"Payment reminder · {group['name']}",
+                f"{_first(from_user['name'])} is waiting for ₹{payload.amount:g}. Tap to settle up.",
+                {"kind": "group_expense", "group_id": group_id},
+            )
+            if sent:
+                return {"message": "Reminder sent"}
+        if not target_user['mobile']:
+            raise HTTPException(status_code=400, detail="This member can't be reached yet: they have no app or WhatsApp number linked.")
 
         group_alias = group['name'].split()[0].lower()
         my_alias = from_user['name'].split()[0].lower()
@@ -528,6 +622,8 @@ async def send_settlement_reminder(group_id: int, payload: RemindPayload):
         await send_whatsapp_text(target_user['mobile'], msg)
         return {"message": "Reminder sent via WhatsApp"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -580,5 +676,202 @@ def remove_group_member(group_id: int, target_user_id: int, user_id: int = Query
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+# ---------- Google Pay style splits: per-person balances and per-share payments ----------
+
+@router.get("/groups/{group_id}/balances")
+def get_group_balances(group_id: int, user_id: int = Depends(get_current_user)):
+    """The caller's balance with each member, pair by pair (not simplified across the group)"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        _require_member(cursor, group_id, user_id)
+        members, transactions = group_ledger.load_group(cursor, group_id)
+        return group_ledger.balances_for(user_id, members, transactions)
+    finally:
+        conn.close()
+
+
+@router.post("/groups/transactions/{tx_id}/shares/{debtor_id}/settle")
+def settle_share(tx_id: int, debtor_id: int, payload: ShareSettlePayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    """Marks one person's share of one expense as paid, by that person or by whoever paid the bill"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT group_id, logged_by, description, split_type FROM group_transactions WHERE id = %s", (tx_id,))
+        tx = cursor.fetchone()
+        if not tx or tx["split_type"] == "settlement":
+            raise HTTPException(status_code=404, detail="Expense not found.")
+        creditor = tx["logged_by"]
+        if user_id not in (debtor_id, creditor):
+            raise HTTPException(status_code=403, detail="Only the person who owes or the person who paid can settle this share.")
+        if debtor_id == creditor:
+            raise HTTPException(status_code=400, detail="The payer has no share to settle.")
+        _require_member(cursor, tx["group_id"], user_id)
+
+        members, transactions = group_ledger.load_group(cursor, tx["group_id"])
+        member_ids = [m["id"] for m in members]
+        this_tx = next(t for t in transactions if t["id"] == tx_id)
+        if str(debtor_id) in json.loads(this_tx["settled_shares"] or "{}"):
+            return {"message": "Already paid", "already": True}
+        share = group_ledger.tx_shares(this_tx, member_ids).get(debtor_id, 0)
+        if share <= 0:
+            raise HTTPException(status_code=400, detail="This person isn't part of the expense.")
+
+        group_ledger.record_settlement(cursor, tx["group_id"], debtor_id, creditor, share, transactions, member_ids,
+                                       payload.payment_mode, recorded_by=user_id, only_tx=tx_id)
+        conn.commit()
+
+        names = {m["id"]: m["name"] for m in members}
+        cursor.execute("SELECT name FROM expense_groups WHERE id = %s", (tx["group_id"],))
+        group_name = cursor.fetchone()["name"]
+        amount = group_ledger.from_paise(share)
+        other, body = (creditor, f"{_first(names.get(debtor_id))} paid you ₹{amount:g} for {tx['description']}") if user_id == debtor_id \
+            else (debtor_id, f"{_first(names.get(creditor))} marked your ₹{amount:g} for {tx['description']} as received")
+        background.add_task(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": tx["group_id"]})])
+        return {"message": "Marked as paid", "amount": amount}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.post("/groups/{group_id}/settle")
+def settle_with_member(group_id: int, payload: SettlePayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    """Settles up between the caller and one member: what's owed by default, or a part of it"""
+    if bool(payload.to_user_id) == bool(payload.from_user_id):
+        raise HTTPException(status_code=400, detail="Choose who paid whom.")
+    debtor, creditor = (user_id, payload.to_user_id) if payload.to_user_id else (payload.from_user_id, user_id)
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        _require_member(cursor, group_id, user_id)
+        members, transactions = group_ledger.load_group(cursor, group_id)
+        member_ids = [m["id"] for m in members]
+        if creditor not in member_ids or debtor not in member_ids:
+            raise HTTPException(status_code=404, detail="That person isn't in this group.")
+        owed = group_ledger.owed_between(debtor, creditor, members, transactions)
+        if owed <= 0:
+            raise HTTPException(status_code=400, detail="Nothing is owed between you two.")
+        paise = group_ledger.to_paise(payload.amount) if payload.amount else owed
+        if paise > owed:
+            raise HTTPException(status_code=400, detail=f"Only ₹{group_ledger.from_paise(owed):g} is owed.")
+
+        group_ledger.record_settlement(cursor, group_id, debtor, creditor, paise, transactions, member_ids,
+                                       payload.payment_mode, recorded_by=user_id)
+        conn.commit()
+
+        names = {m["id"]: m["name"] for m in members}
+        cursor.execute("SELECT name FROM expense_groups WHERE id = %s", (group_id,))
+        group_name = cursor.fetchone()["name"]
+        amount = group_ledger.from_paise(paise)
+        other, body = (creditor, f"{_first(names.get(debtor))} paid you ₹{amount:g}") if user_id == debtor \
+            else (debtor, f"{_first(names.get(creditor))} marked ₹{amount:g} from you as received")
+        background.add_task(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": group_id})])
+        return {"message": "Settled", "amount": amount, "remaining": group_ledger.from_paise(owed - paise)}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.post("/groups/{group_id}/members")
+def add_group_members(group_id: int, payload: AddMembersPayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    """Adds SideNote users found in the caller's contacts straight into the group"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        _require_member(cursor, group_id, user_id)
+        cursor.execute("SELECT name, max_members FROM expense_groups WHERE id = %s", (group_id,))
+        group = cursor.fetchone()
+        cursor.execute("SELECT user_id FROM group_members WHERE group_id = %s", (group_id,))
+        existing = {r["user_id"] for r in cursor.fetchall()}
+        new_ids = [uid for uid in dict.fromkeys(payload.user_ids) if uid not in existing]
+        if len(existing) + len(new_ids) > group["max_members"]:
+            raise HTTPException(status_code=400, detail=f"This group allows {group['max_members']} members.")
+        if not new_ids:
+            return {"message": "Already in the group", "added": 0}
+        cursor.execute(f"SELECT id FROM users WHERE id IN ({','.join(['%s'] * len(new_ids))})", tuple(new_ids))
+        valid = [r["id"] for r in cursor.fetchall()]
+        for uid in valid:
+            cursor.execute("INSERT IGNORE INTO group_members (group_id, user_id, role) VALUES (%s, %s, 'member')", (group_id, uid))
+        cursor.execute("UPDATE expense_groups SET status = 'active' WHERE id = %s", (group_id,))
+        conn.commit()
+
+        cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+        adder = _first(cursor.fetchone()["name"])
+        background.add_task(_push_many, [
+            (uid, group["name"], f"{adder} added you to {group['name']} on SideNote", {"kind": "group_expense", "group_id": group_id})
+            for uid in valid
+        ])
+        return {"message": "Members added", "added": len(valid)}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.put("/me/upi-id")
+def set_upi_id(payload: UpiPayload, user_id: int = Depends(get_current_user)):
+    """The UPI ID friends pay when settling up with you"""
+    upi = (payload.upi_id or "").strip() or None
+    if upi and not UPI_PATTERN.match(upi):
+        raise HTTPException(status_code=400, detail="That doesn't look like a UPI ID (e.g. name@okaxis).")
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE users SET upi_id = %s WHERE id = %s", (upi, user_id))
+        conn.commit()
+        return {"upi_id": upi}
+    finally:
+        conn.close()
+
+
+@router.get("/me/upi-id")
+def get_upi_id(user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT upi_id FROM users WHERE id = %s", (user_id,))
+        row = cursor.fetchone()
+        return {"upi_id": row[0] if row else None}
+    finally:
+        conn.close()
+
+
+@router.post("/contacts/match")
+def match_contacts(payload: ContactMatchPayload, user_id: int = Depends(get_current_user)):
+    """Which of the caller's contacts use SideNote. The phone sends hashes of numbers, never the numbers."""
+    hashes = list({h.lower() for h in payload.hashes if re.fullmatch(r"[0-9a-fA-F]{64}", h)})
+    if not hashes:
+        return {"matches": []}
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        matches = []
+        for i in range(0, len(hashes), 500):
+            chunk = hashes[i:i + 500]
+            cursor.execute(f"""
+                SELECT id, name, profile_pic, SHA2(RIGHT(REGEXP_REPLACE(mobile, '[^0-9]', ''), 10), 256) AS hash
+                FROM users
+                WHERE mobile IS NOT NULL AND id != %s
+                  AND SHA2(RIGHT(REGEXP_REPLACE(mobile, '[^0-9]', ''), 10), 256) IN ({','.join(['%s'] * len(chunk))})
+            """, (user_id, *chunk))
+            matches.extend({"hash": r["hash"], "user_id": r["id"], "name": r["name"], "profile_pic": r["profile_pic"]} for r in cursor.fetchall())
+        return {"matches": matches}
     finally:
         conn.close()

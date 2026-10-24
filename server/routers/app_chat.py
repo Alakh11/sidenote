@@ -9,6 +9,7 @@ from whatsapp_service import (
 )
 from bot_handlers import process_whatsapp_text, process_whatsapp_interactive
 from push_service import device_tokens, send_push
+from whatsapp_handlers.split_parser import amount_first
 import asyncio
 import json
 import logging
@@ -27,7 +28,7 @@ GROUP_QUERY_COMMANDS = {"total", "search", "find", "history", "undo", "today", "
 GROUP_HELP = (
     "👥 *Group chat commands*\n"
     "Everything here is for *{name}* only.\n\n"
-    "• `500 dinner` — split ₹500 equally\n"
+    "• `500 dinner` or `dinner 500` — split ₹500 equally\n"
     "• `500 dinner @ravi @neha` — split with only them\n"
     "• `900 cab 60% @ravi` — custom share\n"
     "• `600 movie exclude:me` — you paid, others share\n"
@@ -176,6 +177,9 @@ def _to_group_command(text: str, alias: str) -> Optional[str]:
         return f"new code {alias}"
     if lower.split()[0] in GROUP_QUERY_COMMANDS:
         return f"group @{alias} {lower}"
+    reordered = amount_first(text.strip())
+    if reordered:
+        return f"@{alias} {reordered}"
     return None
 
 
