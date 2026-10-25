@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Users, X, Settings, Edit2, LogOut, MessageCircle, AlertTriangle, CheckCircle2, ChevronLeft, Plus, RefreshCw } from 'lucide-react';
+import { Users, X, Settings, Edit2, LogOut, MessageCircle, AlertTriangle, CheckCircle2, ChevronLeft, Plus, RefreshCw, Mail, Archive, ArchiveRestore } from 'lucide-react';
 import GroupHeader from '../Groups/components/GroupHeader';
 import GroupTabs from '../Groups/components/GroupsTab';
 import GroupFeed from '../Groups/components/GroupFeed';
 import GroupSummary from '../Groups/components/GroupSummary';
 import GroupBalances from '../Groups/components/GroupBalances';
+import { upiPayLink, type GroupBalances as GroupBalancesData, type MemberBalance } from './groupLedger';
 import GroupMembers from '../Groups/components/GroupMembers';
 import { FeedSkeleton, BalancesSkeleton, SummarySkeleton, MembersSkeleton } from '../Groups/components/GroupSkeletons';
 import { usePreferences } from '../../context/PreferencesContext';
@@ -19,6 +20,11 @@ export interface Group {
   max_members: number;
   invite_code: string;
   invite_expires_at: string;
+  icon?: string | null;
+  archived?: boolean | number;
+  member_count?: number;
+  my_balance?: number | null;
+  last_activity?: { by: string; amount: number; description: string; date: string | null } | null;
 }
 
 export interface Member {
@@ -27,6 +33,7 @@ export interface Member {
   nickname: string | null;
   email: string;
   role: 'admin' | 'member';
+  upi_id?: string | null;
 }
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -58,7 +65,8 @@ export default function GroupDashboard() {
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean, message: string } | null>(null);
 
   // Settle Up Modal
-  const [settleModal, setSettleModal] = useState<{ isOpen: boolean, targetName: string, targetId: number, amount: number } | null>(null);
+  // Paying someone back: everything owed to a person, or one expense's share (txId)
+  const [settleModal, setSettleModal] = useState<{ isOpen: boolean, targetName: string, targetId: number, amount: number, txId?: number, upi?: string | null } | null>(null);
   const [settlePaymentMode, setSettlePaymentMode] = useState('UPI');
   const [settleAmountInput, setSettleAmountInput] = useState<string>('');
 
@@ -82,6 +90,42 @@ export default function GroupDashboard() {
 
   const selectedGroup = groups?.find((g: Group) => g.id === selectedGroupId);
 
+  const [listTab, setListTab] = useState<'mine' | 'invites' | 'archived'>('mine');
+  // Invites waiting for you (a member picked you from their contacts in the app)
+  const { data: invites } = useQuery({
+    queryKey: ['group-invites', user.id],
+    queryFn: async () => (await axios.get(`${API_URL}/me/group-invites`)).data,
+  });
+
+  const answerInvite = async (inv: any, action: 'accept' | 'decline') => {
+    try {
+      await axios.post(`${API_URL}/group-invites/${inv.id}/${action}`);
+      queryClient.invalidateQueries({ queryKey: ['group-invites', user.id] });
+      if (action === 'accept') {
+        await queryClient.invalidateQueries({ queryKey: ['groups', user.id] });
+        setListTab('mine');
+        setSelectedGroupId(inv.group_id);
+        setActiveTab('feed');
+      }
+    } catch (err: any) {
+      setAlertModal({ isOpen: true, message: err.response?.data?.detail || 'Could not answer the invite.' });
+    }
+  };
+
+  const toggleArchive = async () => {
+    if (!selectedGroup) return;
+    const archive = !Number(selectedGroup.archived);
+    try {
+      await axios.post(`${API_URL}/groups/${selectedGroup.id}/archive`, { archived: archive });
+      setIsSettingsOpen(false);
+      setSelectedGroupId(null);
+      setListTab(archive ? 'archived' : 'mine');
+      queryClient.invalidateQueries({ queryKey: ['groups', user.id] });
+    } catch (err: any) {
+      setAlertModal({ isOpen: true, message: err.response?.data?.detail || 'Failed to update the group.' });
+    }
+  };
+
   const { data: globalCategories } = useQuery({
     queryKey: ['categories', user.id],
     queryFn: async () => (await axios.get(`${API_URL}/categories/${user.id}`)).data
@@ -95,11 +139,26 @@ export default function GroupDashboard() {
     enabled: !!selectedGroupId && (activeTab === 'feed' || activeTab === 'summary'),
   });
 
-  const { data: settlements, isLoading: settlementsLoading } = useQuery({
+  const { data: settlements } = useQuery({
     queryKey: ['group-settlements', selectedGroupId],
     queryFn: async () => (await axios.get(`${API_URL}/groups/${selectedGroupId}/settlements`)).data,
     enabled: !!selectedGroupId && (activeTab === 'balances' || activeTab === 'feed'),
   });
+
+  // Each member's standing with you, pair by pair (Google Pay style)
+  const { data: balances, isLoading: balancesLoading } = useQuery<GroupBalancesData>({
+    queryKey: ['group-balances', selectedGroupId],
+    queryFn: async () => (await axios.get(`${API_URL}/groups/${selectedGroupId}/balances`)).data,
+    enabled: !!selectedGroupId,
+  });
+
+  const refreshGroupData = () => {
+    queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
+    queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
+          queryClient.invalidateQueries({ queryKey: ['group-balances', selectedGroupId] });
+    queryClient.invalidateQueries({ queryKey: ['group-balances', selectedGroupId] });
+    queryClient.invalidateQueries({ queryKey: ['groups', user.id] });
+  };
 
   const { data: members, isLoading: membersLoading } = useQuery({
     queryKey: ['group-members', selectedGroupId],
@@ -157,6 +216,7 @@ export default function GroupDashboard() {
           await axios.delete(`${API_URL}/groups/transactions/${txId}?user_id=${user.id}`);
           queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
           queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
+          queryClient.invalidateQueries({ queryKey: ['group-balances', selectedGroupId] });
         } catch (err) {
           setAlertModal({ isOpen: true, message: "Failed to delete transaction. You can only delete transactions you logged." });
         }
@@ -182,10 +242,49 @@ export default function GroupDashboard() {
     });
   };
 
-  const handleSettleUpClick = (targetId: number, targetName: string, settleAmount: number) => {
+  const upiOf = (id: number) => (members as Member[] | undefined)?.find((m) => m.id === id)?.upi_id ?? balances?.members.find((b) => b.user_id === id)?.upi_id ?? null;
+
+  const handleSettleUpClick = (b: MemberBalance) => {
     setSettlePaymentMode('UPI');
-    setSettleAmountInput(settleAmount.toString());
-    setSettleModal({ isOpen: true, targetName, targetId, amount: settleAmount });
+    setSettleAmountInput(Math.abs(b.net).toString());
+    setSettleModal({ isOpen: true, targetName: b.name, targetId: b.user_id, amount: Math.abs(b.net), upi: b.upi_id });
+  };
+
+  const handlePayShare = (tx: any, share: number) => {
+    setSettlePaymentMode('UPI');
+    setSettleAmountInput(share.toString());
+    setSettleModal({ isOpen: true, targetName: tx.paid_by, targetId: tx.paid_by_user_id, amount: share, txId: tx.id, upi: upiOf(tx.paid_by_user_id) });
+  };
+
+  const handleReceivedFromPerson = (b: MemberBalance) => {
+    setConfirmModal({
+      isOpen: true, title: 'Mark as received?', isDanger: false, actionText: 'Mark received',
+      message: `${b.name} paid you everything they owe here (${currency}${Math.abs(b.net).toLocaleString()}).`,
+      onConfirm: async () => {
+        try {
+          await axios.post(`${API_URL}/groups/${selectedGroupId}/settle`, { from_user_id: b.user_id, payment_mode: 'UPI' });
+          refreshGroupData();
+          setAlertModal({ isOpen: true, message: `Marked ${b.name}'s payment as received.` });
+        } catch (err: any) {
+          setAlertModal({ isOpen: true, message: err.response?.data?.detail || 'Failed to record the payment.' });
+        }
+      },
+    });
+  };
+
+  const handleShareReceived = (tx: any, debtorId: number, name: string, share: number) => {
+    setConfirmModal({
+      isOpen: true, title: 'Mark as received?', isDanger: false, actionText: 'Mark received',
+      message: `${name} paid you ${currency}${share.toLocaleString()} for ${tx.description}.`,
+      onConfirm: async () => {
+        try {
+          await axios.post(`${API_URL}/groups/transactions/${tx.id}/shares/${debtorId}/settle`, { payment_mode: 'UPI' });
+          refreshGroupData();
+        } catch (err: any) {
+          setAlertModal({ isOpen: true, message: err.response?.data?.detail || 'Failed to record the payment.' });
+        }
+      },
+    });
   };
 
   const inviteToApp = async (targetName: string) => {
@@ -248,21 +347,18 @@ export default function GroupDashboard() {
     const finalAmount = parseFloat(settleAmountInput);
     if (isNaN(finalAmount) || finalAmount <= 0) return setAlertModal({ isOpen: true, message: "Please enter a valid amount." });
 
+    if (finalAmount > settleModal.amount + 0.001) return setAlertModal({ isOpen: true, message: `You only owe ${currency}${settleModal.amount.toLocaleString()}.` });
+
     try {
-      await axios.post(`${API_URL}/groups/${selectedGroupId}/transactions`, {
-        amount: finalAmount,
-        description: 'Settlement',
-        user_id: user.id,
-        category_id: null,
-        payment_mode: settlePaymentMode,
-        split_type: 'settlement',
-        split_details: { [settleModal.targetId]: finalAmount }
-      });
+      if (settleModal.txId) {
+        await axios.post(`${API_URL}/groups/transactions/${settleModal.txId}/shares/${user.id}/settle`, { payment_mode: settlePaymentMode });
+      } else {
+        await axios.post(`${API_URL}/groups/${selectedGroupId}/settle`, { to_user_id: settleModal.targetId, amount: finalAmount, payment_mode: settlePaymentMode });
+      }
       setSettleModal(null);
-      queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
-      queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
-    } catch (err) {
-      setAlertModal({ isOpen: true, message: "Failed to log settlement." });
+      refreshGroupData();
+    } catch (err: any) {
+      setAlertModal({ isOpen: true, message: err.response?.data?.detail || "Failed to log settlement." });
     }
   };
   const handleEditTransaction = (tx: any) => {
@@ -402,6 +498,7 @@ export default function GroupDashboard() {
 
       queryClient.invalidateQueries({ queryKey: ['group-transactions', selectedGroupId] });
       queryClient.invalidateQueries({ queryKey: ['group-settlements', selectedGroupId] });
+          queryClient.invalidateQueries({ queryKey: ['group-balances', selectedGroupId] });
     } catch (err) {
       setAlertModal({ isOpen: true, message: "Failed to save transaction. Ensure server is online." });
     } finally {
@@ -554,13 +651,21 @@ export default function GroupDashboard() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1a1a1a] rounded-[2rem] w-full max-w-sm p-6 sm:p-8 shadow-2xl animate-in zoom-in-95 duration-200">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-1">Settle Up</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">You owe <strong>{settleModal.targetName}</strong> a total of {currency}{settleModal.amount.toLocaleString()}.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{settleModal.txId ? <>Your share for this expense, paid to <strong>{settleModal.targetName}</strong>.</> : <>You owe <strong>{settleModal.targetName}</strong> a total of {currency}{settleModal.amount.toLocaleString()}.</>}</p>
+            {settleModal.upi ? (
+              <a href={upiPayLink(settleModal.upi, settleModal.targetName, parseFloat(settleAmountInput) || settleModal.amount, `${selectedGroup?.name ?? 'SideNote'} settle up`)} className="block w-full text-center mb-4 py-3 rounded-xl font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                Pay {currency}{(parseFloat(settleAmountInput) || settleModal.amount).toLocaleString()} via UPI ({settleModal.upi})
+              </a>
+            ) : (
+              <p className="text-xs text-slate-400 mb-4">{settleModal.targetName} hasn't added a UPI ID yet. Pay them any way you like, then mark it as paid.</p>
+            )}
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Amount to Pay Now</label>
             <div className="relative mb-5">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xl">{currency}</span>
               <input 
                 type="number" 
                 step="0.01" 
+                disabled={!!settleModal.txId}
                 value={settleAmountInput} 
                 onChange={(e) => setSettleAmountInput(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-2xl text-slate-900 dark:text-white font-black outline-none focus:border-blue-500 transition-colors" 
@@ -611,36 +716,95 @@ export default function GroupDashboard() {
             
           </div>
 
-          {!groups || groups.length === 0 ? (
-            <div className="bg-white dark:bg-[#1a1a1a] p-10 rounded-[2rem] border border-stone-100 dark:border-white/5 text-center shadow-sm mt-4">
-              <Users className="w-16 h-16 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No Groups Yet</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Create a group or ask a friend for an invite code.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {groups.map((g: Group) => (
-                <button
-                  key={g.id}
-                  onClick={() => { setSelectedGroupId(g.id); setActiveTab('feed'); setPage(1); }}
-                  className="flex items-center justify-between p-5 rounded-3xl bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 shadow-sm hover:shadow-md hover:border-blue-100 dark:hover:border-white/10 transition-all group text-left"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full bg-slate-50 dark:bg-white/5 flex items-center justify-center text-xl shadow-inner group-hover:scale-105 transition-transform">
-                      {g.type === 'family' ? '🏡' : g.type === 'split' ? '✂️' : '👥'}
+          <div className="flex gap-2 mb-5 px-1">
+            {([
+              { key: 'mine', label: 'My Groups', Icon: Users, count: 0 },
+              { key: 'invites', label: 'Invites', Icon: Mail, count: invites?.length ?? 0 },
+              { key: 'archived', label: 'Archived', Icon: Archive, count: 0 },
+            ] as const).map(({ key, label, Icon, count }) => (
+              <button key={key} onClick={() => setListTab(key)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-bold border transition-colors ${listTab === key ? 'bg-[#25D366] border-[#25D366] text-white' : 'bg-white dark:bg-[#1a1a1a] border-stone-200 dark:border-white/10 text-slate-600 dark:text-slate-300'}`}>
+                <Icon size={16} /> {label}
+                {count > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] flex items-center justify-center">{count}</span>}
+              </button>
+            ))}
+          </div>
+
+          {listTab === 'invites' ? (
+            !invites || invites.length === 0 ? (
+              <div className="bg-white dark:bg-[#1a1a1a] p-10 rounded-[2rem] border border-stone-100 dark:border-white/5 text-center shadow-sm">
+                <Mail className="w-14 h-14 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">No invites</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">When someone invites you to a group, it shows up here.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {invites.map((inv: any) => (
+                  <div key={inv.id} className="p-5 rounded-3xl bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-xl">{inv.icon || (inv.type === 'family' ? '🏡' : inv.type === 'couple' ? '❤️' : '🧾')}</div>
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white truncate">{inv.group_name}</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{String(inv.inviter_name).split(' ')[0]} invited you · {inv.member_count} member{inv.member_count === 1 ? '' : 's'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{g.name}</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 capitalize">{g.type} • {g.max_members} limit</p>
+                    <div className="flex gap-3 mt-4">
+                      <button onClick={() => answerInvite(inv, 'decline')} className="flex-1 py-2.5 rounded-xl font-bold bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-300">Decline</button>
+                      <button onClick={() => answerInvite(inv, 'accept')} className="flex-1 py-2.5 rounded-xl font-bold bg-[#25D366] hover:bg-[#1EA952] text-white">Join group</button>
                     </div>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    <ChevronLeft size={20} className="rotate-180" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )
+          ) : (() => {
+            const list = (groups ?? []).filter((g: Group) => (listTab === 'archived') === !!Number(g.archived));
+            if (list.length === 0) {
+              return (
+                <div className="bg-white dark:bg-[#1a1a1a] p-10 rounded-[2rem] border border-stone-100 dark:border-white/5 text-center shadow-sm">
+                  {listTab === 'archived' ? <Archive className="w-14 h-14 text-slate-200 dark:text-slate-700 mx-auto mb-4" /> : <Users className="w-16 h-16 text-slate-200 dark:text-slate-700 mx-auto mb-4" />}
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{listTab === 'archived' ? 'Nothing archived' : 'No Groups Yet'}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{listTab === 'archived' ? 'Archive a group from its settings to tidy your list. You can bring it back any time.' : 'Create a group, or accept an invite from the Invites tab.'}</p>
+                </div>
+              );
+            }
+            return (
+              <div className="flex flex-col gap-4">
+                {list.map((g: Group) => {
+                  const bal = g.my_balance;
+                  const last = g.last_activity;
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => { setSelectedGroupId(g.id); setActiveTab('feed'); setPage(1); }}
+                      className="p-5 rounded-3xl bg-white dark:bg-[#1a1a1a] border border-stone-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all text-left"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-2xl shrink-0">
+                          {g.icon || (g.type === 'family' ? '🏡' : g.type === 'couple' ? '❤️' : '🧾')}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-bold text-slate-800 dark:text-white truncate">{g.name}</h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{g.member_count ? `${g.member_count} member${g.member_count === 1 ? '' : 's'}` : g.type}</p>
+                        </div>
+                        {bal != null && (Math.abs(bal) >= 0.01 ? (
+                          <div className="text-right shrink-0">
+                            <div className={`font-black text-lg ${bal > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{currency}{Math.abs(bal).toLocaleString()}</div>
+                            <div className="text-xs text-slate-500">{bal > 0 ? "You're owed" : 'You owe'}</div>
+                          </div>
+                        ) : <div className="text-xs text-slate-500 shrink-0">Settled up</div>)}
+                        <ChevronLeft size={20} className="rotate-180 text-slate-400 shrink-0" />
+                      </div>
+                      {last && (
+                        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-stone-100 dark:border-white/5 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="flex-1 truncate">{last.by} added {currency}{Number(last.amount).toLocaleString()} for {last.description}</span>
+                          {last.date && <span className="shrink-0">{new Date(last.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       ) : (
 
@@ -665,7 +829,7 @@ export default function GroupDashboard() {
           {selectedGroup && (
             <>
               <div className="mb-2">
-                <GroupHeader group={selectedGroup} settlements={settlements} totalSpend={settlements?.total_spend || 0} members={members} currentUserId={user.id} />
+                <GroupHeader group={selectedGroup} settlements={settlements} totalSpend={settlements?.total_spend || 0} members={members} currentUserId={user.id} balance={balances ? balances.you_are_owed - balances.you_owe : undefined} />
               </div>
 
               <GroupTabs activeTab={activeTab} setActiveTab={setActiveTab} isSplit={selectedGroup.type === 'split'} />
@@ -689,14 +853,18 @@ export default function GroupDashboard() {
                     onEditTransaction={handleEditTransaction} 
                     onDeleteTransaction={handleDeleteTransaction}
                     actualMemberCount={members?.length || 1} 
+                    members={members}
+                    onPayShare={handlePayShare}
+                    onShareReceived={handleShareReceived}
+                    onRemind={handleRemindClick}
                   />
                 )}
                 {activeTab === 'balances' && (
-                  settlementsLoading ? <BalancesSkeleton /> : 
+                  balancesLoading ? <BalancesSkeleton /> : 
                   <GroupBalances 
-                    settlements={settlements} 
-                    currentUserId={user.id}
+                    balances={balances}
                     onSettle={handleSettleUpClick} 
+                    onReceived={handleReceivedFromPerson}
                     onRemind={handleRemindClick}
                   />
                 )}
@@ -875,6 +1043,10 @@ export default function GroupDashboard() {
                   <button onClick={() => { setActiveTab('members'); setIsSettingsOpen(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-700 dark:text-slate-200 font-medium text-left mt-2">
                     <div className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Users size={18} /></div>
                     Manage Members & Invites
+                  </button>
+                  <button onClick={toggleArchive} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors text-slate-700 dark:text-slate-200 font-medium text-left mt-2">
+                    <div className="p-2.5 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 rounded-xl">{Number(selectedGroup?.archived) ? <ArchiveRestore size={18} /> : <Archive size={18} />}</div>
+                    {Number(selectedGroup?.archived) ? 'Unarchive Group' : 'Archive Group'}
                   </button>
 
                   <div className="px-4 py-2 mt-6 text-[10px] font-bold text-rose-400/70 uppercase tracking-wider mb-2">Danger Zone</div>

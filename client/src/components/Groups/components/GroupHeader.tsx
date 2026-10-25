@@ -2,19 +2,23 @@ import { Users, Home, Scissors, ArrowUpRight, ArrowDownRight, CheckCircle2 } fro
 import { usePreferences } from '../../../context/PreferencesContext';
 
 interface GroupHeaderProps {
-  group: { name: string; type: string; max_members: number };
+  group: { name: string; type: string; max_members: number; icon?: string | null };
   settlements: { settlements: any[]; total_spend: number } | null;
   totalSpend: number;
   members: { id: number; name: string; email: string }[];
   currentUserId: number;
+  /** Your net balance from the per-person ledger (positive: you're owed); overrides the old estimate */
+  balance?: number;
 }
 
-export default function GroupHeader({ group, settlements, totalSpend, members, currentUserId }: GroupHeaderProps) {
+export default function GroupHeader({ group, settlements, totalSpend, members, currentUserId, balance }: GroupHeaderProps) {
   const { currency } = usePreferences();
   const isSplit = group.type === 'split';
 
   let userBalance = 0;
-  if (isSplit && settlements?.settlements) {
+  if (balance !== undefined) {
+    userBalance = balance;
+  } else if (isSplit && settlements?.settlements) {
     settlements.settlements.forEach((s: any) => {
       if (s.from_id === currentUserId) userBalance -= s.amount;
       if (s.to_id === currentUserId) userBalance += s.amount;
@@ -22,6 +26,7 @@ export default function GroupHeader({ group, settlements, totalSpend, members, c
   }
 
   const getGroupIcon = () => {
+    if (group.icon) return <span className="text-lg leading-none">{group.icon}</span>;
     if (group.type === 'family') return <Home className="w-5 h-5" />;
     if (group.type === 'split') return <Scissors className="w-5 h-5" />;
     return <Users className="w-5 h-5" />;

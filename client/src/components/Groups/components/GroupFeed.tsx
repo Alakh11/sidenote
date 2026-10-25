@@ -1,4 +1,6 @@
-import { Divide, Percent, ArrowUpRight, ChevronLeft, ChevronRight, Trash2, ReceiptText, Edit2 } from 'lucide-react';
+import { useState } from 'react';
+import { Divide, Percent, ArrowUpRight, ChevronLeft, ChevronRight, Trash2, ReceiptText, Edit2, Check, Clock, Bell, ChevronDown, ChevronUp } from 'lucide-react';
+import { paidSharesOf, sharesOf } from '../groupLedger';
 import { usePreferences } from '../../../context/PreferencesContext';
 
 export interface Transaction {
@@ -10,6 +12,7 @@ export interface Transaction {
   paid_by_user_id: number;
   split_type: string;
   split_details?: any;
+  settled_shares?: any;
   payment_mode?: string;
   category_id?: number;
   category?: string;
@@ -29,6 +32,10 @@ interface GroupFeedProps {
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction?: (txId: number) => void;
   actualMemberCount: number;
+  members?: { id: number; name: string }[];
+  onPayShare?: (tx: Transaction, amount: number) => void;
+  onShareReceived?: (tx: Transaction, debtorId: number, name: string, amount: number) => void;
+  onRemind?: (targetId: number, targetName: string, amount: number) => void;
 }
 
 const groupTransactionsByDate = (transactions: Transaction[]) => {
@@ -54,9 +61,13 @@ const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join
 
 export default function GroupFeed({ 
   transactions, group, currentUserId, page, setPage, limit, onLimitChange, 
-  hasMore, onLogTransaction, onEditTransaction, onDeleteTransaction, actualMemberCount
+  hasMore, onLogTransaction, onEditTransaction, onDeleteTransaction, actualMemberCount,
+  members = [], onPayShare, onShareReceived, onRemind
 }: GroupFeedProps) {
   const { currency } = usePreferences();
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const memberIds = members.map((m) => m.id);
+  const nameOf = (id: number) => (id === currentUserId ? 'You' : members.find((m) => m.id === id)?.name ?? 'Former member');
   const groupedTxns = groupTransactionsByDate(transactions || []);
   const isSplit = group?.type === 'split';
 
@@ -135,11 +146,35 @@ export default function GroupFeed({
                                  : <><Divide size={10}/> EQ · {actualMemberCount}</>}
                               </div>
                               
-                              {t.paid_by_user_id !== currentUserId && t.split_type === 'equal' && (
-                                <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-900/30 px-2 py-1 rounded uppercase tracking-wider">
-                                  You owe {currency}{Math.round(t.amount / (actualMemberCount || 1)).toLocaleString()}
-                                </div>
-                              )}
+                              {(() => {
+                                if (t.split_type === 'settlement') return null;
+                                const shares = sharesOf(t, memberIds);
+                                const paid = paidSharesOf(t);
+                                const myShare = shares[currentUserId] ?? 0;
+                                const owers = Object.keys(shares).map(Number).filter((id) => id !== t.paid_by_user_id && shares[id] > 0);
+                                if (t.paid_by_user_id !== currentUserId) {
+                                  if (!(myShare > 0)) return null;
+                                  return paid.has(currentUserId) ? (
+                                    <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/20 dark:border-emerald-900/30 px-2 py-1 rounded uppercase tracking-wider">
+                                      <Check size={10} /> You paid {currency}{myShare.toLocaleString()}
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 dark:text-rose-400 dark:bg-rose-900/20 dark:border-rose-900/30 px-2 py-1 rounded uppercase tracking-wider">
+                                        You owe {currency}{myShare.toLocaleString()}
+                                      </div>
+                                      {onPayShare && <button onClick={() => onPayShare(t, myShare)} className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded-md">Pay</button>}
+                                    </>
+                                  );
+                                }
+                                if (owers.length === 0) return null;
+                                const done = owers.filter((id) => paid.has(id)).length;
+                                return (
+                                  <button onClick={() => setExpanded(expanded === t.id ? null : t.id)} className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border ${done === owers.length ? 'text-emerald-600 bg-emerald-50 border-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/20 dark:border-emerald-900/30' : 'text-amber-600 bg-amber-50 border-amber-100 dark:text-amber-400 dark:bg-amber-900/20 dark:border-amber-900/30'}`}>
+                                    {done} of {owers.length} paid {expanded === t.id ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                                  </button>
+                                );
+                              })()}
                             </>
                           )}
                         </div>
@@ -168,6 +203,29 @@ export default function GroupFeed({
 
                       </div>
                     )}
+
+                    {/* The payer sees who has paid them back for this expense */}
+                    {expanded === t.id && t.paid_by_user_id === currentUserId && (() => {
+                      const shares = sharesOf(t, memberIds);
+                      const paid = paidSharesOf(t);
+                      const owers = Object.keys(shares).map(Number).filter((id) => id !== t.paid_by_user_id && shares[id] > 0);
+                      return (
+                        <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 space-y-2">
+                          {owers.map((id) => {
+                            const done = paid.has(id);
+                            return (
+                              <div key={id} className="flex items-center gap-2 text-sm">
+                                {done ? <Check size={14} className="text-emerald-500" /> : <Clock size={14} className="text-amber-500" />}
+                                <span className="flex-1 font-semibold text-slate-700 dark:text-slate-200 truncate">{nameOf(id)}</span>
+                                <span className={`font-black ${done ? 'text-emerald-600' : 'text-slate-800 dark:text-white'}`}>{currency}{shares[id].toLocaleString()}</span>
+                                {!done && onRemind && <button onClick={() => onRemind(id, nameOf(id), shares[id])} title="Remind" className="p-1.5 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/20"><Bell size={12} /></button>}
+                                {!done && onShareReceived && <button onClick={() => onShareReceived(t, id, nameOf(id), shares[id])} title="Mark as paid" className="p-1.5 rounded-md bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20"><Check size={12} /></button>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
