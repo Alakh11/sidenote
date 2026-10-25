@@ -80,3 +80,19 @@ def test_paying_a_person_marks_their_shares_paid_oldest_first():
 ])
 def test_group_messages_accept_the_amount_after_the_description(text, expected):
     assert amount_first(text) == expected
+
+
+def test_group_list_overview_shows_balance_and_latest_activity(monkeypatch):
+    import sys
+    from unittest.mock import MagicMock
+    for name in ("firebase_admin", "firebase_admin.messaging", "whatsapp_service", "whatsapp_handlers.search_handlers",
+                 "whatsapp_handlers.groups_search", "whatsapp_handlers.bot_utils"):
+        sys.modules.setdefault(name, MagicMock())
+    import routers.groups as groups
+    from datetime import datetime
+    txs = [dict(expense(10, B, 300, {"1": 150, "2": 150}), description="Dinner", logged_at=datetime(2026, 10, 2))]
+    monkeypatch.setattr(groups.group_ledger, "load_group", lambda cursor, gid: (MEMBERS[:2], txs))
+    view = groups._group_overview(None, 5, A, "split")
+    assert view["member_count"] == 2 and view["member_names"] == ["Bala"]
+    assert view["my_balance"] == -150
+    assert view["last_activity"]["by"] == "Bala" and view["last_activity"]["description"] == "Dinner"

@@ -84,7 +84,7 @@ A: Yes. Create a Shared Space and mention it in messages, e.g. "@goatrip 1200 di
 ## Links
 
 - Home: https://www.sidenote.in/
-- Shared Spaces: https://www.sidenote.in/campaign-pages/groups/
+- Shared Spaces: https://www.sidenote.in/feature/groups/
 - FAQ: https://www.sidenote.in/faq/
 - Help Center: https://www.sidenote.in/help/
 - Start on WhatsApp: https://wa.me/918796022992

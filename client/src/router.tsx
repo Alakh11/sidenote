@@ -277,8 +277,15 @@ const helpRoute = createRoute({
 
 const groupsCampaignRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/campaign-pages/groups',
+  path: '/feature/groups',
   component: SharedSpacesCampaign,
+});
+const legacyGroupsCampaignRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/campaign-pages/groups',
+  beforeLoad: () => {
+    throw redirect({ to: '/feature/groups', replace: true });
+  },
 });
 
 const loginRoute = createRoute({
@@ -378,6 +385,7 @@ const routeTree = rootRoute.addChildren([
   privacyRoute,
   helpRoute,
   groupsCampaignRoute,
+  legacyGroupsCampaignRoute,
   authRoute.addChildren([
     dashboardRoute,
     transactionsRoute,

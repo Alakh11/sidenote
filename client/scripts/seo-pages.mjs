@@ -6,7 +6,7 @@ const SITE = 'https://www.sidenote.in';
 const pages = [
   { path: '/faq/', title: 'FAQ | SideNote WhatsApp Expense Tracker', description: 'Answers to common questions about SideNote: logging expenses on WhatsApp, summaries, Shared Spaces, privacy and pricing.' },
   { path: '/help/', title: 'Help & Commands | SideNote', description: 'How to use SideNote: every WhatsApp command for logging expenses, income, summaries, budgets and Shared Spaces.' },
-  { path: '/campaign-pages/groups/', title: 'Shared Spaces | Split Group Expenses on WhatsApp | SideNote', description: 'Track and settle shared expenses with friends, flatmates and trips right inside WhatsApp. Free with SideNote.' },
+  { path: '/feature/groups/', title: 'Shared Spaces | Split Group Expenses on WhatsApp | SideNote', description: 'Track and settle shared expenses with friends, flatmates and trips right inside WhatsApp. Free with SideNote.' },
   { path: '/privacy/', title: 'Privacy Policy | SideNote', description: 'How SideNote collects, stores and protects your data. We never access your bank and never sell your data.' },
   { path: '/terms/', title: 'Terms of Service | SideNote', description: 'The terms that apply when you use SideNote, the WhatsApp expense tracker.' },
 ];

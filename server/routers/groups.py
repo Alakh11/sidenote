@@ -76,6 +76,30 @@ def _first(name: Optional[str]) -> str:
     return (name or "Someone").split()[0]
 
 
+def _group_overview(cursor, group_id: int, user_id: int, group_type: str) -> dict:
+    """What the group list shows: members, the caller's balance, and the latest activity"""
+    members, transactions = group_ledger.load_group(cursor, group_id)
+    overview: dict = {
+        "member_count": len(members),
+        "member_names": [m["name"] for m in members if m["id"] != user_id][:3],
+        "my_balance": None,
+        "last_activity": None,
+    }
+    if group_type == "split" and members:
+        overview["my_balance"] = group_ledger.balances_for(user_id, members, transactions)
+        overview["my_balance"] = overview["my_balance"]["you_are_owed"] - overview["my_balance"]["you_owe"]
+    latest = next((t for t in reversed(transactions) if t["split_type"] != "settlement"), None)
+    if latest:
+        names = {m["id"]: m["name"] for m in members}
+        overview["last_activity"] = {
+            "by": "You" if latest["logged_by"] == user_id else _first(names.get(latest["logged_by"])),
+            "amount": float(latest["amount"]),
+            "description": latest["description"],
+            "date": latest["logged_at"].isoformat() if latest.get("logged_at") else None,
+        }
+    return overview
+
+
 def _require_member(cursor, group_id: int, user_id: int) -> None:
     cursor.execute("SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
     if not cursor.fetchone():
@@ -283,7 +307,13 @@ def get_user_groups(user_id: int):
             WHERE gm.user_id = %s
             ORDER BY g.created_at DESC
         """, (user_id,))
-        return cursor.fetchall()
+        groups = cursor.fetchall()
+        for g in groups:
+            try:
+                g.update(_group_overview(cursor, g["id"], user_id, g["type"]))
+            except Exception as e:
+                print(f"Group overview failed for {g['id']}: {e}")
+        return groups
     except Exception as e:
         print(f"Error fetching groups: {e}")
         return []

@@ -13,7 +13,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback_super_secret_key_for_local_dev")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or ""
+if len(SECRET_KEY) < 16:
+    raise RuntimeError("JWT_SECRET_KEY is missing or too short (use 32+ random characters). Set it in the environment.")
 ALGORITHM = "HS256"
 META_APP_SECRET = os.getenv("META_APP_SECRET")
 

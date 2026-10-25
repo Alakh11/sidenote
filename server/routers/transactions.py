@@ -97,7 +97,8 @@ def get_all_transactions(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     sort_by: str = Query("date"),
-    sort_order: str = Query("DESC")
+    sort_order: str = Query("DESC"),
+    with_months: bool = Query(False),
 ):
     try:
         conn = get_db()
@@ -180,15 +181,32 @@ def get_all_transactions(
         
         cursor.execute(data_query, data_params)
         transactions = cursor.fetchall()
-        
+
+        months = None
+        if with_months:
+            cursor.execute(f"""
+                SELECT DATE_FORMAT(t.date, '%Y-%m') AS month, COUNT(*) AS count,
+                       COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) AS spent,
+                       COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) AS earned
+                FROM transactions t
+                LEFT JOIN categories c ON t.category_id = c.id
+                WHERE {where_sql}
+                GROUP BY month
+                ORDER BY month {sort_dir}
+            """, params)
+            months = cursor.fetchall()
+
         conn.close()
         
-        return {
+        result = {
             "data": transactions,
             "total_pages": total_pages,
             "total_count": total_count,
             "current_page": page
         }
+        if months is not None:
+            result["months"] = months
+        return result
         
     except Exception as e:
         logger.error(f"Transaction List Error: {e}")
