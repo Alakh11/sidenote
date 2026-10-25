@@ -124,7 +124,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 // The code also goes to this email, in case WhatsApp can't deliver it
                 email: formData.email.trim()
             });
-            setSuccessMsg(res.data?.message || "OTP / Case ID sent to your WhatsApp!");
+            setSuccessMsg(res.data?.message || "OTP sent to your email/WhatsApp!");
             setAuthStep('otp');
         } else {
             const res = await axios.post(`${API_URL}/auth/login`, { contact: targetMobile, password: formData.password });
@@ -180,7 +180,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
           const res = await axios.post(`${API_URL}/auth/link-mobile/request`, { mobile: targetMobile }, {
               headers: { Authorization: `Bearer ${tempToken}` }
           });
-          setSuccessMsg(res.data?.message || "Verification code / Case ID sent to WhatsApp!");
+          setSuccessMsg(res.data?.message || "OTP sent to your email/WhatsApp!");
           setAuthStep('link_mobile_otp');
       } catch (err: any) {
           setError(err.response?.data?.detail || "Failed to send code.");

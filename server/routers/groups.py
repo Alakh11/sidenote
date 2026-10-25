@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from typing import Dict, List, Optional, Any
 from database import get_db
 import asyncio, random, re, string, json
+from datetime import datetime
 from pydantic import BaseModel, Field
 from security import get_current_user
 from push_service import device_tokens, send_push
@@ -293,6 +294,7 @@ def get_user_groups(user_id: int):
                 g.type, 
                 g.max_members,
                 g.icon,
+                gm.archived_at IS NOT NULL AS archived,
                 COALESCE(
                     (SELECT code FROM invite_codes ic 
                      WHERE ic.group_id = g.id AND ic.expires_at > NOW() 
@@ -376,6 +378,14 @@ def create_group_transaction(group_id: int, payload: GroupTransactionCreate, bac
         conn.commit()
         if payload.split_type != 'settlement':
             background.add_task(_push_many, _expense_pushes(cursor, group_id, payload.user_id, payload.amount, payload.description, payload.split_details))
+        else:
+            cursor.execute("SELECT g.name AS group_name, u.name AS payer FROM expense_groups g, users u WHERE g.id = %s AND u.id = %s", (group_id, payload.user_id))
+            row = cursor.fetchone()
+            if row:
+                background.add_task(_push_many, [
+                    (int(uid), row["group_name"], f"{_first(row['payer'])} marked ₹{float(amt):g} as paid to you", {"kind": "group_expense", "group_id": group_id})
+                    for uid, amt in (payload.split_details or {}).items() if int(uid) != payload.user_id
+                ])
         return {"message": "Transaction logged successfully"}
     except Exception as e:
         conn.rollback()
@@ -782,8 +792,8 @@ def settle_share(tx_id: int, debtor_id: int, payload: ShareSettlePayload, backgr
         cursor.execute("SELECT name FROM expense_groups WHERE id = %s", (tx["group_id"],))
         group_name = cursor.fetchone()["name"]
         amount = group_ledger.from_paise(share)
-        other, body = (creditor, f"{_first(names.get(debtor_id))} paid you ₹{amount:g} for {tx['description']}") if user_id == debtor_id \
-            else (debtor_id, f"{_first(names.get(creditor))} marked your ₹{amount:g} for {tx['description']} as received")
+        other, body = (creditor, f"{_first(names.get(debtor_id))} marked ₹{amount:g} for {tx['description']} as paid to you") if user_id == debtor_id \
+            else (debtor_id, f"{_first(names.get(creditor))} marked your ₹{amount:g} for {tx['description']} as paid")
         background.add_task(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": tx["group_id"]})])
         return {"message": "Marked as paid", "amount": amount}
     except HTTPException:
@@ -825,8 +835,8 @@ def settle_with_member(group_id: int, payload: SettlePayload, background: Backgr
         cursor.execute("SELECT name FROM expense_groups WHERE id = %s", (group_id,))
         group_name = cursor.fetchone()["name"]
         amount = group_ledger.from_paise(paise)
-        other, body = (creditor, f"{_first(names.get(debtor))} paid you ₹{amount:g}") if user_id == debtor \
-            else (debtor, f"{_first(names.get(creditor))} marked ₹{amount:g} from you as received")
+        other, body = (creditor, f"{_first(names.get(debtor))} marked ₹{amount:g} as paid to you") if user_id == debtor \
+            else (debtor, f"{_first(names.get(creditor))} marked your ₹{amount:g} as paid")
         background.add_task(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": group_id})])
         return {"message": "Settled", "amount": amount, "remaining": group_ledger.from_paise(owed - paise)}
     except HTTPException:
@@ -840,8 +850,9 @@ def settle_with_member(group_id: int, payload: SettlePayload, background: Backgr
 
 
 @router.post("/groups/{group_id}/members")
-def add_group_members(group_id: int, payload: AddMembersPayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
-    """Adds SideNote users found in the caller's contacts straight into the group"""
+def invite_group_members(group_id: int, payload: AddMembersPayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    """Invites SideNote users (found in the caller's contacts) to the group. They get a notification
+    and see it under Invites; they join only if they accept."""
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -850,31 +861,111 @@ def add_group_members(group_id: int, payload: AddMembersPayload, background: Bac
         group = cursor.fetchone()
         cursor.execute("SELECT user_id FROM group_members WHERE group_id = %s", (group_id,))
         existing = {r["user_id"] for r in cursor.fetchall()}
-        new_ids = [uid for uid in dict.fromkeys(payload.user_ids) if uid not in existing]
-        if len(existing) + len(new_ids) > group["max_members"]:
+        cursor.execute("SELECT invitee_id FROM group_invites WHERE group_id = %s AND status = 'pending'", (group_id,))
+        pending = {r["invitee_id"] for r in cursor.fetchall()}
+        new_ids = [uid for uid in dict.fromkeys(payload.user_ids) if uid not in existing and uid not in pending and uid != user_id]
+        if len(existing) + len(pending) + len(new_ids) > group["max_members"]:
             raise HTTPException(status_code=400, detail=f"This group allows {group['max_members']} members.")
         if not new_ids:
-            return {"message": "Already in the group", "added": 0}
+            return {"message": "Already invited or in the group", "invited": 0}
         cursor.execute(f"SELECT id FROM users WHERE id IN ({','.join(['%s'] * len(new_ids))})", tuple(new_ids))
         valid = [r["id"] for r in cursor.fetchall()]
         for uid in valid:
-            cursor.execute("INSERT IGNORE INTO group_members (group_id, user_id, role) VALUES (%s, %s, 'member')", (group_id, uid))
-        cursor.execute("UPDATE expense_groups SET status = 'active' WHERE id = %s", (group_id,))
+            cursor.execute("INSERT INTO group_invites (group_id, inviter_id, invitee_id) VALUES (%s, %s, %s)", (group_id, user_id, uid))
         conn.commit()
 
         cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
-        adder = _first(cursor.fetchone()["name"])
+        inviter = _first(cursor.fetchone()["name"])
         background.add_task(_push_many, [
-            (uid, group["name"], f"{adder} added you to {group['name']} on SideNote", {"kind": "group_expense", "group_id": group_id})
+            (uid, "Group invite", f"{inviter} invited you to join {group['name']} on SideNote", {"kind": "group_invite", "group_id": group_id})
             for uid in valid
         ])
-        return {"message": "Members added", "added": len(valid)}
+        return {"message": "Invites sent", "invited": len(valid)}
     except HTTPException:
         conn.rollback()
         raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.get("/me/group-invites")
+def my_group_invites(user_id: int = Depends(get_current_user)):
+    """Invites waiting for the caller to accept or decline"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT gi.id, gi.group_id, gi.created_at, g.name AS group_name, g.type, g.icon,
+                   u.name AS inviter_name,
+                   (SELECT COUNT(*) FROM group_members gm WHERE gm.group_id = g.id) AS member_count
+            FROM group_invites gi
+            JOIN expense_groups g ON g.id = gi.group_id
+            JOIN users u ON u.id = gi.inviter_id
+            WHERE gi.invitee_id = %s AND gi.status = 'pending'
+            ORDER BY gi.created_at DESC
+        """, (user_id,))
+        return cursor.fetchall()
+    finally:
+        conn.close()
+
+
+@router.post("/group-invites/{invite_id}/{action}")
+def respond_to_invite(invite_id: int, action: str, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    """Accept (join the group) or decline an invite"""
+    if action not in ("accept", "decline"):
+        raise HTTPException(status_code=404, detail="Not found")
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT gi.*, g.name AS group_name, g.max_members FROM group_invites gi
+            JOIN expense_groups g ON g.id = gi.group_id
+            WHERE gi.id = %s AND gi.invitee_id = %s FOR UPDATE
+        """, (invite_id, user_id))
+        invite = cursor.fetchone()
+        if not invite or invite["status"] != "pending":
+            raise HTTPException(status_code=404, detail="This invite is no longer available.")
+        if action == "accept":
+            cursor.execute("SELECT COUNT(*) AS n FROM group_members WHERE group_id = %s", (invite["group_id"],))
+            if cursor.fetchone()["n"] >= invite["max_members"]:
+                raise HTTPException(status_code=400, detail="This group is full.")
+            cursor.execute("INSERT IGNORE INTO group_members (group_id, user_id, role) VALUES (%s, %s, 'member')", (invite["group_id"], user_id))
+            cursor.execute("UPDATE expense_groups SET status = 'active' WHERE id = %s", (invite["group_id"],))
+        cursor.execute("UPDATE group_invites SET status = %s, responded_at = NOW() WHERE id = %s",
+                       ("accepted" if action == "accept" else "declined", invite_id))
+        conn.commit()
+
+        if action == "accept":
+            cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+            joiner = _first(cursor.fetchone()["name"])
+            background.add_task(_push_many, [(invite["inviter_id"], invite["group_name"],
+                f"{joiner} accepted your invite and joined {invite['group_name']}", {"kind": "group_expense", "group_id": invite["group_id"]})])
+        return {"message": "Joined the group" if action == "accept" else "Invite declined", "group_id": invite["group_id"]}
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+class ArchivePayload(BaseModel):
+    archived: bool
+
+
+@router.post("/groups/{group_id}/archive")
+def archive_group(group_id: int, payload: ArchivePayload, user_id: int = Depends(get_current_user)):
+    """Moves the group to (or out of) the caller's Archived tab. Only for them: others still see it."""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        _require_member(cursor, group_id, user_id)
+        cursor.execute("UPDATE group_members SET archived_at = %s WHERE group_id = %s AND user_id = %s",
+                       (datetime.now() if payload.archived else None, group_id, user_id))
+        conn.commit()
+        return {"archived": payload.archived}
     finally:
         conn.close()
 

@@ -70,11 +70,9 @@ async def check_geo_status(request: Request):
         
     return {"allowed": True, "country": "Unknown", "ip": client_ip}
 
-def otp_sent_message(channels: list[str]) -> str:
-    if channels == ["whatsapp", "email"]:
-        return "OTP sent to your WhatsApp and email!"
-    if channels == ["email"]:
-        return "OTP sent to your email!"
+def otp_sent_message(channels: list[str], email: Optional[str] = None) -> str:
+    if (email and "@" in email) or "email" in channels:
+        return "OTP sent to your email/WhatsApp!"
     return "OTP sent to your WhatsApp!"
 
 
@@ -180,7 +178,7 @@ async def register(payload: RegisterPayload):
         
         conn.commit()
             
-        return {"message": otp_sent_message(channels), "channels": channels}
+        return {"message": otp_sent_message(channels, payload.contact if payload.contact_type == 'email' else signup_email), "channels": channels}
         
     except Exception as e:
         conn.rollback()
@@ -370,7 +368,7 @@ async def reset_password(data: ResetPassword):
         channels = await generate_and_send_otp(cursor, target_mobile, user['name'], user.get('email'))
         
         conn.commit()
-        return {"message": otp_sent_message(channels), "channels": channels}
+        return {"message": otp_sent_message(channels, user.get('email')), "channels": channels}
 
     except Exception as e:
         conn.rollback()
@@ -530,7 +528,7 @@ async def request_link_mobile(data: LinkMobileRequest, user_id: int = Depends(ge
         channels = await generate_and_send_otp(cursor, data.mobile, user_name, user_row.get('email'))
         conn.commit()
         
-        return {"message": otp_sent_message(channels), "channels": channels}
+        return {"message": otp_sent_message(channels, user_row.get('email')), "channels": channels}
     except Exception as e:
         conn.rollback()
         if isinstance(e, HTTPException): raise e

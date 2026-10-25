@@ -21,7 +21,10 @@ def run(phone_result, email_ok, email="a@b.in"):
 
 def test_code_goes_to_whatsapp_and_email():
     assert run({"status": "success"}, True) == ["whatsapp", "email"]
-    assert auth.otp_sent_message(["whatsapp", "email"]) == "OTP sent to your WhatsApp and email!"
+    assert auth.otp_sent_message(["whatsapp", "email"]) == "OTP sent to your email/WhatsApp!"
+    # Email on file but it failed to send (or is still on its way): still name both
+    assert auth.otp_sent_message(["whatsapp"], "a@b.in") == "OTP sent to your email/WhatsApp!"
+    assert auth.otp_sent_message(["whatsapp"], None) == "OTP sent to your WhatsApp!"
 
 
 def test_email_still_works_when_whatsapp_fails():

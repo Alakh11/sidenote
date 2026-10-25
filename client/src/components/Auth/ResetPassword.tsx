@@ -88,7 +88,7 @@ export default function ResetPassword() {
                   contact: targetMobile,
                   new_password: formData.newPassword
               });
-              setSuccessMsg(res.data?.message || "Verification code sent to your WhatsApp!");
+              setSuccessMsg(res.data?.message || "OTP sent to your email/WhatsApp!");
               setStep('otp');
           } catch (err: any) {
               setError(err.response?.data?.detail || "Details do not match any account.");

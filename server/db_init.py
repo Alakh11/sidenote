@@ -526,7 +526,22 @@ def initialize_database():
                 uploaded_by INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB;
+            """,
             """
+            CREATE TABLE IF NOT EXISTS group_invites (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                group_id INT NOT NULL,
+                inviter_id INT NOT NULL,
+                invitee_id INT NOT NULL,
+                status ENUM('pending', 'accepted', 'declined') NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                responded_at TIMESTAMP NULL DEFAULT NULL,
+                INDEX idx_invitee_status (invitee_id, status),
+                FOREIGN KEY (group_id) REFERENCES expense_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (inviter_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (invitee_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
         ]
 
         logger.info(f"Executing {len(queries)} table creation queries...")
@@ -545,6 +560,7 @@ def initialize_database():
             ("group_transactions", "settled_shares", "JSON NULL"),
             ("users", "upi_id", "VARCHAR(100) NULL"),
             ("expense_groups", "icon", "VARCHAR(32) CHARACTER SET utf8mb4 NULL"),
+            ("group_members", "archived_at", "TIMESTAMP NULL DEFAULT NULL"),
         ]
         for table, column, definition in added_columns:
             cursor.execute("""
