@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 import re
 from typing import Optional
 import firebase_admin
@@ -80,3 +81,17 @@ def send_push(user_id: int, title: str, body: str, data: Optional[dict] = None) 
         finally:
             conn.close()
     return sum(1 for r in responses if r.success)
+
+_push_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="push")
+
+
+def _run_safely(fn, *args) -> None:
+    try:
+        fn(*args)
+    except Exception as e:
+        logger.error(f"Background push failed: {e}")
+
+
+def push_later(fn, *args) -> None:
+    """Runs fn(*args) (usually a push send) without making the request wait for it"""
+    _push_pool.submit(_run_safely, fn, *args)

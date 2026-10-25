@@ -5,7 +5,7 @@ import asyncio, random, re, string, json
 from datetime import datetime
 from pydantic import BaseModel, Field
 from security import get_current_user
-from push_service import device_tokens, send_push
+from push_service import device_tokens, push_later, send_push
 from whatsapp_service import send_whatsapp_text
 import group_ledger
 from whatsapp_handlers.bot_utils import extract_transaction_details, match_category_from_text
@@ -377,12 +377,12 @@ def create_group_transaction(group_id: int, payload: GroupTransactionCreate, bac
         """, (group_id, payload.amount, payload.description, payload.user_id, payload.split_type, payload.category_id, payload.payment_mode, details_json))
         conn.commit()
         if payload.split_type != 'settlement':
-            background.add_task(_push_many, _expense_pushes(cursor, group_id, payload.user_id, payload.amount, payload.description, payload.split_details))
+            push_later(_push_many, _expense_pushes(cursor, group_id, payload.user_id, payload.amount, payload.description, payload.split_details))
         else:
             cursor.execute("SELECT g.name AS group_name, u.name AS payer FROM expense_groups g, users u WHERE g.id = %s AND u.id = %s", (group_id, payload.user_id))
             row = cursor.fetchone()
             if row:
-                background.add_task(_push_many, [
+                push_later(_push_many, [
                     (int(uid), row["group_name"], f"{_first(row['payer'])} marked ₹{float(amt):g} as paid to you", {"kind": "group_expense", "group_id": group_id})
                     for uid, amt in (payload.split_details or {}).items() if int(uid) != payload.user_id
                 ])
@@ -426,7 +426,7 @@ def quick_add_group_transaction(group_id: int, payload: GroupQuickAddPayload, ba
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (group_id, amount, desc, payload.user_id, split_type, category_id, payment_mode, details_json))
         conn.commit()
-        background.add_task(_push_many, _expense_pushes(cursor, group_id, payload.user_id, amount, desc, shares))
+        push_later(_push_many, _expense_pushes(cursor, group_id, payload.user_id, amount, desc, shares))
         
         return {
             "message": "Transaction logged via AI text parsing!", 
@@ -794,7 +794,7 @@ def settle_share(tx_id: int, debtor_id: int, payload: ShareSettlePayload, backgr
         amount = group_ledger.from_paise(share)
         other, body = (creditor, f"{_first(names.get(debtor_id))} marked ₹{amount:g} for {tx['description']} as paid to you") if user_id == debtor_id \
             else (debtor_id, f"{_first(names.get(creditor))} marked your ₹{amount:g} for {tx['description']} as paid")
-        background.add_task(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": tx["group_id"]})])
+        push_later(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": tx["group_id"]})])
         return {"message": "Marked as paid", "amount": amount}
     except HTTPException:
         conn.rollback()
@@ -837,7 +837,7 @@ def settle_with_member(group_id: int, payload: SettlePayload, background: Backgr
         amount = group_ledger.from_paise(paise)
         other, body = (creditor, f"{_first(names.get(debtor))} marked ₹{amount:g} as paid to you") if user_id == debtor \
             else (debtor, f"{_first(names.get(creditor))} marked your ₹{amount:g} as paid")
-        background.add_task(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": group_id})])
+        push_later(_push_many, [(other, group_name, body, {"kind": "group_expense", "group_id": group_id})])
         return {"message": "Settled", "amount": amount, "remaining": group_ledger.from_paise(owed - paise)}
     except HTTPException:
         conn.rollback()
@@ -876,7 +876,7 @@ def invite_group_members(group_id: int, payload: AddMembersPayload, background: 
 
         cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
         inviter = _first(cursor.fetchone()["name"])
-        background.add_task(_push_many, [
+        push_later(_push_many, [
             (uid, "Group invite", f"{inviter} invited you to join {group['name']} on SideNote", {"kind": "group_invite", "group_id": group_id})
             for uid in valid
         ])
@@ -941,7 +941,7 @@ def respond_to_invite(invite_id: int, action: str, background: BackgroundTasks, 
         if action == "accept":
             cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
             joiner = _first(cursor.fetchone()["name"])
-            background.add_task(_push_many, [(invite["inviter_id"], invite["group_name"],
+            push_later(_push_many, [(invite["inviter_id"], invite["group_name"],
                 f"{joiner} accepted your invite and joined {invite['group_name']}", {"kind": "group_expense", "group_id": invite["group_id"]})])
         return {"message": "Joined the group" if action == "accept" else "Invite declined", "group_id": invite["group_id"]}
     except HTTPException:
@@ -993,7 +993,7 @@ def transfer_group_admin(group_id: int, payload: TransferAdminPayload, backgroun
         cursor.execute("SELECT g.name AS group_name, u.name AS my_name FROM expense_groups g, users u WHERE g.id = %s AND u.id = %s", (group_id, user_id))
         row = cursor.fetchone()
         if row:
-            background.add_task(_push_many, [(payload.new_admin_id, row["group_name"],
+            push_later(_push_many, [(payload.new_admin_id, row["group_name"],
                 f"{_first(row['my_name'])} made you the admin of {row['group_name']}", {"kind": "group_expense", "group_id": group_id})])
         return {"message": "Admin role transferred"}
     except HTTPException:

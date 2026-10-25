@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from typing import Any, Optional
 from pydantic import BaseModel
 from security import get_current_user
-from push_service import send_push
+from push_service import push_later, send_push
 from database import get_db
 from schemas import (
     GoalCreate, GoalUpdate, LoanCreate, LoanUpdate, 
@@ -436,7 +436,7 @@ def link_loan_lender(loan_id: int, payload: LinkPersonPayload, background: Backg
         conn.commit()
         if payload.user_id:
             owner = _first_name(cursor, user_id)
-            background.add_task(_notify, payload.user_id, "Loan shared with you",
+            push_later(_notify, payload.user_id, "Loan shared with you",
                                 f"{owner} added you as the lender for \"{loan['name']}\". See its repayments in Loan Tracker.", "shared_loan")
         return {"lender_user_id": payload.user_id}
     finally:
@@ -458,7 +458,7 @@ def link_borrower(borrower_id: int, payload: LinkPersonPayload, background: Back
         conn.commit()
         if payload.user_id:
             owner = _first_name(cursor, user_id)
-            background.add_task(_notify, payload.user_id, "Shared with you",
+            push_later(_notify, payload.user_id, "Shared with you",
                                 f"{owner} shared what you've borrowed and repaid. See it in Debts Tracker.", "shared_debt")
         return {"linked_user_id": payload.user_id}
     finally:

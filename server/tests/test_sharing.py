@@ -16,16 +16,17 @@ def call(monkeypatch, fn, row, **kwargs):
     conn = MagicMock()
     conn.cursor.return_value = cursor
     monkeypatch.setattr(features, "get_db", lambda: conn)
-    background = MagicMock()
-    return fn(background=background, **kwargs), cursor, background
+    pushed = MagicMock()
+    monkeypatch.setattr(features, "push_later", pushed)
+    return fn(background=MagicMock(), **kwargs), cursor, pushed
 
 
 def test_owner_can_link_a_loan_to_the_lender_who_is_notified(monkeypatch):
-    result, cursor, background = call(monkeypatch, features.link_loan_lender, {"id": 3, "name": "Car", "user_id": 1},
+    result, cursor, pushed = call(monkeypatch, features.link_loan_lender, {"id": 3, "name": "Car", "user_id": 1},
                                       loan_id=3, payload=features.LinkPersonPayload(user_id=2), user_id=1)
     assert result == {"lender_user_id": 2}
     assert any("UPDATE loans SET lender_user_id" in str(c) for c in cursor.execute.call_args_list)
-    assert background.add_task.called
+    assert pushed.called
 
 
 @pytest.mark.parametrize("fn,kw", [
@@ -39,6 +40,6 @@ def test_only_the_owner_can_link(monkeypatch, fn, kw):
 
 
 def test_unlinking_sends_no_notification(monkeypatch):
-    _, _, background = call(monkeypatch, features.link_borrower, {"id": 3, "name": "Ravi", "user_id": 1},
+    _, _, pushed = call(monkeypatch, features.link_borrower, {"id": 3, "name": "Ravi", "user_id": 1},
                             borrower_id=3, payload=features.LinkPersonPayload(user_id=None), user_id=1)
-    assert not background.add_task.called
+    assert not pushed.called
