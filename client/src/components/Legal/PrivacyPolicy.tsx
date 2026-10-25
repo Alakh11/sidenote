@@ -7,7 +7,7 @@ import { Link } from '@tanstack/react-router';
 
 export default function PrivacyPolicy() {
   const effectiveDate = "April 29, 2026";
-  const lastUpdated = "April 29, 2026";
+  const lastUpdated = "October 25, 2026";
 
   const sections = [
     {
@@ -16,8 +16,8 @@ export default function PrivacyPolicy() {
       icon: FileText,
       color: "text-blue-500",
       bg: "bg-blue-50 dark:bg-blue-900/20",
-      content: "This Privacy Policy explains how SideNote (“we”, “us”, or “our”) collects, uses, stores, and protects your personal data when you use our WhatsApp-based expense tracking service and web dashboard available at sidenote.in.",
-      extra: "This policy is provided in accordance with the Digital Personal Data Protection Act, 2023 and the Information Technology Act, 2000. By using SideNote, you agree to the practices described in this policy."
+      content: "This Privacy Policy explains how SideNote (“we”, “us”, or “our”) collects, uses, stores, and protects your personal data when you use our WhatsApp-based expense tracking service, the SideNote mobile app and the web dashboard available at sidenote.in.",
+      extra: "This policy is provided in accordance with the Digital Personal Data Protection Act, 2023 and the Information Technology Act, 2000. By using SideNote, you agree to the practices described in this policy. When you sign up on the website or in the app you tick a box to agree to this Privacy Policy and our Terms; on WhatsApp you tap “I agree”. That one consent covers the website, the mobile app and WhatsApp, and we keep a record of when you gave it and which version. You can withdraw consent at any time by deleting your account from Settings."
     },
     {
       id: 2,

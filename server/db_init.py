@@ -561,6 +561,10 @@ def initialize_database():
             ("users", "upi_id", "VARCHAR(100) NULL"),
             ("expense_groups", "icon", "VARCHAR(32) CHARACTER SET utf8mb4 NULL"),
             ("group_members", "archived_at", "TIMESTAMP NULL DEFAULT NULL"),
+            ("users", "consented_at", "TIMESTAMP NULL DEFAULT NULL"),
+            ("users", "consent_version", "VARCHAR(20) NULL"),
+            ("borrowers", "linked_user_id", "INT NULL"),
+            ("loans", "lender_user_id", "INT NULL"),
         ]
         for table, column, definition in added_columns:
             cursor.execute("""

@@ -50,3 +50,17 @@ def test_nothing_delivered_is_an_error():
 ])
 def test_new_password_rules(password, ok):
     assert (auth.password_problem(password) is None) == ok
+
+
+def test_signup_needs_the_terms_box(monkeypatch):
+    cursor = MagicMock()
+    cursor.fetchone.return_value = None
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    monkeypatch.setattr(auth, "get_db", lambda: conn)
+    monkeypatch.setattr(auth, "is_country_allowed", lambda *a: True)
+    payload = auth.RegisterPayload(name="Asha", contact="919999999999", password="Secret#123", contact_type="mobile", email="a@b.in")
+    with pytest.raises(HTTPException) as err:
+        asyncio.run(auth.register(payload))
+    assert err.value.status_code == 400 and "Terms" in err.value.detail
+    assert not any("INSERT INTO users" in str(c) for c in cursor.execute.call_args_list)

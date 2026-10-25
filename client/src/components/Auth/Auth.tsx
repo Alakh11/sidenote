@@ -31,6 +31,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   const [countryCode, setCountryCode] = useState('91');
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', contact: '', password: '', otp: '' });
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [tempToken, setTempToken] = useState('');
   const [tempUser, setTempUser] = useState<any>(null);
 
@@ -75,8 +76,9 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
 
     const isNameValid = mode === 'signup' ? formData.name.trim().length > 0 : true;
     const isEmailValid = mode === 'signup' ? EMAIL_PATTERN.test(formData.email.trim()) : true;
+    const isTermsAccepted = mode === 'signup' ? acceptTerms : true;
 
-    return isContactValid && isPasswordValid && isNameValid && isEmailValid;
+    return isContactValid && isPasswordValid && isNameValid && isEmailValid && isTermsAccepted;
   };
 
   const validateForm = () => {
@@ -94,6 +96,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         if (!/[!@#$%^&*(),.?":{}|<>\-_]/.test(pw)) return "Password must contain at least 1 special character.";
         if (!formData.name.trim()) return "Full Name is required for verification.";
         if (!EMAIL_PATTERN.test(formData.email.trim())) return "Please enter a valid email address.";
+        if (!acceptTerms) return "Please accept the Terms & Conditions and Privacy Policy to create your account.";
     }
     return null; 
   };
@@ -122,7 +125,8 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                 password: formData.password,
                 contact_type: 'mobile',
                 // The code also goes to this email, in case WhatsApp can't deliver it
-                email: formData.email.trim()
+                email: formData.email.trim(),
+                accept_terms: acceptTerms
             });
             setSuccessMsg(res.data?.message || "OTP sent to your email/WhatsApp!");
             setAuthStep('otp');
@@ -304,6 +308,16 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                             </button>
                         </div>
                     </div>
+
+                    {mode === 'signup' && (
+                        <label className="flex items-start gap-3 mt-3 md:mt-4 cursor-pointer">
+                            <input type="checkbox" disabled={isGeoBlocked} className="mt-1 w-4 h-4 accent-[#25D366]" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} />
+                            <span className="text-xs md:text-sm text-slate-500 dark:text-slate-400">
+                                I agree to the <Link to="/terms" target="_blank" className="font-bold text-[#25D366] hover:underline">Terms &amp; Conditions</Link> and{' '}
+                                <Link to="/privacy" target="_blank" className="font-bold text-[#25D366] hover:underline">Privacy Policy</Link> for the SideNote website, app and WhatsApp.
+                            </span>
+                        </label>
+                    )}
 
                     {mode === 'login' && (
                         <div className="mt-2.5 md:mt-3 text-right">

@@ -1,5 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Any
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from typing import Any, Optional
+from pydantic import BaseModel
+from security import get_current_user
+from push_service import send_push
 from database import get_db
 from schemas import (
     GoalCreate, GoalUpdate, LoanCreate, LoanUpdate, 
@@ -132,7 +135,11 @@ def add_loan(loan: LoanCreate):
 def get_loans(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM loans WHERE user_id = %s", (user_id,))
+    cursor.execute("""
+        SELECT l.*, lu.name AS lender_name FROM loans l
+        LEFT JOIN users lu ON lu.id = l.lender_user_id
+        WHERE l.user_id = %s
+    """, (user_id,))
     loans: list[Any] = cursor.fetchall()
     
     today = datetime.now(IST).date()
@@ -207,7 +214,11 @@ def get_debt_dashboard(user_id: int):
 def get_borrowers(user_id: int):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM borrowers WHERE user_id = %s ORDER BY last_activity DESC", (user_id,)) # SQL Update
+    cursor.execute("""
+        SELECT b.*, lu.name AS linked_name FROM borrowers b
+        LEFT JOIN users lu ON lu.id = b.linked_user_id
+        WHERE b.user_id = %s ORDER BY b.last_activity DESC
+    """, (user_id,))
     borrowers: list[Any] = cursor.fetchall()
     conn.close()
     return borrowers
@@ -385,5 +396,122 @@ def delete_borrower(id: int):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+# ================= SHARING (optional) =================
+# A loan can be linked to the SideNote account of whoever lent it, and a borrower in the Debts
+# tracker to the account of the person who borrowed. They then see, read-only, what has been paid
+# and what is left. Only the owner of the record can link or unlink.
+
+class LinkPersonPayload(BaseModel):
+    user_id: Optional[int] = None
+
+
+def _notify(user_id: int, title: str, body: str, kind: str) -> None:
+    try:
+        send_push(user_id, title, body, {"kind": kind})
+    except Exception as e:
+        logger.warning(f"Share push failed for {user_id}: {e}")
+
+
+def _first_name(cursor, user_id: int) -> str:
+    cursor.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+    row = cursor.fetchone()
+    return ((row or {}).get("name") or "Someone").split()[0]
+
+
+@router.put("/loans/{loan_id}/lender")
+def link_loan_lender(loan_id: int, payload: LinkPersonPayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, name, user_id FROM loans WHERE id = %s", (loan_id,))
+        loan = cursor.fetchone()
+        if not loan or loan["user_id"] != user_id:
+            raise HTTPException(status_code=404, detail="Loan not found.")
+        if payload.user_id == user_id:
+            raise HTTPException(status_code=400, detail="You can't share a loan with yourself.")
+        cursor.execute("UPDATE loans SET lender_user_id = %s WHERE id = %s", (payload.user_id, loan_id))
+        conn.commit()
+        if payload.user_id:
+            owner = _first_name(cursor, user_id)
+            background.add_task(_notify, payload.user_id, "Loan shared with you",
+                                f"{owner} added you as the lender for \"{loan['name']}\". See its repayments in Loan Tracker.", "shared_loan")
+        return {"lender_user_id": payload.user_id}
+    finally:
+        conn.close()
+
+
+@router.put("/debts/borrowers/{borrower_id}/link")
+def link_borrower(borrower_id: int, payload: LinkPersonPayload, background: BackgroundTasks, user_id: int = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, name, user_id FROM borrowers WHERE id = %s", (borrower_id,))
+        borrower = cursor.fetchone()
+        if not borrower or borrower["user_id"] != user_id:
+            raise HTTPException(status_code=404, detail="Person not found.")
+        if payload.user_id == user_id:
+            raise HTTPException(status_code=400, detail="You can't link yourself.")
+        cursor.execute("UPDATE borrowers SET linked_user_id = %s WHERE id = %s", (payload.user_id, borrower_id))
+        conn.commit()
+        if payload.user_id:
+            owner = _first_name(cursor, user_id)
+            background.add_task(_notify, payload.user_id, "Shared with you",
+                                f"{owner} shared what you've borrowed and repaid. See it in Debts Tracker.", "shared_debt")
+        return {"linked_user_id": payload.user_id}
+    finally:
+        conn.close()
+
+
+@router.get("/me/shared/loans")
+def loans_shared_with_me(user_id: int = Depends(get_current_user)):
+    """Loans where the caller is the lender: the borrower's repayment progress"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT l.*, u.name AS owner_name FROM loans l JOIN users u ON u.id = l.user_id
+            WHERE l.lender_user_id = %s ORDER BY l.start_date DESC
+        """, (user_id,))
+        loans: list[Any] = cursor.fetchall()
+        today = datetime.now(IST).date()
+        for loan in loans:
+            start = loan['start_date'] if isinstance(loan['start_date'], date) else datetime.strptime(str(loan['start_date'])[:10], '%Y-%m-%d').date()
+            tenure = int(loan['tenure_months'])
+            emi = float(loan['emi_amount'])
+            progress = loan_progress(start, tenure, today)
+            loan.update(progress)
+            loan['amount_paid'] = emi * progress['months_paid']
+            loan['amount_remaining'] = emi * tenure - loan['amount_paid']
+            loan['progress'] = loan['amount_paid'] / (emi * tenure) * 100 if emi * tenure > 0 else 0
+            loan.pop('lender_user_id', None)
+        return loans
+    finally:
+        conn.close()
+
+
+@router.get("/me/shared/debts")
+def debts_shared_with_me(user_id: int = Depends(get_current_user)):
+    """What the caller borrowed from people who track it in SideNote, and what they've repaid"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT b.id, b.total_lent, b.total_repaid, b.current_balance, b.last_activity, u.name AS owner_name
+            FROM borrowers b JOIN users u ON u.id = b.user_id
+            WHERE b.linked_user_id = %s ORDER BY b.last_activity DESC
+        """, (user_id,))
+        people: list[Any] = cursor.fetchall()
+        for p in people:
+            cursor.execute("SELECT id, amount, amount_repaid, date, due_date, reason, status FROM debts WHERE borrower_id = %s ORDER BY date DESC", (p["id"],))
+            p["debts"] = cursor.fetchall()
+            cursor.execute("""
+                SELECT r.amount, r.date, r.mode, d.reason FROM repayments r JOIN debts d ON d.id = r.debt_id
+                WHERE d.borrower_id = %s ORDER BY r.date DESC
+            """, (p["id"],))
+            p["repayments"] = cursor.fetchall()
+        return people
     finally:
         conn.close()

@@ -17,6 +17,8 @@ from email_service import send_otp_email
 from utils import get_client_ip, fetch_geoip_data, get_allowed_countries_from_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+# Bump when the Terms or Privacy Policy change in a way people must agree to again
+POLICY_VERSION = "2026-10-25"
 EMAIL_PATTERN = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[A-Za-z]{2,}$")
 
 
@@ -43,6 +45,8 @@ class RegisterPayload(BaseModel):
     extra_mobile: Optional[str] = None
     # Mobile signups also give an email, so the code can go there if WhatsApp delivery fails
     email: Optional[str] = None
+    # The sign-up checkbox: agrees to the Terms and Privacy Policy (covers web, app and WhatsApp)
+    accept_terms: bool = False
 
 class VerifyOTP(BaseModel):
     contact: str
@@ -131,6 +135,8 @@ async def register(payload: RegisterPayload):
         
         existing_user: dict[str, Any] = raw_user or {} # type: ignore
 
+        if not payload.accept_terms:
+            raise HTTPException(status_code=400, detail="Please accept the Terms & Conditions and Privacy Policy to create an account.")
         problem = password_problem(payload.password)
         if problem:
             raise HTTPException(status_code=400, detail=problem)
@@ -170,6 +176,11 @@ async def register(payload: RegisterPayload):
             user_id = cursor.lastrowid
             if user_id:
                 create_default_categories(int(user_id), cursor)
+
+        cursor.execute(
+            f"UPDATE users SET has_consented = TRUE, consented_at = NOW(), consent_version = %s WHERE {field} = %s",
+            (POLICY_VERSION, payload.contact),
+        )
 
         channels: list[str] = []
         if target_mobile:
@@ -222,7 +233,8 @@ def verify_otp(data: VerifyOTP):
                 "email": user_db.get('email'),
                 "mobile": user_db.get('mobile'),
                 "picture": user_db.get('profile_pic') or "",
-                "role": user_db.get('role', 'user')
+                "role": user_db.get('role', 'user'),
+                "has_consented": bool(user_db.get('has_consented'))
             }
         }
     except Exception as e:
@@ -260,7 +272,8 @@ def login(data: UserLogin):
                 "email": user['email'],
                 "mobile": user['mobile'],
                 "picture": user['profile_pic'] or "",
-                "role": user.get('role', 'user')
+                "role": user.get('role', 'user'),
+                "has_consented": bool(user.get('has_consented'))
             }
         }
     finally:
@@ -307,7 +320,8 @@ def google_login(data: GoogleAuth):
                 "email": user['email'],
                 "mobile": user.get('mobile'),
                 "picture": user['profile_pic'],
-                "role": user.get('role', 'user')
+                "role": user.get('role', 'user'),
+                "has_consented": bool(user.get('has_consented'))
             }
         }
     except Exception as e:
@@ -588,7 +602,8 @@ def verify_link_mobile(data: LinkMobileVerify, user_id: int = Depends(get_curren
                 "email": user_db.get('email'),
                 "mobile": user_db.get('mobile'),
                 "picture": user_db.get('profile_pic') or "",
-                "role": user_db.get('role', 'user')
+                "role": user_db.get('role', 'user'),
+                "has_consented": bool(user_db.get('has_consented'))
             }
         }
     except Exception as e:
@@ -626,5 +641,38 @@ def soft_delete_account(user_id: int = Depends(get_current_user)):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.get("/consent")
+def get_consent(user_id: int = Depends(get_current_user)):
+    """Whether the signed-in user has agreed to the Terms and Privacy Policy (shared with WhatsApp)"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT has_consented, consented_at, consent_version FROM users WHERE id = %s", (user_id,))
+        row: Any = cursor.fetchone() or {}
+        return {
+            "has_consented": bool(row.get("has_consented")),
+            "consented_at": row["consented_at"].isoformat() if row.get("consented_at") else None,
+            "version": row.get("consent_version"),
+            "current_version": POLICY_VERSION,
+        }
+    finally:
+        conn.close()
+
+
+@router.post("/consent")
+def give_consent(user_id: int = Depends(get_current_user)):
+    """Records agreement to the Terms and Privacy Policy, for web, app and WhatsApp alike"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE users SET has_consented = TRUE, consented_at = NOW(), consent_version = %s WHERE id = %s",
+            (POLICY_VERSION, user_id),
+        )
+        conn.commit()
+        return {"has_consented": True, "version": POLICY_VERSION}
     finally:
         conn.close()

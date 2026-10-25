@@ -5,6 +5,7 @@ import {
    ChevronRight, Trophy, Sun, Moon, UserPen, Repeat, Settings, ReceiptIndianRupee, HandCoins, Users 
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import ConsentGate from './Legal/ConsentGate';
 import Logo from './Logo';
 import WhatsAppButton from './WhatsAppButton';
 import Footer from './Footer/Footer';
@@ -85,6 +86,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen flex bg-[#F3F4F6] dark:bg-slate-950 transition-colors duration-300 font-sans">
+      <ConsentGate onSignOut={handleLogout} />
       
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-72 fixed h-full z-30 pl-4 py-2">

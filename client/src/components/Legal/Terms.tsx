@@ -7,7 +7,7 @@ import { Link } from '@tanstack/react-router';
 
 export default function TermsAndConditions() {
   const effectiveDate = "April 29, 2026";
-  const lastUpdated = "April 29, 2026";
+  const lastUpdated = "October 25, 2026";
 
   const terms = [
     {
@@ -20,7 +20,9 @@ export default function TermsAndConditions() {
         <>
           These Terms and Conditions (“Terms”) constitute a legally binding agreement between you (“User”) and SideNote (“we”, “us”, or “our”), a sole proprietorship based in Noida, Uttar Pradesh, India.
           <br /><br />
-          By using SideNote via WhatsApp or the web dashboard at sidenote.in, you agree to be bound by these Terms. If you do not agree, you must not use the service.
+          By using SideNote via WhatsApp, the mobile app or the web dashboard at sidenote.in, you agree to be bound by these Terms. If you do not agree, you must not use the service.
+          <br /><br />
+          You accept these Terms, together with our Privacy Policy, by ticking the box when you sign up on the website or in the app, by tapping “I agree” on WhatsApp, or by continuing to use the service. One acceptance covers every way you use SideNote: the website at sidenote.in, the SideNote mobile app, and SideNote on WhatsApp. We record when you accepted and which version you accepted, and we will ask again if these Terms change in a way that needs your agreement.
         </>
       )
     },
