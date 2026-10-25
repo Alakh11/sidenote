@@ -13,7 +13,7 @@ Key facts:
 ## Pages
 
 - [Home](https://www.sidenote.in/): what SideNote is and how logging on WhatsApp works
-- [Shared Spaces (groups)](https://www.sidenote.in/campaign-pages/groups/): splitting and sharing expenses with a group
+- [Shared Spaces (groups)](https://www.sidenote.in/feature/groups/): splitting and sharing expenses with a group
 - [FAQ](https://www.sidenote.in/faq/): common questions
 - [Help Center](https://www.sidenote.in/help/): guides and support
 
