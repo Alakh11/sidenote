@@ -56,7 +56,8 @@ export default function PrivacyPolicy() {
       bullets: [
         "Provided: WhatsApp phone number and Expense entries",
         "Automated: IP address, browser details, session logs, timestamps",
-        "NOT Collected: Bank accounts, SMS logs, Contacts, Location"
+        "Only when you use them (mobile app): contact numbers are checked as one-way hashes to find friends on SideNote (never stored); receipt photos and voice are read on your phone and only the text is sent",
+        "NOT Collected: Bank accounts, SMS logs, Location, your contact list or photo library"
       ]
     },
     {
