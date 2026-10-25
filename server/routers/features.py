@@ -7,6 +7,8 @@ from schemas import (
 )
 from utils import calculate_interest
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
+import calendar
 import logging
 
 router = APIRouter(tags=["Features (Goals, Loans, Debts)"])
@@ -92,6 +94,20 @@ def get_goal_history(id: int):
 
 # ================= LOANS =================
 
+IST = ZoneInfo("Asia/Kolkata")
+
+
+def emi_due_date(start: date, k: int) -> date:
+    month_index = start.month - 1 + k
+    year, month = start.year + month_index // 12, month_index % 12 + 1
+    return date(year, month, min(start.day, calendar.monthrange(year, month)[1]))
+
+
+def loan_progress(start: date, tenure_months: int, today: date) -> dict:
+    paid = sum(1 for k in range(1, tenure_months + 1) if emi_due_date(start, k) <= today)
+    next_due = emi_due_date(start, paid + 1) if paid < tenure_months else None
+    return {"months_paid": paid, "next_emi_date": next_due.isoformat() if next_due else None}
+
 @router.post("/loans")
 def add_loan(loan: LoanCreate):
     conn = get_db()
@@ -119,16 +135,16 @@ def get_loans(user_id: int):
     cursor.execute("SELECT * FROM loans WHERE user_id = %s", (user_id,))
     loans: list[Any] = cursor.fetchall()
     
+    today = datetime.now(IST).date()
     for loan in loans:
-        start = datetime.strptime(str(loan['start_date']), '%Y-%m-%d')
-        now = datetime.now()
-        months_passed = (now.year - start.year) * 12 + (now.month - start.month)
+        start = loan['start_date'] if isinstance(loan['start_date'], date) else datetime.strptime(str(loan['start_date'])[:10], '%Y-%m-%d').date()
         tenure_months = int(loan['tenure_months'])
         emi_amount = float(loan['emi_amount'])
-        
-        months_passed = max(0, min(months_passed, tenure_months))
-        loan['months_paid'] = months_passed
-        loan['amount_paid'] = emi_amount * months_passed
+        progress = loan_progress(start, tenure_months, today)
+
+        loan['months_paid'] = progress['months_paid']
+        loan['next_emi_date'] = progress['next_emi_date']
+        loan['amount_paid'] = emi_amount * progress['months_paid']
         loan['amount_remaining'] = (emi_amount * tenure_months) - loan['amount_paid']
         loan['progress'] = (loan['amount_paid'] / (emi_amount * tenure_months)) * 100 if (emi_amount * tenure_months) > 0 else 0
         

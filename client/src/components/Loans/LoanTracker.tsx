@@ -124,17 +124,16 @@ export default function LoanTracker() {
   // 3. Generate Loan Schedule (Paid vs Pending)
   const getSchedule = (loan: any) => {
       const schedule = [];
-      const startDate = new Date(loan.start_date);
-      const today = new Date();
+      const [y, m, d] = String(loan.start_date).slice(0, 10).split('-').map(Number);
 
       for (let i = 0; i < loan.tenure_months; i++) {
-          const emiDate = new Date(startDate);
-          emiDate.setMonth(startDate.getMonth() + i);
+          const lastDay = new Date(y, m + i + 1, 0).getDate();
+          const emiDate = new Date(y, m + i, Math.min(d, lastDay));
           
-          const isPaid = emiDate < today;
+          const isPaid = i + 1 <= loan.months_paid;
           schedule.push({
               number: i + 1,
-              date: emiDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+              date: emiDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
               amount: loan.emi_amount,
               status: isPaid ? 'Paid' : 'Pending'
           });
